@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "novel-writer-ai",
+	"name": "Novel Writer AI",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
+	"description": "A novel AI like plugin for Obsidian that helps you write better and faster. It can generate text, summarize, and even help you brainstorm ideas.",
+	"author": "Desolaser",
+	"authorUrl": "https://github.com/desolaser",
 	"fundingUrl": "https://obsidian.md/pricing",
 	"isDesktopOnly": false
 }

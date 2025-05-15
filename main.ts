@@ -2,20 +2,25 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Set
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
+interface WriterAIPluginSettings {
 	mySetting: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
+const DEFAULT_SETTINGS: WriterAIPluginSettings = {
 	mySetting: 'default'
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class WriterAIPlugin extends Plugin {
+	settings: WriterAIPluginSettings;
 
 	async onload() {
+		console.log('loading plugin')
 		await this.loadSettings();
 
+		this.addRibbonIcon('dice', 'Greet', () => {
+			new Notice('Hello, world!');
+		})
+		;
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
@@ -79,7 +84,7 @@ export default class MyPlugin extends Plugin {
 	}
 
 	onunload() {
-
+		console.log('unloading plugin')
 	}
 
 	async loadSettings() {
@@ -108,9 +113,9 @@ class SampleModal extends Modal {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: WriterAIPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: WriterAIPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
