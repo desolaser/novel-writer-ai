@@ -140,6 +140,7 @@ export default class WriterAIPlugin extends Plugin {
 				let insertedText = '';
 				const startCursor = editor.getCursor();
 				for await (const chunk of result.stream) {
+					console.log({ chunk });
 					const newText = chunk.choices[0]?.delta?.content || '';
 					if (newText) {
 						// Siempre insertamos al final del texto ya insertado

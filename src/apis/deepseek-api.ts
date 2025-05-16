@@ -77,8 +77,6 @@ export class DeepseekApi extends ApiInterface {
                 ...options
             };
 
-            console.log({ defaultOptions });
-
             const completion: any = await this.openai.chat.completions.create(defaultOptions);
 
             // Manejar streaming
