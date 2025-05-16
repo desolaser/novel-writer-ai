@@ -1,4 +1,4 @@
-# Obsidian Sample Plugin
+# Novel Writer AI
 
 This is a sample plugin for Obsidian (https://obsidian.md).
 
