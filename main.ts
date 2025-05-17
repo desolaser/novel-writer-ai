@@ -4,8 +4,7 @@ import {
 	MarkdownView, 
 	Notice, 
 	Plugin, 
-	TFile,
-	Vault
+	TFile
 } from 'obsidian';
 import { AIPluginSettingsTab } from './src/ai-plugin-settings-tab';
 import { ApiFactory } from './src/factories/api-factory';
