@@ -62,14 +62,7 @@ export default class WriterAIPlugin extends Plugin {
 	api: ApiInterface | null = null;
 
 	async onload() {
-		console.log('WriterAIPlugin: onload start');
-        try {
-            await this.loadSettings();
-            // ...resto del código...
-            console.log('WriterAIPlugin: onload end');
-        } catch (e) {
-            console.error('WriterAIPlugin: onload error', e);
-        }
+		await this.loadSettings();
 		
 		this.registerEvent(
 			this.app.workspace.on('editor-menu', (menu: any, editor: Editor, view) => {
@@ -83,7 +76,7 @@ export default class WriterAIPlugin extends Plugin {
 						.setTitle('Generate text')
 						.setIcon('text')
 						.onClick(async () => {
-							await this.generateCompletionAtSelection(editor, view);
+							await this.generateCompletionAtSelection(editor);
 						});
 				});
 
@@ -92,10 +85,18 @@ export default class WriterAIPlugin extends Plugin {
 						.setTitle('Generate lorebook entry')
 						.setIcon('text')
 						.onClick(async () => {
-							await this.generateLorebookEntry(editor, view);
+							await this.generateLorebookEntry(editor);
 						});
-				});				
+				});
 
+				menu.addItem((item: any) => {
+					item
+						.setTitle('Traduce text to spanish')
+						.setIcon('text')
+						.onClick(async () => {
+							await this.traduceText(editor);
+						});
+				});
 			})
 		);
 
@@ -108,23 +109,21 @@ export default class WriterAIPlugin extends Plugin {
 		
 		this.addRibbonIcon('text', 'Generate text', async () => {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-
 			if (!view) {
 				new Notice('Por favor, seleccionar un archivo markdown.');
 				return;
 			}
 
-			await this.generateCompletionAtSelection(view.editor, view);
+			await this.generateCompletionAtSelection(view.editor);
 		});
 
         this.addSettingTab(new AIPluginSettingsTab(this.app, this));
 
-		// Registrar comandos de Obsidian
         this.addCommand({
             id: 'generate-text',
             name: 'Generate text with AI',
             editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-                await this.generateCompletionAtSelection(editor, view);
+                await this.generateCompletionAtSelection(editor);
             }
         });
 
@@ -132,7 +131,7 @@ export default class WriterAIPlugin extends Plugin {
 			id: 'generate-lorebook-entry',
 			name: 'Generate Lorebook Entry from Note',
 			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-				await this.generateLorebookEntry(editor, view);
+				await this.generateLorebookEntry(editor);
 			}
 		});
 		
@@ -152,7 +151,7 @@ export default class WriterAIPlugin extends Plugin {
 					this.settings.apiToken[provider] = '';
 				}
 			});
-		}		
+		}
 
 		// Forzar apiToken a objeto si viene como string
 		if (typeof this.settings.apiToken === 'string') {
@@ -168,8 +167,7 @@ export default class WriterAIPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
-        
-        // Actualizar la instancia de API si hay cambios en la configuración
+
         if (this.settings.selectedApi && this.settings.apiToken[this.settings.selectedApi]) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
@@ -180,14 +178,7 @@ export default class WriterAIPlugin extends Plugin {
 		}
     }
 
-	async generateCompletionAtSelection(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
-		// Verificar si hay una API configurada
-		if (!this.api) {
-			new Notice('Please, configure an API key and add a valid token first.');
-			return;
-		}
-
-		// Obtenemos el texto de los lorebooks
+	async generateCompletionAtSelection(editor: Editor) {
 		const context = editor.getValue();
 		const loreEntries = await this.filterLorebookEntriesByContext(context);
 		const loreText = loreEntries
@@ -199,109 +190,39 @@ ${loreText}
 END OF THE LORE:
 ${this.settings.prefixPrompt} ${context}`;
 
-		console.log({ prompt });
-
-		new Notice('Generating text...');
-
-		try {
-			// Mostrar indicador de carga
-			const statusBarItem = this.addStatusBarItem();
-			statusBarItem.setText('Generating text...');
-
-			// Generar texto usando la API configurada
-			const result: CompletionResponse = await this.api.generateCompletion(
-				prompt,
-				this.settings.defaultModel,
-				{ 
-					stream: this.settings.stream,
-					max_tokens: this.settings.maxTokens,
-					presence_penalty: this.settings.presencePenalty,
-					frequency_penalty: this.settings.frequencyPenalty,
-					temperature: this.settings.temperature,
-					top_p: this.settings.topP
-				}
-			);
-
-			let text = '';
-			if (result.text) {
-				text = result.text;
-				const cursor = editor.getCursor();
-				editor.replaceRange(text, cursor);
-			} else if (result.stream) {
-				let insertedText = '';
-				const startCursor = editor.getCursor();
-				for await (const chunk of result.stream) {
-					const newText = chunk.choices[0]?.delta?.content || '';
-					if (newText) {
-						const from = {
-							line: startCursor.line,
-							ch: startCursor.ch + insertedText.length
-						};
-						editor.replaceRange(newText, from);
-						insertedText += newText;
-					}
-				}
-			} else {
-				new Notice('The response of the API is empty.');
-			}
-
-			statusBarItem.remove();
-		} catch (error) {
-			new Notice(`Error generating the text: ${error.message}`);
-		}
+		const result = await this.generateText(prompt, "Generating text...");
+		if (!result) return;
+		this.continueText(editor, result);
 	}
 
-	async generateLorebookEntry(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
-		if (!this.api) {
-			new Notice('Please, configure an API key and add a valid token first.');
-			return;
-		}
-	
+	async generateLorebookEntry(editor: Editor) {	
 		const noteText = editor.getValue();
-		// Optionally, you can also concatenate relevant lorebook entries if you want more context
 		const relatedLore = (await this.filterLorebookEntriesByContext(noteText))
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n\n');
-	
-		// Prompt for the AI
-		const prompt = `${this.settings.lorebook.prompt}
-	
-	Description:
-	${noteText}
-	
-	${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
-	
-		new Notice('Generating lorebook entry...');
-	
-		try {
-			const statusBarItem = this.addStatusBarItem();
-			statusBarItem.setText('Generating lorebook entry...');
-	
-			const result: CompletionResponse = await this.api.generateCompletion(
-				prompt,
-				this.settings.defaultModel,
-				{
-					stream: false,
-					max_tokens: 512,
-					presence_penalty: 0,
-					frequency_penalty: 0,
-					temperature: 0.7,
-					top_p: 0.9
-				}
-			);
-	
-			if (result.text) {
-				// Replace the entire note with the generated lorebook entry
-				editor.setValue(result.text.trim());
-				new Notice('Lorebook entry generated!');
-			} else {
-				new Notice('The response of the API is empty.');
-			}
-	
-			statusBarItem.remove();
-		} catch (error) {
-			new Notice(`Error generating the lorebook entry: ${error.message}`);
-		}
+
+		const prompt = `${this.settings.lorebook.prompt}	
+Description:
+${noteText}	
+${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
+
+		const result = await this.generateText(prompt, "Generating lorebook entry...", {
+			max_tokens: 2048,
+			presence_penalty: 0,
+			frequency_penalty: 0,
+			temperature: 0.7,
+			top_p: 0.9
+		});
+		if (!result) return;
+		this.overwriteNote(editor, result);
+	}	
+
+	async traduceText(editor: Editor) {	
+		const selection = editor.getSelection();
+		const prompt = `Traduce this text to spanish, you will answer just with the traduction. This is the text: ${selection}`;
+		const result = await this.generateText(prompt, "Traducing text...", { max_tokens: 2024 });
+		if (!result) return;
+		this.replaceSelection(editor, result);
 	}
 	
 	async filterLorebookEntriesByContext(context: string): Promise<{file: TFile, content: string}[]> {
@@ -326,5 +247,106 @@ ${this.settings.prefixPrompt} ${context}`;
 			}
 		}
 		return entries;
+	}
+
+	async replaceSelection(editor: Editor, result: CompletionResponse) {
+		let text = '';
+		if (result.text) {
+			text = result.text;
+			editor.replaceSelection(text);
+		} else if (result.stream) {
+			editor.replaceSelection("");
+			const startCursor = editor.getCursor();
+			let insertedText = '';
+			for await (const chunk of result.stream) {
+				const newText = chunk.choices[0]?.delta?.content || '';
+				if (newText) {
+					const from = {
+						line: startCursor.line,
+						ch: startCursor.ch + insertedText.length
+					};
+					editor.replaceRange(newText, from);
+					insertedText += newText;
+				}
+			}
+		}
+	}
+
+	async continueText(editor: Editor, result: CompletionResponse) {
+		let text = '';
+		if (result.text) {
+			text = result.text;
+			const cursor = editor.getCursor();
+			editor.replaceRange(text, cursor);
+		} else if (result.stream) {
+			let insertedText = '';
+			const startCursor = editor.getCursor();
+			for await (const chunk of result.stream) {
+				const newText = chunk.choices[0]?.delta?.content || '';
+				if (newText) {
+					const from = {
+						line: startCursor.line,
+						ch: startCursor.ch + insertedText.length
+					};
+					editor.replaceRange(newText, from);
+					insertedText += newText;
+				}
+			}
+		}
+	}
+
+	async overwriteNote(editor: Editor, result: CompletionResponse) {
+		if (result.text) {
+			editor.setValue(result.text.trim());
+		} else if (result.stream) {
+			let insertedText = '';
+			for await (const chunk of result.stream) {
+				const newText = chunk.choices[0]?.delta?.content || '';
+				if (newText) {
+					insertedText += newText;
+					editor.setValue(insertedText);
+				}
+			}
+		}
+	}
+
+	async generateText(prompt: string, loadingText: string = "Generating text", options = {}) {
+		const defaultOptions = {
+			stream: this.settings.stream,
+			max_tokens: this.settings.maxTokens,
+			presence_penalty: this.settings.presencePenalty,
+			frequency_penalty: this.settings.frequencyPenalty,
+			temperature: this.settings.temperature,
+			top_p: this.settings.topP
+		}
+
+		if (!this.api) {
+			new Notice('Please, configure an API key and add a valid token first.');
+			throw new Error('Please, configure an API key and add a valid token first.');
+		}
+
+		new Notice(loadingText);
+	
+		try {
+			const statusBarItem = this.addStatusBarItem();
+			statusBarItem.setText(loadingText);
+	
+			const result: CompletionResponse = await this.api.generateCompletion(
+				prompt,
+				this.settings.defaultModel,
+				{ ...defaultOptions, ...options }
+			);
+
+			if ((!result.text || result.text === "") && !result.stream) {
+				new Notice('The response of the API is empty.');
+				throw new Error('The response of the API is empty.');
+			}
+	
+			statusBarItem.remove();
+
+			return result;	
+		} catch (error) {
+			new Notice(`Error generating the lorebook entry: ${error.message}`);
+		}
 	}
 }
