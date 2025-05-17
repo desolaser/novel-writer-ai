@@ -3,10 +3,11 @@ import { AIPluginSettingsTab } from './src/ai-plugin-settings-tab';
 import { ApiFactory } from './src/factories/api-factory';
 import { ApiInterface } from 'src/interfaces/api-interface';
 import { CompletionResponse } from 'src/types/CompletionResponse';
+import providers, { ApiProvider } from 'src/constants/providers';
 
 type WriterAIPluginSettings = {
-	selectedApi: string;
-	apiToken: string;
+	selectedApi: ApiProvider;
+	apiToken: any;
 	defaultModel: string;
 	stream: boolean;
 	prefixPrompt: string;
@@ -19,7 +20,10 @@ type WriterAIPluginSettings = {
 
 const DEFAULT_SETTINGS: WriterAIPluginSettings = {
     selectedApi: 'openrouter',
-    apiToken: '',
+    apiToken: Object.keys(providers).reduce((acc: any, provider: string) => ({
+		[provider]: '',
+		...acc
+	}), {}),
     defaultModel: '',
 	stream: false,
 	prefixPrompt: "Continue the text following the narration style of the user: ",
@@ -44,11 +48,26 @@ export default class WriterAIPlugin extends Plugin {
         } catch (e) {
             console.error('WriterAIPlugin: onload error', e);
         }
+		
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu: any, editor: Editor, view) => {
+				menu.addItem((item: any) => {
+					item
+						.setTitle('Generate text')
+						.setIcon('text')
+						.onClick(async () => {
+							if (view.file) {
+								new Notice(view.file?.path);
+							}
+						});
+				});
+			})
+		);
 
-        if (this.settings.apiToken && this.settings.selectedApi) {
+        if (this.settings.selectedApi && this.settings.apiToken[this.settings.selectedApi]) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
-                this.settings.apiToken
+                this.settings.apiToken[this.settings.selectedApi]
             );
         }
 		
@@ -68,20 +87,39 @@ export default class WriterAIPlugin extends Plugin {
 		// Registrar comandos de Obsidian
         this.addCommand({
             id: 'generate-text',
-            name: 'Generar texto con IA',
+            name: 'Generate text with AI',
             editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
                 await this.generateCompletionAtSelection(editor, view);
             }
         });
 		
-        console.log('AI Plugin cargado correctamente');
+        console.log('AI Plugin loaded');
 	}
 
 	onunload() {
-        console.log('AI Plugin descargado');
+        console.log('AI Plugin unloaded');
 	}
 
 	async loadSettings() {
+		if (Object.keys(providers).length !== Object.keys(this.settings.apiToken).length) {
+			// Si el número de proveedores ha cambiado, agregamos al objeto un nuevo key.
+
+			Object.keys(providers).forEach((provider) => {
+				if (!this.settings.apiToken[provider]) {
+					this.settings.apiToken[provider] = '';
+				}
+			});
+		}		
+
+		// Forzar apiToken a objeto si viene como string
+		if (typeof this.settings.apiToken === 'string') {
+			const obj: any = {};
+			Object.keys(providers).forEach(provider => {
+				obj[provider] = '';
+			});
+			this.settings.apiToken = obj;
+		}
+
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
@@ -89,20 +127,20 @@ export default class WriterAIPlugin extends Plugin {
         await this.saveData(this.settings);
         
         // Actualizar la instancia de API si hay cambios en la configuración
-        if (this.settings.apiToken && this.settings.selectedApi) {
+        if (this.settings.selectedApi && this.settings.apiToken[this.settings.selectedApi]) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
-                this.settings.apiToken
+                this.settings.apiToken[this.settings.selectedApi]
             );
         } else {
             this.api = null;
-        }
+		}
     }
 
 	async generateCompletionAtSelection(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
 		// Verificar si hay una API configurada
 		if (!this.api) {
-			new Notice('Por favor configura una API y agrega un token válido primero.');
+			new Notice('Please, configure an API key and add a valid token first.');
 			return;
 		}
 
@@ -110,12 +148,12 @@ export default class WriterAIPlugin extends Plugin {
 		const selection = editor.getValue();
 		const prompt = ` ${this.settings.prefixPrompt} ${selection}`;
 
-		new Notice('Generando texto...');
+		new Notice('Generating text...');
 
 		try {
 			// Mostrar indicador de carga
 			const statusBarItem = this.addStatusBarItem();
-			statusBarItem.setText('Generando texto...');
+			statusBarItem.setText('Generating text...');
 
 			// Generar texto usando la API configurada
 			const result: CompletionResponse = await this.api.generateCompletion(
@@ -153,13 +191,12 @@ export default class WriterAIPlugin extends Plugin {
 					}
 				}
 			} else {
-				new Notice('La respuesta de la API no contiene texto ni stream.');
+				new Notice('The response of the API is empty.');
 			}
 
 			statusBarItem.remove();
 		} catch (error) {
-			new Notice(`Error al generar texto: ${error.message}`);
-			console.error('Error al generar texto:', error);
+			new Notice(`Error generating the text: ${error.message}`);
 		}
 	}
 }

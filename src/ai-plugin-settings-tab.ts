@@ -1,6 +1,5 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { PluginSettingTab, Setting } from 'obsidian';
 import { ApiFactory } from './factories/api-factory';
-import { ApiInterface } from './interfaces/api-interface';
 import type { Model } from './types/Model';
 
 export class AIPluginSettingsTab extends PluginSettingTab {
@@ -19,11 +18,11 @@ export class AIPluginSettingsTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
 
-        containerEl.createEl('h1', { text: 'Configuración de Novel Writer' });
+        containerEl.createEl('h1', { text: 'Novel writer configuration' });
 
         new Setting(containerEl)
-            .setName('Proveedor de API')
-            .setDesc('Selecciona el proveedor de API que deseas utilizar')
+            .setName('API Provider')
+            .setDesc('Select the API provider that you decided to use.')
             .addDropdown(dropdown => {
                 this.availableApis.forEach(api => {
                     dropdown.addOption(api.toLowerCase(), api);
@@ -32,29 +31,36 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                 dropdown.setValue(this.plugin.settings.selectedApi || 'openrouter')
                     .onChange(async (value: string) => {
                         this.plugin.settings.selectedApi = value;
-                        await this.loadModels(value);
                         await this.plugin.saveSettings();
+                        localStorage.removeItem('models');
+                        await this.display();
                     });
             });
 
         new Setting(containerEl)
             .setName('API Token')
-            .setDesc('Introduce tu token de API para el proveedor seleccionado')
+            .setDesc('Add the API token of your selected provider')
             .addText(text => text
-            .setPlaceholder('Ingresa tu API token')
-            .setValue(this.plugin.settings.apiToken || '')
+            .setPlaceholder('Add your API token')
+            .setValue(this.plugin.settings.apiToken[this.plugin.settings.selectedApi] || '')
             .onChange(async (value) => {
-                this.plugin.settings.apiToken = value;
+                if (typeof this.plugin.settings.apiToken === "string") {
+                    this.plugin.settings.apiToken = {
+                        [this.plugin.settings.selectedApi]: value
+                    };
+                } else {
+                    this.plugin.settings.apiToken[this.plugin.settings.selectedApi] = value;
+                }
                 await this.plugin.saveSettings();
-                // Limpiar modelos cacheados y recargar modelos del nuevo token/provider
                 localStorage.removeItem('models');
                 await this.display();
             }));
 
         const modelContainer = containerEl.createDiv();
-        modelContainer.createEl('h3', { text: 'Modelos Disponibles' });
+        modelContainer.createEl('h3', { text: 'Available Models' });
 
-        if (this.plugin.settings.apiToken && this.plugin.settings.selectedApi) {
+        const token = this.plugin.settings.apiToken[this.plugin.settings.selectedApi];
+        if (this.plugin.settings.selectedApi && token) {
             const cachedModels = localStorage.getItem('models');
             if (cachedModels) {
                 this.models = JSON.parse(cachedModels);
@@ -64,7 +70,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
             }
         } else {
             modelContainer.createEl('p', { 
-                text: 'Ingresa un API token para ver los modelos disponibles.'
+                text: 'Add an API token to see the available models.'
             });
         }
 
@@ -73,29 +79,29 @@ export class AIPluginSettingsTab extends PluginSettingTab {
 
         new Setting(optionsContainer)
             .setName('Streaming')
-            .setDesc('Selecciona esta opción si deseas que el texto se vaya agregando a tu nota mientras se va generando.')
+            .setDesc('Enable this option if you want the text to be added to your note as it is being generated.')
             .addToggle(toggle => {                
                 toggle.setValue(this.plugin.settings.stream)
                     .onChange(async (value: boolean) => {
                         this.plugin.settings.stream = value;
                         await this.plugin.saveSettings();
                     });
-            });
+                });
 
         new Setting(optionsContainer)
-            .setName('Prefijo del prompt')
-            .setDesc('Aquí puedes cambiar el prefijo del prompt que le vamos a enviar a la API. Luego de este texto vendrá el texto seleccionado.')
+            .setName('Prompt Prefix')
+            .setDesc('Here you can change the prompt prefix that will be sent to the API. The selected text will come after this.')
             .addTextArea(textArea => {               
                 textArea.setValue(this.plugin.settings.prefixPrompt || '')
                     .onChange(async (value: string) => {
                         this.plugin.settings.prefixPrompt = value;
                         await this.plugin.saveSettings();
                     });
-            });
+                });
 
         new Setting(optionsContainer)
-            .setName('Máximo de tokens')
-            .setDesc('Máximo de tokens que se pueden generar en la respuesta.')
+            .setName('Max Tokens')
+            .setDesc('Maximum number of tokens that can be generated in the response.')
             .addText(text => {
                 text.setValue(this.plugin.settings.maxTokens.toString())
                     .onChange(async (value: string) => {
@@ -105,11 +111,11 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                             await this.plugin.saveSettings();
                         }
                     });
-            });
+                });
 
         new Setting(optionsContainer)
-            .setName('Temperatura')
-            .setDesc('Controla la aleatoriedad de la respuesta. Un valor más alto significa más aleatoriedad.')
+            .setName('Temperature')
+            .setDesc('Controls the randomness of the response. A higher value means more randomness.')
             .addText(text => {
                 text.setValue(this.plugin.settings.temperature.toString())
                     .onChange(async (value: string) => {
@@ -119,25 +125,25 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                             await this.plugin.saveSettings();
                         }
                     });
-            });
+                });
 
         new Setting(optionsContainer)
             .setName('Top P')
-            .setDesc('Controla la diversidad de la respuesta. Un valor más bajo significa menos diversidad.')
+            .setDesc('Controls the diversity of the response. A lower value means less diversity.')
             .addText(text => {
                 text.setValue(this.plugin.settings.topP.toString())
                     .onChange(async (value: string) => {
-                        const parsedValue = parseFloat(value);
+                    const parsedValue = parseFloat(value);
                         if (!isNaN(parsedValue)) {
                             this.plugin.settings.topP = parsedValue;
                             await this.plugin.saveSettings();
                         }
                     });
-            });
+                });
 
         new Setting(optionsContainer)
-            .setName('Penalización de presencia')
-            .setDesc('Controla la penalización por presencia. Un valor más alto significa menos repetición.')
+            .setName('Presence Penalty')
+            .setDesc('Controls the presence penalty. A higher value means less repetition.')
             .addText(text => {
                 text.setValue(this.plugin.settings.presencePenalty.toString())
                     .onChange(async (value: string) => {
@@ -147,10 +153,11 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                             await this.plugin.saveSettings();
                         }
                     });
-            });
+                });
+
         new Setting(optionsContainer)
-            .setName('Penalización de frecuencia')
-            .setDesc('Controla la penalización por frecuencia. Un valor más alto significa menos repetición.')  
+            .setName('Frequency Penalty')
+            .setDesc('Controls the frequency penalty. A higher value means less repetition.')  
             .addText(text => {
                 text.setValue(this.plugin.settings.frequencyPenalty.toString())
                     .onChange(async (value: string) => {
@@ -160,7 +167,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                             await this.plugin.saveSettings();
                         }
                     });
-            });
+                });
     }
 
     async loadModels(apiProvider: string, container: any = null) {
@@ -168,14 +175,15 @@ export class AIPluginSettingsTab extends PluginSettingTab {
             // Limpiamos los modelos anteriores si se proporciona un contenedor
             if (container) {
                 container.empty();
-                container.createEl('h3', { text: 'Modelos Disponibles' });
+                container.createEl('h3', { text: 'Available Models' });
             }
 
             // Si no hay token, no podemos cargar modelos
-            if (!this.plugin.settings.apiToken) {
+            const token = this.plugin.settings.apiToken[this.plugin.settings.selectedApi]
+            if (!token || token === '') {
                 if (container) {
                     container.createEl('p', { 
-                        text: 'Ingresa un API token para ver los modelos disponibles.'
+                        text: 'Add an API token to see the available models.'
                     });
                 }
                 return;
@@ -184,13 +192,13 @@ export class AIPluginSettingsTab extends PluginSettingTab {
             // Crear la instancia de API adecuada usando la factory
             const api = this.apiFactory.createApi(
                 apiProvider,
-                this.plugin.settings.apiToken
+                token
             );
 
             // Mostrar un mensaje de carga
             if (container) {
                 const loadingEl = container.createEl('p', { 
-                    text: 'Cargando modelos...'
+                    text: 'Loading models...'
                 });
                 
                 // Obtener modelos de la API
@@ -203,11 +211,11 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                 this.renderModels(container);
             }
         } catch (error) {
-            console.error('Error al cargar los modelos:', error);
+            console.error('Error loading the models:', error);
             
             if (container) {
                 container.createEl('p', { 
-                    text: `Error al cargar los modelos: ${error.message}`,
+                    text: `Error loading the models: ${error.message}`,
                     cls: 'error-message'
                 }).style.color = 'red';
             }
@@ -218,8 +226,8 @@ export class AIPluginSettingsTab extends PluginSettingTab {
         // Crear un elemento de configuración para seleccionar el modelo por defecto
         if (this.models && this.models.length > 0) {
             new Setting(container)
-                .setName('Modelo por defecto')
-                .setDesc('Selecciona el modelo que se usará por defecto')
+                .setName('Default Model')
+                .setDesc('Select the default model to use.')
                 .addDropdown(dropdown => {
                     this.models.forEach(model => {
                         dropdown.addOption(model.id, model.name || model.id);
@@ -232,7 +240,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                 });
         } else {
             container.createEl('p', { 
-                text: 'No se encontraron modelos disponibles para esta API.'
+                text: 'No models available for the selected API provider.'
             });
         }
     }
