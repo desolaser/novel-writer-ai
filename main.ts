@@ -1,9 +1,18 @@
-import { App, Editor, MarkdownFileInfo, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
+import {
+	Editor, 
+	MarkdownFileInfo, 
+	MarkdownView, 
+	Notice, 
+	Plugin, 
+	TFile,
+	Vault
+} from 'obsidian';
 import { AIPluginSettingsTab } from './src/ai-plugin-settings-tab';
 import { ApiFactory } from './src/factories/api-factory';
 import { ApiInterface } from 'src/interfaces/api-interface';
 import { CompletionResponse } from 'src/types/CompletionResponse';
 import providers, { ApiProvider } from 'src/constants/providers';
+import { extractLorebookMeta } from './src/utils/lorebook';
 
 type WriterAIPluginSettings = {
 	selectedApi: ApiProvider;
@@ -16,6 +25,11 @@ type WriterAIPluginSettings = {
 	frequencyPenalty: number;
 	temperature: number;
 	topP: number;
+	lorebook: { 
+		searchRange: number,
+		folder: string;
+		prompt: string;
+	}
 }
 
 const DEFAULT_SETTINGS: WriterAIPluginSettings = {
@@ -32,6 +46,15 @@ const DEFAULT_SETTINGS: WriterAIPluginSettings = {
 	frequencyPenalty: 0,
 	temperature: 1,
 	topP: 0.01,
+	lorebook: { 
+		searchRange: 1000,
+		folder: "Lorebook",
+		prompt: `You are an expert worldbuilding assistant. 
+Given the following description, generate a lorebook entry in markdown format for a story-writing tool. 
+The entry MUST start with a YAML frontmatter block with a "keys" field (a list of keywords relevant to the entry, in lower case, comma separated or as a YAML array). 
+After the frontmatter, write a concise but detailed definition or description for the concept. 
+Do not include anything except the frontmatter and the lorebook entry.`
+	}
 }
 
 export default class WriterAIPlugin extends Plugin {
@@ -51,16 +74,29 @@ export default class WriterAIPlugin extends Plugin {
 		
 		this.registerEvent(
 			this.app.workspace.on('editor-menu', (menu: any, editor: Editor, view) => {
+				if (!view) {
+					new Notice('Por favor, seleccionar un archivo markdown.');
+					return;
+				}
+
 				menu.addItem((item: any) => {
 					item
 						.setTitle('Generate text')
 						.setIcon('text')
 						.onClick(async () => {
-							if (view.file) {
-								new Notice(view.file?.path);
-							}
+							await this.generateCompletionAtSelection(editor, view);
 						});
 				});
+
+				menu.addItem((item: any) => {
+					item
+						.setTitle('Generate lorebook entry')
+						.setIcon('text')
+						.onClick(async () => {
+							await this.generateLorebookEntry(editor, view);
+						});
+				});				
+
 			})
 		);
 
@@ -92,6 +128,14 @@ export default class WriterAIPlugin extends Plugin {
                 await this.generateCompletionAtSelection(editor, view);
             }
         });
+
+		this.addCommand({
+			id: 'generate-lorebook-entry',
+			name: 'Generate Lorebook Entry from Note',
+			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
+				await this.generateLorebookEntry(editor, view);
+			}
+		});
 		
         console.log('AI Plugin loaded');
 	}
@@ -144,9 +188,19 @@ export default class WriterAIPlugin extends Plugin {
 			return;
 		}
 
-		// Obtener el texto seleccionado o usar un prompt predeterminado
-		const selection = editor.getValue();
-		const prompt = ` ${this.settings.prefixPrompt} ${selection}`;
+		// Obtenemos el texto de los lorebooks
+		const context = editor.getValue();
+		const loreEntries = await this.filterLorebookEntriesByContext(context);
+		const loreText = loreEntries
+			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
+			.join('\n\n');
+
+		const prompt = `START OF THE LORE:
+${loreText}
+END OF THE LORE:
+${this.settings.prefixPrompt} ${context}`;
+
+		console.log({ prompt });
 
 		new Notice('Generating text...');
 
@@ -178,10 +232,8 @@ export default class WriterAIPlugin extends Plugin {
 				let insertedText = '';
 				const startCursor = editor.getCursor();
 				for await (const chunk of result.stream) {
-					console.log({ chunk });
 					const newText = chunk.choices[0]?.delta?.content || '';
 					if (newText) {
-						// Siempre insertamos al final del texto ya insertado
 						const from = {
 							line: startCursor.line,
 							ch: startCursor.ch + insertedText.length
@@ -198,5 +250,82 @@ export default class WriterAIPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Error generating the text: ${error.message}`);
 		}
+	}
+
+	async generateLorebookEntry(editor: Editor, view: MarkdownView | MarkdownFileInfo) {
+		if (!this.api) {
+			new Notice('Please, configure an API key and add a valid token first.');
+			return;
+		}
+	
+		const noteText = editor.getValue();
+		// Optionally, you can also concatenate relevant lorebook entries if you want more context
+		const relatedLore = (await this.filterLorebookEntriesByContext(noteText))
+			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
+			.join('\n\n');
+	
+		// Prompt for the AI
+		const prompt = `${this.settings.lorebook.prompt}
+	
+	Description:
+	${noteText}
+	
+	${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
+	
+		new Notice('Generating lorebook entry...');
+	
+		try {
+			const statusBarItem = this.addStatusBarItem();
+			statusBarItem.setText('Generating lorebook entry...');
+	
+			const result: CompletionResponse = await this.api.generateCompletion(
+				prompt,
+				this.settings.defaultModel,
+				{
+					stream: false,
+					max_tokens: 512,
+					presence_penalty: 0,
+					frequency_penalty: 0,
+					temperature: 0.7,
+					top_p: 0.9
+				}
+			);
+	
+			if (result.text) {
+				// Replace the entire note with the generated lorebook entry
+				editor.setValue(result.text.trim());
+				new Notice('Lorebook entry generated!');
+			} else {
+				new Notice('The response of the API is empty.');
+			}
+	
+			statusBarItem.remove();
+		} catch (error) {
+			new Notice(`Error generating the lorebook entry: ${error.message}`);
+		}
+	}
+	
+	async filterLorebookEntriesByContext(context: string): Promise<{file: TFile, content: string}[]> {
+		const files = this.app.vault.getFiles();
+		const lorebookFiles = files.filter(file => file.path.startsWith(`${this.settings.lorebook.folder}/`));
+		const entries = [];
+		const lastContext = context.slice(-this.settings.lorebook.searchRange).toLowerCase();
+	
+		for (const file of lorebookFiles) {
+			const content = await this.app.vault.read(file);
+			const meta = extractLorebookMeta(content);
+	
+			if (meta.enabled === false) continue;
+	
+			if (meta.alwaysOn === true) {
+				entries.push({ file, content });
+				continue;
+			}
+	
+			if (meta.keys.some(key => lastContext.includes(key.toLowerCase()))) {
+				entries.push({ file, content });
+			}
+		}
+		return entries;
 	}
 }

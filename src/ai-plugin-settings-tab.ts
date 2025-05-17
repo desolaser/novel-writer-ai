@@ -75,7 +75,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
         }
 
         const optionsContainer = containerEl.createDiv();
-        optionsContainer.createEl('h3', { text: 'Opciones del modelo' });
+        optionsContainer.createEl('h3', { text: 'Model Options' });
 
         new Setting(optionsContainer)
             .setName('Streaming')
@@ -168,6 +168,46 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                         }
                     });
                 });
+
+                
+        const lorebookContainer = containerEl.createDiv();
+        lorebookContainer.createEl('h3', { text: 'Lorebook Options' });
+
+        new Setting(lorebookContainer)
+            .setName('Search Range')
+            .setDesc('The number of characters of the story that will be searched for keys.')  
+            .addText(text => {
+                text.setValue(this.plugin.settings.lorebook.searchRange.toString())
+                    .onChange(async (value: string) => {
+                        const parsedValue = parseInt(value);
+                        if (!isNaN(parsedValue)) {
+                            this.plugin.settings.lorebook.searchRange = parsedValue;
+                            await this.plugin.saveSettings();
+                        }
+                    });
+                });
+
+        new Setting(lorebookContainer)
+            .setName('Lorebook Folder')
+            .setDesc('The folder where the plugin will look for your lorebook entries.')  
+            .addText(text => {
+                text.setValue(this.plugin.settings.lorebook.folder)
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.lorebook.folder = value;
+                        await this.plugin.saveSettings();
+                    });
+                });
+
+        new Setting(lorebookContainer)
+            .setName('Lorebook Prompt')
+            .setDesc('Prompt to generate lorebook entries.')  
+            .addTextArea(textArea => {
+                textArea.setValue(this.plugin.settings.lorebook.prompt)
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.lorebook.prompt = value;
+                        await this.plugin.saveSettings();
+                    });
+                });                
     }
 
     async loadModels(apiProvider: string, container: any = null) {
