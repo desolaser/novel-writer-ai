@@ -1,94 +1,61 @@
 # Novel Writer AI
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Novel Writer AI is an Obsidian plugin that brings advanced AI-assisted writing and worldbuilding tools directly into your notes. Generate story continuations, create lorebook entries, and integrate context-aware AI completions using your favorite LLM providers (OpenRouter, DeepSeek, Claude, and more).
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+---
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## ✨ Features
 
-## First time developing plugins?
+- **AI Text Generation:** Continue your stories or notes using AI, with context-aware completions.
+- **Lorebook System:** Automatically include relevant lorebook entries in your prompts based on keywords in your current context.
+- **Lorebook Entry Generator:** Generate new lorebook entries from your notes, including YAML frontmatter with extracted keys.
+- **Multi-Provider Support:** Easily switch between different AI providers and models.
+- **Streaming Support:** Optionally stream AI completions into your notes as they are generated.
+- **Customizable Prompts:** Adjust prompt prefix and lorebook generation instructions in plugin settings.
+- **Context Filtering:** Only relevant lorebook entries (by keyword) are included in the prompt, keeping context concise.
 
-Quick starting guide for new plugin devs:
+---
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+## 🚀 Getting Started
 
-## Releasing new releases
+### 1. Installation
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+- Download or clone this repository into your `.obsidian/plugins` folder.
+- Enable the plugin in Obsidian's settings.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+### 2. Configuration
 
-## Adding your plugin to the community plugin list
+- Open the plugin settings tab.
+- Select your preferred API provider and enter your API token.
+- Choose your default model and adjust options like streaming, prompt prefix, and lorebook folder.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+---
 
-## How to use
+## 📝 Usage
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+### Generate Text
 
-## Manually installing the plugin
+- Right-click in the editor or use the command palette to select **"Generate text"**.
+- The plugin will use the current note, relevant lorebook entries, and your prompt settings to generate a continuation.
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+### Generate Lorebook Entry
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+- Write a description or concept in a note.
+- Use the command palette or editor menu to select **"Generate Lorebook Entry from Note"**.
+- Or use Right-click in the editor or use the command palette to select **"Generate lorebook entry"**.
+- The plugin will send your note (and related lore) to the AI, and replace the note with a properly formatted lorebook entry (including YAML frontmatter with keys).
 
-## Funding URL
+### Lorebook System
 
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
-
-If you have multiple URLs, you can also do:
-
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
-
-## API Documentation
-
-See https://github.com/obsidianmd/obsidian-api
+- Store your lorebook entries as markdown files in the folder specified in settings (default: `Lorebook/`).
+- Each entry should start with YAML frontmatter, e.g.:
+  ```yaml
+  ---
+  keys: # if dragon or prophecy is in the last 1000 characters of your context, this goes into the prompt
+    - dragon
+    - prophecy
+  enabled: false # false if you don't want this to be shown in your prompt
+  alwaysOn: true # if you want an entry to always be in the prompt, you can use this option
+  ---
+  # Dragon Prophecy
+  The ancient prophecy speaks of...
