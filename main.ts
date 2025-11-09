@@ -110,6 +110,15 @@ export default class WriterAIPlugin extends Plugin {
 							await this.traduceText(editor);
 						});
 				});
+
+				menu.addItem((item: any) => {
+					item
+						.setTitle('Summarize text')
+						.setIcon('text')
+						.onClick(async () => {
+							await this.summarizeText(editor);
+						});
+				});
 			})
 		);
 
@@ -290,6 +299,14 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 		this.replaceSelection(editor, result);
 	}
 	
+	async summarizeText(editor: Editor) {	
+		const selection = editor.getSelection();
+		const prompt = `I need you to summarize the selected text. This is the text: ${selection}`;
+		const result = await this.generateText(prompt, "Traducing text...", { max_tokens: 2024 });
+		if (!result) return;
+		this.replaceSelection(editor, result);
+	}
+
 	async filterLorebookEntriesByContext(context: string): Promise<{file: TFile, content: string}[]> {
 		const files = this.app.vault.getFiles();
 		const lorebookFiles = files.filter(file => file.path.startsWith(`${this.settings.lorebook.folder}/`));
