@@ -9,6 +9,10 @@
   border-radius: 6px;
 }
 
+.bg-primary {
+  background-color: var(--background-primary);
+}
+
 .options-section h5 {
   margin-top: 0;
   margin-bottom: 8px;

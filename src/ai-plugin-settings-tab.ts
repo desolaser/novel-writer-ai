@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting } from 'obsidian';
+import { PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
 import { ApiFactory } from './factories/api-factory';
 import type { Model } from './types/Model';
 
@@ -88,16 +88,24 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                     });
                 });
 
-        new Setting(optionsContainer)
-            .setName('Prompt Prefix')
-            .setDesc('Here you can change the prompt prefix that will be sent to the API. The selected text will come after this.')
-            .addTextArea(textArea => {               
-                textArea.setValue(this.plugin.settings.prefixPrompt || '')
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.prefixPrompt = value;
-                        await this.plugin.saveSettings();
-                    });
-                });
+        // Prefix prompt
+        const prefixSection = optionsContainer.createDiv('options-section');
+        prefixSection.createEl('p', { text: 'Prompt Prefix' });
+        prefixSection.createEl('span', { 
+            text: 'Here you can change the prompt prefix that will be sent to the API. The selected text will come after this.',
+            cls: 'setting-item-description'
+        });
+        prefixSection.addClass('bg-primary');
+        
+        const prefixWrapper = prefixSection.createDiv('textarea-wrapper');        
+        const prefixTextarea = new TextAreaComponent(prefixWrapper);
+        prefixTextarea.setPlaceholder('Enter memory information...');
+        prefixTextarea.inputEl.rows = 6;
+        prefixTextarea.setValue(this.plugin.settings.prefixPrompt);
+        prefixTextarea.onChange(async (value) => { 
+            this.plugin.settings.prefixPrompt = value;
+            await this.plugin.saveSettings();
+        });
 
         new Setting(optionsContainer)
             .setName('Max Tokens')
@@ -197,17 +205,25 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     });
                 });
-
-        new Setting(lorebookContainer)
-            .setName('Lorebook Prompt')
-            .setDesc('Prompt to generate lorebook entries.')  
-            .addTextArea(textArea => {
-                textArea.setValue(this.plugin.settings.lorebook.prompt)
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.lorebook.prompt = value;
-                        await this.plugin.saveSettings();
-                    });
-                });                
+        
+        // Lorebook prompt section
+        const lorebookSection = lorebookContainer.createDiv('options-section');
+        lorebookSection.createEl('p', { text: 'Lorebook Prompt' });
+        lorebookSection.createEl('span', { 
+            text: 'Prompt to generate lorebook entries.',
+            cls: 'setting-item-description'
+        });
+        lorebookSection.addClass('bg-primary');
+        
+        const lorebookWrapper = lorebookSection.createDiv('textarea-wrapper');        
+        const lorebookTextarea = new TextAreaComponent(lorebookWrapper);
+        lorebookTextarea.setPlaceholder('Enter memory information...');
+        lorebookTextarea.inputEl.rows = 6;
+        lorebookTextarea.setValue(this.plugin.settings.lorebook.prompt);
+        lorebookTextarea.onChange(async (value) => { 
+            this.plugin.settings.lorebook.prompt = value;
+            await this.plugin.saveSettings();
+        });
     }
 
     async loadModels(apiProvider: string, container: any = null) {
