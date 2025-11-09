@@ -1,5 +1,7 @@
 import { ItemView, WorkspaceLeaf, Setting, TextAreaComponent, ButtonComponent } from 'obsidian';
 import ContextModal from '../modals/ContextModal';
+import MemoryModal from '../modals/MemoryModal';
+import AuthorModal from '../modals/AuthorModal';
 import type WriterAIPlugin from '../../main';
 
 export const VIEW_TYPE_OPTIONS = 'options-view';
@@ -74,6 +76,18 @@ export class OptionsView extends ItemView {
       await this.plugin.saveSettings();
     });
 
+    new Setting(memoryWrapper)
+      .setName('Memory Modal')
+      .setDesc('Open a modal to edit the memory')
+      .addButton(button => {
+        button
+          .setButtonText('[ ]')
+          .setCta() // Esto lo hace un botón de acción primaria (azul)
+          .onClick(() => {
+            this.openMemoryModal();
+          });
+      });
+
     // Author's Note Section
     const authorSection = container.createDiv('options-section');
     authorSection.createEl('h5', { text: "Author's Note" });
@@ -97,6 +111,18 @@ export class OptionsView extends ItemView {
       this.plugin.settings.authorNote = value;
       await this.plugin.saveSettings();
     });
+
+    new Setting(authorWrapper)
+      .setName("Author's Note Modal")
+      .setDesc("Open a modal to edit the author's note")
+      .addButton(button => {
+        button
+          .setButtonText('[ ]')
+          .setCta() // Esto lo hace un botón de acción primaria (azul)
+          .onClick(() => {
+            this.openAuthorModal();
+          });
+      });
   }
 
   // Public methods to get the values
@@ -110,6 +136,14 @@ export class OptionsView extends ItemView {
 
   openContextModal(): void {
     new ContextModal(this.plugin.app, this.plugin).open();
+  }
+
+  openMemoryModal(): void {
+    new MemoryModal(this.plugin.app, this.plugin).open();
+  }
+
+  openAuthorModal(): void {
+    new AuthorModal(this.plugin.app, this.plugin).open();
   }
 
   private estimateTokens(text: string): number {
