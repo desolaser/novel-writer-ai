@@ -4,6 +4,7 @@ import {
 	MarkdownView, 
 	Notice, 
 	Plugin, 
+	WorkspaceLeaf,
 	TFile
 } from 'obsidian';
 import { AIPluginSettingsTab } from './src/ai-plugin-settings-tab';
@@ -12,8 +13,10 @@ import { ApiInterface } from 'src/interfaces/api-interface';
 import { CompletionResponse } from 'src/types/CompletionResponse';
 import providers, { ApiProvider } from 'src/constants/providers';
 import { extractLorebookMeta } from './src/utils/lorebook';
+import { OptionsView, VIEW_TYPE_OPTIONS } from './src/views/OptionsView';
+import ContextModal from './src/modals/ContextModal';
 
-type WriterAIPluginSettings = {
+export type WriterAIPluginSettings = {
 	selectedApi: ApiProvider;
 	apiToken: any;
 	defaultModel: string;
@@ -29,6 +32,8 @@ type WriterAIPluginSettings = {
 		folder: string;
 		prompt: string;
 	}
+	memoryContent: string;
+	authorNote: string;
 }
 
 const DEFAULT_SETTINGS: WriterAIPluginSettings = {
@@ -52,8 +57,10 @@ const DEFAULT_SETTINGS: WriterAIPluginSettings = {
 Given the following description, generate a lorebook entry in markdown format for a story-writing tool. 
 The entry MUST start with a YAML frontmatter block with a "keys" field (a list of keywords relevant to the entry, in lower case, comma separated or as a YAML array). 
 After the frontmatter, write a concise but detailed definition or description for the concept. 
-Do not include anything except the frontmatter and the lorebook entry.`
-	}
+Do not include anything except the frontmatter and the lorebook entry.`,
+	},	
+	memoryContent: '',
+	authorNote: '',
 }
 
 export default class WriterAIPlugin extends Plugin {
@@ -63,6 +70,12 @@ export default class WriterAIPlugin extends Plugin {
 
 	async onload() {
 		await this.loadSettings();
+
+		this.registerView(
+			VIEW_TYPE_OPTIONS,
+			(leaf) => new OptionsView(leaf, this)
+		);
+		this.activateView();
 		
 		this.registerEvent(
 			this.app.workspace.on('editor-menu', (menu: any, editor: Editor, view) => {
@@ -134,12 +147,51 @@ export default class WriterAIPlugin extends Plugin {
 				await this.generateLorebookEntry(editor);
 			}
 		});
-		
+
+		this.addCommand({
+			id: 'open-context-modal',
+			name: 'Open Context Modal',
+			callback: () => {
+				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				
+				if (!view) {
+					new Notice('Por favor, abre un archivo markdown primero.');
+					return;
+				}
+			
+				new ContextModal(this.app, this).open();
+			}
+		});
+
         console.log('AI Plugin loaded');
 	}
 
 	onunload() {
         console.log('AI Plugin unloaded');
+	}
+
+	async activateView() {
+		let leaf: WorkspaceLeaf | null = null;
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OPTIONS);	
+		console.log({ leaves });
+		if (leaves.length > 0) {
+			console.log("YA EXISTE");
+			// A leaf with our view already exists, use that
+			leaf = leaves[0];
+		} else {
+			console.log("QUE MIERDA HACES HIJO DE LA CONCHADETUMADRE");
+			// Our view could not be found in the workspace, create a new leaf
+			// in the right sidebar for it
+			leaf = this.app.workspace.getRightLeaf(false);
+			if (leaf !== null) {
+				await leaf.setViewState({ type: VIEW_TYPE_OPTIONS, active: true });
+			}
+		}
+	
+		// "Reveal" the leaf in case it is in a collapsed sidebar
+		if (leaf !== null) {
+			this.app.workspace.revealLeaf(leaf);
+		}
 	}
 
 	async loadSettings() {
@@ -180,26 +232,39 @@ export default class WriterAIPlugin extends Plugin {
 
 	async generateCompletionAtSelection(editor: Editor) {
 		const context = editor.getValue();
-		const loreEntries = await this.filterLorebookEntriesByContext(context);
-		const loreText = loreEntries
-			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
-			.join('\n\n');
-
-		const prompt = `START OF THE LORE:
-${loreText}
-END OF THE LORE:
-${this.settings.prefixPrompt} ${context}`;
-
+		const prompt = await this.generatePrompt(context);
 		const result = await this.generateText(prompt, "Generating text...");
 		if (!result) return;
 		this.continueText(editor, result);
+	}
+
+	async generatePrompt(context: string): Promise<string> {
+		const loreEntries = await this.filterLorebookEntriesByContext(context);
+		const loreText = loreEntries
+			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
+			.join('\n---\n\n---\n');
+
+		return `--- Start of the lorebook
+${loreText}
+--- End of the lorebook
+
+Relevant persistent information:
+${this.settings.memoryContent}
+
+Relevant guidelines:
+${this.settings.authorNote}
+
+## Prefix Prompt:
+${this.settings.prefixPrompt} 
+
+${context}`;
 	}
 
 	async generateLorebookEntry(editor: Editor) {	
 		const noteText = editor.getValue();
 		const relatedLore = (await this.filterLorebookEntriesByContext(noteText))
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
-			.join('\n\n');
+			.join('---\n\n---');
 
 		const prompt = `${this.settings.lorebook.prompt}	
 Description:
@@ -348,5 +413,9 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 		} catch (error) {
 			new Notice(`Error generating the lorebook entry: ${error.message}`);
 		}
+	}
+
+	estimateTokens(text: string): number {
+	  return Math.ceil(text.length / 4);
 	}
 }
