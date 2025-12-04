@@ -182,13 +182,10 @@ export default class WriterAIPlugin extends Plugin {
 	async activateView() {
 		let leaf: WorkspaceLeaf | null = null;
 		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OPTIONS);	
-		console.log({ leaves });
 		if (leaves.length > 0) {
-			console.log("YA EXISTE");
 			// A leaf with our view already exists, use that
 			leaf = leaves[0];
 		} else {
-			console.log("QUE MIERDA HACES HIJO DE LA CONCHADETUMADRE");
 			// Our view could not be found in the workspace, create a new leaf
 			// in the right sidebar for it
 			leaf = this.app.workspace.getRightLeaf(false);

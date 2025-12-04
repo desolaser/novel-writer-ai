@@ -79,7 +79,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
 
         new Setting(optionsContainer)
             .setName('Streaming')
-            .setDesc('Enable this option if you want the text to be added to your note as it is being generated.')
+            .setDesc('Enable this option if you want the text to be added to your note as it is being generated. Do not works in deepseek because of requestUrl')
             .addToggle(toggle => {                
                 toggle.setValue(this.plugin.settings.stream)
                     .onChange(async (value: boolean) => {
