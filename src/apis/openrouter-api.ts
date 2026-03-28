@@ -57,6 +57,9 @@ export class OpenRouterApi extends ApiInterface {
             };
 
             const requestOptions = { ...defaultOptions, ...options };
+
+            console.log({ requestOptions, apiKey: this.apiKey });
+
             const response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
