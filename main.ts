@@ -18,7 +18,7 @@ import ContextModal from './src/modals/ContextModal';
 
 export type WriterAIPluginSettings = {
 	selectedApi: ApiProvider;
-	apiToken: any;
+	apiToken: Record<string, string>;
 	defaultModel: string;
 	stream: boolean;
 	prefixPrompt: string;
@@ -122,7 +122,9 @@ export default class WriterAIPlugin extends Plugin {
 			})
 		);
 
-        if (this.settings.selectedApi && this.settings.apiToken[this.settings.selectedApi]) {
+		const selectedApi = this.settings.selectedApi
+		const token = this.settings.apiToken[selectedApi];
+        if (selectedApi && (token || selectedApi === "ooba")) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
                 this.settings.apiToken[this.settings.selectedApi]
@@ -181,23 +183,16 @@ export default class WriterAIPlugin extends Plugin {
 
 	async activateView() {
 		let leaf: WorkspaceLeaf | null = null;
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OPTIONS);	
-		console.log({ leaves });
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OPTIONS);
 		if (leaves.length > 0) {
-			console.log("YA EXISTE");
-			// A leaf with our view already exists, use that
 			leaf = leaves[0];
 		} else {
-			console.log("QUE MIERDA HACES HIJO DE LA CONCHADETUMADRE");
-			// Our view could not be found in the workspace, create a new leaf
-			// in the right sidebar for it
 			leaf = this.app.workspace.getRightLeaf(false);
 			if (leaf !== null) {
 				await leaf.setViewState({ type: VIEW_TYPE_OPTIONS, active: true });
 			}
 		}
 	
-		// "Reveal" the leaf in case it is in a collapsed sidebar
 		if (leaf !== null) {
 			this.app.workspace.revealLeaf(leaf);
 		}
@@ -229,7 +224,9 @@ export default class WriterAIPlugin extends Plugin {
     async saveSettings() {
         await this.saveData(this.settings);
 
-        if (this.settings.selectedApi && this.settings.apiToken[this.settings.selectedApi]) {
+		const selectedApi = this.settings.selectedApi
+		const token = this.settings.apiToken[selectedApi];
+        if (selectedApi && (token && selectedApi === "ooba")) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
                 this.settings.apiToken[this.settings.selectedApi]
@@ -363,7 +360,7 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 		} else if (result.stream) {
 			let insertedText = '';
 			const startCursor = editor.getCursor();
-			for await (const chunk of result.stream) {
+			for await (const chunk of result.stream) {	
 				const newText = chunk.choices[0]?.delta?.content || '';
 				if (newText) {
 					const from = {

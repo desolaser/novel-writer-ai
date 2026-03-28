@@ -1,9 +1,10 @@
 const providers = {
     openrouter: "openrouter",
-    deepseek: "deepseek"
-}
+    deepseek: "deepseek",
+    ooba: "ooba"
+};
 
-type ApiProvider = "openrouter" | "deepseek"
+type ApiProvider = "openrouter" | "deepseek" | "ooba";
 
 export default providers;
 export type { ApiProvider };

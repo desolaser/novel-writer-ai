@@ -5,7 +5,7 @@ import type { Model } from './types/Model';
 export class AIPluginSettingsTab extends PluginSettingTab {
     plugin;
     apiFactory: ApiFactory;
-    availableApis: string[] = ['OpenRouter', 'Deepseek'];
+    availableApis: string[] = ['OpenRouter', 'Deepseek', 'Ooba'];
     models: Model[] = [];
 
     constructor(app: any, plugin: any) {
@@ -60,7 +60,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
         modelContainer.createEl('h3', { text: 'Available Models' });
 
         const token = this.plugin.settings.apiToken[this.plugin.settings.selectedApi];
-        if (this.plugin.settings.selectedApi && token) {
+        if (this.plugin.settings.selectedApi && (token || this.plugin.settings.selectedApi === "ooba")) {
             const cachedModels = localStorage.getItem('models');
             if (cachedModels) {
                 this.models = JSON.parse(cachedModels);
@@ -235,8 +235,9 @@ export class AIPluginSettingsTab extends PluginSettingTab {
             }
 
             // Si no hay token, no podemos cargar modelos
+            const selectedApi = this.plugin.settings.selectedApi;
             const token = this.plugin.settings.apiToken[this.plugin.settings.selectedApi]
-            if (!token || token === '') {
+            if ((!token || token === '') && selectedApi !== "ooba") {
                 if (container) {
                     container.createEl('p', { 
                         text: 'Add an API token to see the available models.'
