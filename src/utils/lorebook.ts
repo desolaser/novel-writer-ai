@@ -1,6 +1,12 @@
 import * as yaml from 'js-yaml';
 
-function extractLorebookMeta(content: string): { keys: string[], enabled: boolean, alwaysOn: boolean } {
+type LorebookMeta = {
+    keys: string[], 
+    enabled: boolean, 
+    alwaysOn: boolean
+}
+
+function extractLorebookMeta(content: string): LorebookMeta {
     const match = content.match(/^---\s*([\s\S]*?)---/);
     let keys: string[] = [];
     let enabled = true;
@@ -29,4 +35,8 @@ function extractLorebookMeta(content: string): { keys: string[], enabled: boolea
 
 export {
     extractLorebookMeta
+}
+
+export type {
+    LorebookMeta
 }
