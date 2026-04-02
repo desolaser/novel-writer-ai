@@ -123,9 +123,8 @@ export default class WriterAIPlugin extends Plugin {
 			})
 		);
 
-		const selectedApi = this.settings.selectedApi
-		const token = this.settings.apiToken[selectedApi];
-        if (selectedApi && (token || selectedApi === "ooba")) {
+		const selectedApi = this.settings.selectedApi;
+        if (selectedApi) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
                 this.settings.apiToken[this.settings.selectedApi]
@@ -226,8 +225,7 @@ export default class WriterAIPlugin extends Plugin {
         await this.saveData(this.settings);
 
 		const selectedApi = this.settings.selectedApi
-		const token = this.settings.apiToken[selectedApi];
-        if (selectedApi && (token && selectedApi === "ooba")) {
+        if (selectedApi) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
                 this.settings.apiToken[this.settings.selectedApi]
@@ -325,7 +323,10 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 				continue;
 			}
 	
-			if (meta.keys.some(key => lastContext.includes(key.toLowerCase()))) {
+			if (meta.keys.some(key => {
+				const regex = new RegExp(`\\b${key.toLowerCase()}\\b`, 'u');
+				return regex.test(lastContext);
+			})) {
 				entries.push({ file, content });
 			}
 		}
