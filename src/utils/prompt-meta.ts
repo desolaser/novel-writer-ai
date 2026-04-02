@@ -7,9 +7,11 @@ import { extractValueFromFrontmatter } from './frontmatter';
  * Busca un archivo _config.md en una carpeta
  */
 async function findConfigFile(folder: TFolder): Promise<TFile | null> {
+    console.log({ folder })
     const configFile = folder.children.find(
         (child) => child instanceof TFile && child.name === '_config.md'
     ) as TFile | undefined;
+    console.log({ configFile })
     return configFile || null;
 }
 

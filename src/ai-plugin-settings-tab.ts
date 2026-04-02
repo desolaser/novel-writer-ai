@@ -102,8 +102,46 @@ export class AIPluginSettingsTab extends PluginSettingTab {
         prefixTextarea.setPlaceholder('Enter memory information...');
         prefixTextarea.inputEl.rows = 6;
         prefixTextarea.setValue(this.plugin.settings.prefixPrompt);
-        prefixTextarea.onChange(async (value) => { 
+        prefixTextarea.onChange(async (value) => {
             this.plugin.settings.prefixPrompt = value;
+            await this.plugin.saveSettings();
+        });
+
+        // Memory Content section
+        const memoryContentSection = optionsContainer.createDiv('options-section');
+        memoryContentSection.createEl('p', { text: 'Global Memory Content' });
+        memoryContentSection.createEl('span', {
+            text: 'Default Long-term memory information that will be sent to the AI.',
+            cls: 'setting-item-description'
+        });
+        memoryContentSection.addClass('bg-primary');
+        
+        const memoryContentWrapper = memoryContentSection.createDiv('textarea-wrapper');
+        const memoryContentTextarea = new TextAreaComponent(memoryContentWrapper);
+        memoryContentTextarea.setPlaceholder('Enter memory content...');
+        memoryContentTextarea.inputEl.rows = 6;
+        memoryContentTextarea.setValue(this.plugin.settings.memoryContent);
+        memoryContentTextarea.onChange(async (value) => {
+            this.plugin.settings.memoryContent = value;
+            await this.plugin.saveSettings();
+        });
+        
+        // Author Note section
+        const authorNoteSection = optionsContainer.createDiv('options-section');
+        authorNoteSection.createEl('p', { text: 'Global Author Note' });
+        authorNoteSection.createEl('span', {
+            text: 'Default additional context or instructions for the AI that will be included in the prompt.',
+            cls: 'setting-item-description'
+        });
+        authorNoteSection.addClass('bg-primary');
+        
+        const authorNoteWrapper = authorNoteSection.createDiv('textarea-wrapper');
+        const authorNoteTextarea = new TextAreaComponent(authorNoteWrapper);
+        authorNoteTextarea.setPlaceholder('Enter author note...');
+        authorNoteTextarea.inputEl.rows = 6;
+        authorNoteTextarea.setValue(this.plugin.settings.authorNote);
+        authorNoteTextarea.onChange(async (value) => {
+            this.plugin.settings.authorNote = value;
             await this.plugin.saveSettings();
         });
 

@@ -13,6 +13,7 @@ import { ApiInterface } from 'src/interfaces/api-interface';
 import { CompletionResponse } from 'src/types/CompletionResponse';
 import providers, { ApiProvider } from 'src/constants/providers';
 import { extractLorebookMeta } from './src/utils/lorebook';
+import { getPromptMetaCascading } from './src/utils/prompt-meta';
 import { OptionsView, VIEW_TYPE_OPTIONS } from './src/views/OptionsView';
 import ContextModal from './src/modals/ContextModal';
 
@@ -246,6 +247,9 @@ export default class WriterAIPlugin extends Plugin {
 
 	async generatePrompt(context: string): Promise<string> {
 		const loreEntries = await this.filterLorebookEntriesByContext(context);
+		const authorNote = await getPromptMetaCascading(this.app, this.settings, 'authorNote');
+		const memoryContent = await getPromptMetaCascading(this.app, this.settings, 'memoryContent');
+
 		const loreText = loreEntries
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n---\n\n---\n');
@@ -255,10 +259,10 @@ ${loreText}
 --- End of the lorebook
 
 Relevant persistent information:
-${this.settings.memoryContent}
+${memoryContent}
 
 Relevant guidelines:
-${this.settings.authorNote}
+${authorNote}
 
 ## Prefix Prompt:
 ${this.settings.prefixPrompt} 

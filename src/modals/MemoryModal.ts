@@ -1,4 +1,6 @@
 import { App, Modal, TextAreaComponent } from 'obsidian';
+import { getPromptMetaCascading } from '../utils/prompt-meta';
+import { writeFrontmatterValue } from '../utils/frontmatter';
 import type WriterAIPlugin from '../../main';
 
 export default class MemoryModal extends Modal {
@@ -10,7 +12,7 @@ export default class MemoryModal extends Modal {
     this.plugin = plugin;
   }
 
-  onOpen() {
+  async onOpen() {
     const { contentEl, modalEl } = this;
     
     modalEl.addClass('context-modal-large');    
@@ -27,11 +29,12 @@ export default class MemoryModal extends Modal {
     this.memoryTextarea = new TextAreaComponent(memoryWrapper);
     this.memoryTextarea.setPlaceholder('Enter memory information...');
     this.memoryTextarea.inputEl.rows = 38;
-    this.memoryTextarea.setValue(this.plugin.settings.memoryContent);
+    this.memoryTextarea.setValue(await getPromptMetaCascading(this.app, this.plugin.settings, 'memoryContent'));
     this.memoryTextarea.onChange(async (value) => {
         const tokenCount = this.plugin.estimateTokens(value);
         memoryTokens.setText(`${tokenCount} tokens`);
-        this.plugin.settings.memoryContent = value;
+        //this.plugin.settings.memoryContent = value;
+        await writeFrontmatterValue(this.app, 'memoryContent', value);
         await this.plugin.saveSettings();
     });
   }

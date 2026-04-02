@@ -1,4 +1,5 @@
-import { App, Modal, MarkdownView, Notice } from 'obsidian';
+import { App, Modal, MarkdownView } from 'obsidian';
+import { getPromptMetaCascading } from '../utils/prompt-meta';
 import type WriterAIPlugin from '../../main';
 
 interface TokenInfo {
@@ -89,11 +90,14 @@ export default class ContextModal extends Modal {
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n---\n\n---\n');
 
+    const authorNote = await getPromptMetaCascading(this.app, this.plugin.settings, 'authorNote');
+    const memoryContent = await getPromptMetaCascading(this.app, this.plugin.settings, 'memoryContent');
+
     // Calcular tokens para cada sección
     const tokenData: TokenInfo[] = [
       { identifier: 'Story', tokens: this.plugin.estimateTokens(context) },
-      { identifier: 'Memory', tokens: this.plugin.estimateTokens(this.plugin.settings.memoryContent) },
-      { identifier: 'Author\'s Note', tokens: this.plugin.estimateTokens(this.plugin.settings.authorNote) },
+      { identifier: 'Memory', tokens: this.plugin.estimateTokens(memoryContent) },
+      { identifier: 'Author\'s Note', tokens: this.plugin.estimateTokens(authorNote) },
       { identifier: 'Lorebook', tokens: this.plugin.estimateTokens(loreText) },
     ];
 
