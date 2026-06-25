@@ -5,7 +5,7 @@ import type { Model } from './types/Model';
 export class AIPluginSettingsTab extends PluginSettingTab {
     plugin;
     apiFactory: ApiFactory;
-    availableApis: string[] = ['OpenRouter', 'Deepseek', 'Ooba'];
+    availableApis: string[] = ['OpenRouter', 'Deepseek', 'Ooba', 'Ollama'];
     models: Model[] = [];
 
     constructor(app: any, plugin: any) {
@@ -37,30 +37,32 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                     });
             });
 
-        new Setting(containerEl)
-            .setName('API Token')
-            .setDesc('Add the API token of your selected provider')
-            .addText(text => text
-            .setPlaceholder('Add your API token')
-            .setValue(this.plugin.settings.apiToken[this.plugin.settings.selectedApi] || '')
-            .onChange(async (value) => {
-                if (typeof this.plugin.settings.apiToken === "string") {
-                    this.plugin.settings.apiToken = {
-                        [this.plugin.settings.selectedApi]: value
-                    };
-                } else {
-                    this.plugin.settings.apiToken[this.plugin.settings.selectedApi] = value;
-                }
-                await this.plugin.saveSettings();
-                localStorage.removeItem('models');
-                await this.display();
-            }));
+        if (this.plugin.settings.selectedApi !== "ollama") {
+            new Setting(containerEl)
+                .setName('API Token')
+                .setDesc('Add the API token of your selected provider')
+                .addText(text => text
+                .setPlaceholder('Add your API token')
+                .setValue(this.plugin.settings.apiToken[this.plugin.settings.selectedApi] || '')
+                .onChange(async (value) => {
+                    if (typeof this.plugin.settings.apiToken === "string") {
+                        this.plugin.settings.apiToken = {
+                            [this.plugin.settings.selectedApi]: value
+                        };
+                    } else {
+                        this.plugin.settings.apiToken[this.plugin.settings.selectedApi] = value;
+                    }
+                    await this.plugin.saveSettings();
+                    localStorage.removeItem('models');
+                    await this.display();
+                }));
+        }
 
         const modelContainer = containerEl.createDiv();
         modelContainer.createEl('h3', { text: 'Available Models' });
 
         const token = this.plugin.settings.apiToken[this.plugin.settings.selectedApi];
-        if (this.plugin.settings.selectedApi && (token || this.plugin.settings.selectedApi === "ooba")) {
+        if (this.plugin.settings.selectedApi && (token || this.plugin.settings.selectedApi === "ooba" || this.plugin.settings.selectedApi === "ollama")) {
             const cachedModels = localStorage.getItem('models');
             if (cachedModels) {
                 this.models = JSON.parse(cachedModels);
@@ -237,7 +239,7 @@ export class AIPluginSettingsTab extends PluginSettingTab {
             // Si no hay token, no podemos cargar modelos
             const selectedApi = this.plugin.settings.selectedApi;
             const token = this.plugin.settings.apiToken[this.plugin.settings.selectedApi]
-            if ((!token || token === '') && selectedApi !== "ooba") {
+            if ((!token || token === '') && selectedApi !== "ooba" && selectedApi !== "ollama") {
                 if (container) {
                     container.createEl('p', { 
                         text: 'Add an API token to see the available models.'

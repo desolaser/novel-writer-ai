@@ -124,12 +124,12 @@ export default class WriterAIPlugin extends Plugin {
 
 		const selectedApi = this.settings.selectedApi
 		const token = this.settings.apiToken[selectedApi];
-        if (selectedApi && (token || selectedApi === "ooba")) {
-            this.api = this.apiFactory.createApi(
-                this.settings.selectedApi,
-                this.settings.apiToken[this.settings.selectedApi]
-            );
-        }
+		      if (selectedApi && (token || selectedApi === "ooba" || selectedApi === "ollama")) {
+		          this.api = this.apiFactory.createApi(
+		              this.settings.selectedApi,
+		              this.settings.apiToken[this.settings.selectedApi]
+		          );
+		      }
 		
 		this.addRibbonIcon('text', 'Generate text', async () => {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -224,16 +224,16 @@ export default class WriterAIPlugin extends Plugin {
     async saveSettings() {
         await this.saveData(this.settings);
 
-		const selectedApi = this.settings.selectedApi
-		const token = this.settings.apiToken[selectedApi];
-        if (selectedApi && (token && selectedApi === "ooba")) {
+  const selectedApi = this.settings.selectedApi
+  const token = this.settings.apiToken[selectedApi];
+        if (selectedApi && (token || selectedApi === "ooba" || selectedApi === "ollama")) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
                 this.settings.apiToken[this.settings.selectedApi]
             );
         } else {
             this.api = null;
-		}
+  }
     }
 
 	async generateCompletionAtSelection(editor: Editor) {
