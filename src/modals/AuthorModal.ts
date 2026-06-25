@@ -1,4 +1,6 @@
 import { App, Modal, TextAreaComponent } from 'obsidian';
+import { getPromptMetaCascading } from '../utils/prompt-meta';
+import { writeFrontmatterValue } from '../utils/frontmatter';
 import type WriterAIPlugin from '../../main';
 
 export default class AuthorModal extends Modal {
@@ -10,7 +12,7 @@ export default class AuthorModal extends Modal {
     this.plugin = plugin;
   }
 
-  onOpen() {
+  async onOpen() {
     const { contentEl, modalEl } = this;
     
     modalEl.addClass('context-modal-large');    
@@ -27,11 +29,12 @@ export default class AuthorModal extends Modal {
     this.authorTextarea = new TextAreaComponent(authorWrapper);
     this.authorTextarea.setPlaceholder("Enter author's note...");
     this.authorTextarea.inputEl.rows = 38;
-    this.authorTextarea.setValue(this.plugin.settings.authorNote);
+    this.authorTextarea.setValue(await getPromptMetaCascading(this.app, this.plugin.settings, 'authorNote'));
     this.authorTextarea.onChange(async (value) => {
         const tokenCount = this.plugin.estimateTokens(value);
         authorTokens.setText(`${tokenCount} tokens`);
-        this.plugin.settings.authorNote = value;
+        //this.plugin.settings.authorNote = value;
+        await writeFrontmatterValue(this.app, 'authorNote', value);
         await this.plugin.saveSettings();
     });
   }

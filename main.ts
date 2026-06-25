@@ -13,6 +13,7 @@ import { ApiInterface } from 'src/interfaces/api-interface';
 import { CompletionResponse } from 'src/types/CompletionResponse';
 import providers, { ApiProvider } from 'src/constants/providers';
 import { extractLorebookMeta } from './src/utils/lorebook';
+import { getPromptMetaCascading } from './src/utils/prompt-meta';
 import { OptionsView, VIEW_TYPE_OPTIONS } from './src/views/OptionsView';
 import ContextModal from './src/modals/ContextModal';
 
@@ -122,14 +123,13 @@ export default class WriterAIPlugin extends Plugin {
 			})
 		);
 
-		const selectedApi = this.settings.selectedApi
-		const token = this.settings.apiToken[selectedApi];
-		      if (selectedApi && (token || selectedApi === "ooba" || selectedApi === "ollama")) {
-		          this.api = this.apiFactory.createApi(
-		              this.settings.selectedApi,
-		              this.settings.apiToken[this.settings.selectedApi]
-		          );
-		      }
+		const selectedApi = this.settings.selectedApi;
+        if (selectedApi) {
+            this.api = this.apiFactory.createApi(
+                this.settings.selectedApi,
+                this.settings.apiToken[this.settings.selectedApi]
+            );
+        }
 		
 		this.addRibbonIcon('text', 'Generate text', async () => {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -224,16 +224,15 @@ export default class WriterAIPlugin extends Plugin {
     async saveSettings() {
         await this.saveData(this.settings);
 
-  const selectedApi = this.settings.selectedApi
-  const token = this.settings.apiToken[selectedApi];
-        if (selectedApi && (token || selectedApi === "ooba" || selectedApi === "ollama")) {
+		const selectedApi = this.settings.selectedApi
+        if (selectedApi) {
             this.api = this.apiFactory.createApi(
                 this.settings.selectedApi,
                 this.settings.apiToken[this.settings.selectedApi]
             );
         } else {
             this.api = null;
-  }
+  		}
     }
 
 	async generateCompletionAtSelection(editor: Editor) {
@@ -246,6 +245,9 @@ export default class WriterAIPlugin extends Plugin {
 
 	async generatePrompt(context: string): Promise<string> {
 		const loreEntries = await this.filterLorebookEntriesByContext(context);
+		const authorNote = await getPromptMetaCascading(this.app, this.settings, 'authorNote');
+		const memoryContent = await getPromptMetaCascading(this.app, this.settings, 'memoryContent');
+
 		const loreText = loreEntries
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n---\n\n---\n');
@@ -255,10 +257,10 @@ ${loreText}
 --- End of the lorebook
 
 Relevant persistent information:
-${this.settings.memoryContent}
+${memoryContent}
 
 Relevant guidelines:
-${this.settings.authorNote}
+${authorNote}
 
 ## Prefix Prompt:
 ${this.settings.prefixPrompt} 
@@ -321,7 +323,10 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 				continue;
 			}
 	
-			if (meta.keys.some(key => lastContext.includes(key.toLowerCase()))) {
+			if (meta.keys.some(key => {
+				const regex = new RegExp(`\\b${key.toLowerCase()}\\b`, 'u');
+				return regex.test(lastContext);
+			})) {
 				entries.push({ file, content });
 			}
 		}
