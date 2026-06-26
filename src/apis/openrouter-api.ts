@@ -77,6 +77,7 @@ export class OpenRouterApi extends ApiInterface {
 
             if (!response.ok) {
                 const errorData = await response.json();
+                console.log({ error: errorData.error });
                 throw new Error(`Error al generar texto: ${errorData.error?.message || response.statusText}`);
             }
 

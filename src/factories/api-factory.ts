@@ -3,6 +3,8 @@ import { DeepseekApi } from '../apis/deepseek-api';
 import { OpenRouterApi } from '../apis/openrouter-api';
 import { TextGenerationWebuiApi } from '../apis/text-generation-webui-api';
 import { OllamaApi } from '../apis/ollama-api';
+import { OpenCodeZenApi } from '../apis/opencodezen-api';
+import { OpenCodeGoApi } from '../apis/opencodego-api';
 
 export class ApiFactory {
     createApi(provider: string, apiKey: string): ApiInterface {
@@ -15,6 +17,10 @@ export class ApiFactory {
                 return new TextGenerationWebuiApi(apiKey);
             case 'ollama':
                 return new OllamaApi(apiKey);
+            case 'opencodezen':
+                return new OpenCodeZenApi(apiKey);
+            case 'opencodego':
+                return new OpenCodeGoApi(apiKey);
             default:
                 throw new Error(`Proveedor de API no soportado: ${provider}`);
         }
