@@ -5,6 +5,7 @@ import { TextGenerationWebuiApi } from '../apis/text-generation-webui-api';
 import { OllamaApi } from '../apis/ollama-api';
 import { OpenCodeZenApi } from '../apis/opencodezen-api';
 import { OpenCodeGoApi } from '../apis/opencodego-api';
+import { NovelAiApi } from '../apis/novelai-api';
 
 export class ApiFactory {
     createApi(provider: string, apiKey: string): ApiInterface {
@@ -21,6 +22,8 @@ export class ApiFactory {
                 return new OpenCodeZenApi(apiKey);
             case 'opencodego':
                 return new OpenCodeGoApi(apiKey);
+            case 'novelai':
+                return new NovelAiApi(apiKey);
             default:
                 throw new Error(`Proveedor de API no soportado: ${provider}`);
         }

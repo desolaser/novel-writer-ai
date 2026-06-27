@@ -4,10 +4,11 @@ const providers = {
     ooba: "ooba",
     ollama: "ollama",
     opencodezen: "opencodezen",
-    opencodego: "opencodego"
+    opencodego: "opencodego",
+    novelai: "novelai"
 };
 
-type ApiProvider = "openrouter" | "deepseek" | "ooba" | "ollama" | "opencodezen" | "opencodego";
+type ApiProvider = "openrouter" | "deepseek" | "ooba" | "ollama" | "opencodezen" | "opencodego" | "novelai";
 
 export default providers;
 export type { ApiProvider };

@@ -5,7 +5,7 @@ import type { Model } from './types/Model';
 export class AIPluginSettingsTab extends PluginSettingTab {
     plugin;
     apiFactory: ApiFactory;
-    availableApis: string[] = ['OpenRouter', 'Deepseek', 'Ooba', 'Ollama', 'OpenCodeZen', 'OpenCodeGo'];
+    availableApis: string[] = ['OpenRouter', 'Deepseek', 'Ooba', 'Ollama', 'OpenCodeZen', 'OpenCodeGo', 'NovelAI'];
     models: Model[] = [];
 
     constructor(app: any, plugin: any) {

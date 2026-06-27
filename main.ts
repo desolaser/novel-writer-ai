@@ -365,8 +365,8 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 		} else if (result.stream) {
 			let insertedText = '';
 			const startCursor = editor.getCursor();
-			for await (const chunk of result.stream) {	
-				const newText = chunk.choices[0]?.delta?.content || '';
+			for await (const chunk of result.stream) {
+				const newText = this.settings.selectedApi === "novelai" ? chunk.token : (chunk.choices[0]?.delta?.content || '');
 				if (newText) {
 					const from = {
 						line: startCursor.line,
