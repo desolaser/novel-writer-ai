@@ -366,7 +366,8 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 			let insertedText = '';
 			const startCursor = editor.getCursor();
 			for await (const chunk of result.stream) {
-				const newText = this.settings.selectedApi === "novelai" ? chunk.token : (chunk.choices[0]?.delta?.content || '');
+				const isNovelAIChunk = this.settings.selectedApi === "novelai" && ["kayra-v1", "llama-3-erato-v1"].includes(this.settings.defaultModel);
+				const newText = isNovelAIChunk ? chunk.token : (chunk.choices[0]?.delta?.content || '');
 				if (newText) {
 					const from = {
 						line: startCursor.line,
