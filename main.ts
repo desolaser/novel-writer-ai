@@ -24,6 +24,7 @@ export type WriterAIPluginSettings = {
 	stream: boolean;
 	prefixPrompt: string;
 	maxTokens: number;
+	maxContextTokens: number;
 	presencePenalty: number;
 	frequencyPenalty: number;
 	temperature: number;
@@ -33,6 +34,7 @@ export type WriterAIPluginSettings = {
 		folder: string;
 		prompt: string;
 	}
+	lorebookPercentage: number;
 	memoryContent: string;
 	authorNote: string;
 }
@@ -47,6 +49,7 @@ const DEFAULT_SETTINGS: WriterAIPluginSettings = {
 	stream: false,
 	prefixPrompt: "Continue the text following the narration style of the user: ",
 	maxTokens: 512,
+	maxContextTokens: 32764,
 	presencePenalty: 0,
 	frequencyPenalty: 0,
 	temperature: 1,
@@ -60,6 +63,7 @@ The entry MUST start with a YAML frontmatter block with a "keys" field (a list o
 After the frontmatter, write a concise but detailed definition or description for the concept. 
 Do not include anything except the frontmatter and the lorebook entry.`,
 	},	
+	lorebookPercentage: 25,
 	memoryContent: '',
 	authorNote: '',
 }
@@ -243,7 +247,7 @@ export default class WriterAIPlugin extends Plugin {
 		this.continueText(editor, result);
 	}
 
-	async generatePrompt(context: string): Promise<string> {
+	async generatePrompt(context: string, skipTruncation: boolean = false): Promise<string> {
 		const loreEntries = await this.filterLorebookEntriesByContext(context);
 		const authorNote = await getPromptMetaCascading(this.app, this.settings, 'authorNote');
 		const memoryContent = await getPromptMetaCascading(this.app, this.settings, 'memoryContent');
@@ -252,20 +256,54 @@ export default class WriterAIPlugin extends Plugin {
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n---\n\n---\n');
 
-		return `--- Start of the lorebook
-${loreText}
---- End of the lorebook
+		const maxContextTokens = this.settings.maxContextTokens;
+		const lorebookPercentage = this.settings.lorebookPercentage ?? 25;
 
-Relevant persistent information:
-${memoryContent}
+		// Build the fixed parts of the prompt (everything except the story context)
+		const lorebookHeader = '--- Start of the lorebook\n';
+		const lorebookFooter = '\n--- End of the lorebook\n\nRelevant persistent information:\n';
+		const memorySection = `${memoryContent}\n\nRelevant guidelines:\n`;
+		const authorSection = `${authorNote}\n\n## Prefix Prompt:\n`;
+		const prefixSection = `${this.settings.prefixPrompt} \n\n`;
 
-Relevant guidelines:
-${authorNote}
+		// Calculate available tokens for lorebook
+		const maxLorebookTokens = Math.floor(maxContextTokens * (lorebookPercentage / 100));
 
-## Prefix Prompt:
-${this.settings.prefixPrompt} 
+		// Truncate lorebook text if it exceeds its budget (skip if viewing full context)
+		let truncatedLoreText = loreText;
+		if (!skipTruncation && this.estimateTokens(loreText) > maxLorebookTokens) {
+			// Truncate lore entries from the end, respecting entry boundaries (separated by ---)
+			const loreEntrySeparator = '\n---\n\n---\n';
+			const loreEntryList = loreText.split(loreEntrySeparator);
+			let accumulatedTokens = 0;
+			const keptEntries: string[] = [];
+			for (const entry of loreEntryList) {
+				const entryTokens = this.estimateTokens(entry);
+				if (accumulatedTokens + entryTokens > maxLorebookTokens) break;
+				keptEntries.push(entry);
+				accumulatedTokens += entryTokens;
+			}
+			truncatedLoreText = keptEntries.join(loreEntrySeparator);
+		}
 
-${context}`;
+		// Build the full prompt with truncated lore
+		let prompt = `${lorebookHeader}${truncatedLoreText}${lorebookFooter}${memorySection}${authorSection}${prefixSection}${context}`;
+
+		// If the full prompt still exceeds maxContextTokens, truncate the story context from the beginning
+		if (!skipTruncation) {
+			const totalTokens = this.estimateTokens(prompt);
+			if (totalTokens > maxContextTokens) {
+				const overflowTokens = totalTokens - maxContextTokens;
+				// Remove overflow from the story context (the last part of the prompt)
+				const contextTokens = this.estimateTokens(context);
+				const keepTokens = Math.max(0, contextTokens - overflowTokens);
+				const keepChars = keepTokens * 4;
+				const truncatedContext = context.slice(-keepChars);
+				prompt = `${lorebookHeader}${truncatedLoreText}${lorebookFooter}${memorySection}${authorSection}${prefixSection}${truncatedContext}`;
+			}
+		}
+
+		return prompt;
 	}
 
 	async generateLorebookEntry(editor: Editor) {	
@@ -278,9 +316,10 @@ ${context}`;
 Description:
 ${noteText}	
 ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
-
+		
+		const inputTokens = this.estimateTokens(prompt);
 		const result = await this.generateText(prompt, "Generating lorebook entry...", {
-			max_tokens: 2048,
+			max_tokens: Math.floor(inputTokens * 1.3),
 			presence_penalty: 0,
 			frequency_penalty: 0,
 			temperature: 0.7,
@@ -293,7 +332,16 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 	async traduceText(editor: Editor) {	
 		const selection = editor.getSelection();
 		const prompt = `Traduce this text to spanish, you will answer just with the traduction. This is the text: ${selection}`;
-		const result = await this.generateText(prompt, "Traducing text...", { max_tokens: 2024 });
+		const inputTokens = this.estimateTokens(prompt);
+		const options = {
+			max_tokens: Math.floor(inputTokens * 1.3),
+			presence_penalty: 0,
+			frequency_penalty: 0,
+			temperature: 0.7,
+			top_p: 0.9
+		}
+
+		const result = await this.generateText(prompt, "Traducing text...", options);
 		if (!result) return;
 		this.replaceSelection(editor, result);
 	}
@@ -301,7 +349,15 @@ ${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
 	async summarizeText(editor: Editor) {	
 		const selection = editor.getSelection();
 		const prompt = `I need you to summarize the selected text. This is the text: ${selection}`;
-		const result = await this.generateText(prompt, "Traducing text...", { max_tokens: 2024 });
+		const inputTokens = this.estimateTokens(prompt);
+		const options = {
+			max_tokens: Math.floor(inputTokens * 0.5),
+			presence_penalty: 0,
+			frequency_penalty: 0,
+			temperature: 0.7,
+			top_p: 0.9
+		}
+		const result = await this.generateText(prompt, "Summarizing text...", options);
 		if (!result) return;
 		this.replaceSelection(editor, result);
 	}

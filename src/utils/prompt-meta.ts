@@ -45,8 +45,9 @@ async function getPromptMetaCascading(
     }
     
     // 3. Buscar en configuración global del plugin
-    if (typeof settings[key] === 'string') {
-        return settings[key];
+    const value = settings[key];
+    if (typeof value === 'string') {
+        return value;
     }
     
     return '';

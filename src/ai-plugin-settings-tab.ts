@@ -162,6 +162,21 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                 });
 
         new Setting(optionsContainer)
+            .setName('Max Context Tokens')
+            .setDesc('Maximum number of tokens that can be included in the context.')
+            .addText(text => {
+                text.setValue(this.plugin.settings.maxContextTokens.toString())
+                    .onChange(async (value: string) => {
+                        const parsedValue = parseInt(value);
+                        if (!isNaN(parsedValue)) {
+                            this.plugin.settings.maxContextTokens = parsedValue;
+                            await this.plugin.saveSettings();
+                        }
+                    });
+                });
+    
+
+        new Setting(optionsContainer)
             .setName('Temperature')
             .setDesc('Controls the randomness of the response. A higher value means more randomness.')
             .addText(text => {
@@ -243,6 +258,20 @@ export class AIPluginSettingsTab extends PluginSettingTab {
                     .onChange(async (value: string) => {
                         this.plugin.settings.lorebook.folder = value;
                         await this.plugin.saveSettings();
+                    });
+                });
+
+        new Setting(lorebookContainer)
+            .setName('Lorebook Context Percentage')
+            .setDesc('Percentage of the max context tokens that can be used by lorebook entries. Default: 25%.')
+            .addText(text => {
+                text.setValue(this.plugin.settings.lorebookPercentage.toString())
+                    .onChange(async (value: string) => {
+                        const parsedValue = parseInt(value);
+                        if (!isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 100) {
+                            this.plugin.settings.lorebookPercentage = parsedValue;
+                            await this.plugin.saveSettings();
+                        }
                     });
                 });
         

@@ -63,7 +63,7 @@ export default class ContextModal extends Modal {
 
     const loadingEl = contentEl.createEl('p', { text: 'Generando prompt...' });
 
-    this.plugin.generatePrompt(context).then((prompt) => {
+    this.plugin.generatePrompt(context, true).then((prompt) => {
       loadingEl.remove();
       
       // Contenedor del prompt con scroll
@@ -89,9 +89,15 @@ export default class ContextModal extends Modal {
 		const loreText = loreEntries
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n---\n\n---\n');
+    const loreEntrySeparator = '\n---\n\n---\n';
+    const loreEntryList = loreText.split(loreEntrySeparator);
 
     const authorNote = await getPromptMetaCascading(this.app, this.plugin.settings, 'authorNote');
     const memoryContent = await getPromptMetaCascading(this.app, this.plugin.settings, 'memoryContent');
+
+    const maxContextTokens = this.plugin.settings.maxContextTokens;
+    const lorebookPercentage = this.plugin.settings.lorebookPercentage ?? 25;
+    const maxLorebookTokens = Math.floor(maxContextTokens * (lorebookPercentage / 100));
 
     // Calcular tokens para cada sección
     const tokenData: TokenInfo[] = [
@@ -126,6 +132,13 @@ export default class ContextModal extends Modal {
     const totalRow = tbody.createEl('tr', { cls: 'total-row' });
     totalRow.createEl('td', { text: 'Total' });
     totalRow.createEl('td', { text: totalTokens.toString(), cls: 'token-column' });
+
+    // Context limits info
+    const limitsSection = tokenSection.createDiv('context-limits');
+    limitsSection.createEl('p', {
+      text: `Max Context Tokens: ${maxContextTokens} | Lorebook Budget: ${maxLorebookTokens} tokens (${lorebookPercentage}%)`,
+      cls: 'setting-item-description'
+    });
   }
 
   onClose() {
