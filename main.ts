@@ -164,6 +164,14 @@ export default class WriterAIPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'split-into-chapters',
+			name: 'Split note into chapters',
+			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
+				await this.splitIntoChapters(editor);
+			}
+		});
+
+		this.addCommand({
 			id: 'open-context-modal',
 			name: 'Open Context Modal',
 			callback: () => {
@@ -306,6 +314,149 @@ export default class WriterAIPlugin extends Plugin {
 		return prompt;
 	}
 
+	async splitIntoChapters(editor: Editor) {
+		const content = editor.getValue();
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			new Notice('No active file found.');
+			return;
+		}
+
+		// 1. Remove YAML frontmatter
+		const contentWithoutMeta = content.replace(/^---[\s\S]*?---\s*/, '').trim();
+
+		// 2. Split by *** (dinkus) into chapters
+		const rawChapters = contentWithoutMeta.split(/\n\s*\*{3,}\s*\n/);
+
+		// 3. Parse each chapter: extract [Title] from first line
+		type Chapter = { title: string; text: string };
+		const chapters: Chapter[] = [];
+
+		for (const raw of rawChapters) {
+			const trimmed = raw.trim();
+			if (!trimmed) continue;
+
+			const titleMatch = trimmed.match(/^\s*\[([^\]]+)\]\s*([\s\S]*)/);
+			let title: string;
+			let text: string;
+
+			if (titleMatch) {
+				title = titleMatch[1].trim();
+				text = titleMatch[2].trim();
+			} else {
+				title = `Chapter ${chapters.length + 1}`;
+				text = trimmed;
+			}
+
+			chapters.push({ title, text });
+		}
+
+		if (chapters.length === 0) {
+			new Notice('No chapters found. Make sure chapters are separated by ***');
+			return;
+		}
+
+		new Notice(`Found ${chapters.length} chapters. Generating summaries...`);
+
+		// 4. Generate summary of all chapters via AI
+		const chaptersForPrompt = chapters
+			.map((ch, i) => `## Chapter ${i + 1}: ${ch.title}\n\n${ch.text}`)
+			.join('\n\n***\n\n');
+
+		const summaryPrompt = `I need you to summarize the following chapters of a story. 
+For each chapter, provide a concise summary in spanish.
+
+Format your response exactly like this (do not include anything else, no brackets):
+
+${chapters.map((ch, i) => `${ch.title}:\nSummary of chapter ${i + 1}`).join('\n\n===\n\n')}
+
+Replace "Summary of chapter N" with the actual summary text. Use "===" as separator between chapters.
+
+Here are the chapters:
+
+${chaptersForPrompt}`;
+
+		const summaryResult = await this.generateText(summaryPrompt, "Generating chapter summaries...", {
+			max_tokens: Math.floor(this.estimateTokens(summaryPrompt) * 0.8),
+			presence_penalty: 0,
+			frequency_penalty: 0,
+			temperature: 0.5,
+			top_p: 0.9,
+			stream: false
+		});
+
+		if (!summaryResult || !summaryResult.text) {
+			new Notice('Failed to generate summaries.');
+			return;
+		}
+
+		// Parse summaries from AI response (separated by ===)
+		const summaryBlocks = summaryResult.text.trim().split(/\n\s*={3,}\s*\n/);
+		const summaries: string[] = [];
+
+		for (const block of summaryBlocks) {
+			const summaryMatch = block.match(/^([^:\n]+):\s*\n([\s\S]*)/);
+			if (summaryMatch) {
+				summaries.push(summaryMatch[2].trim());
+			}
+		}
+
+		// Ensure we have the right number of summaries
+		while (summaries.length < chapters.length) {
+			summaries.push('No summary available.');
+		}
+
+		// Get the current folder path
+		const folderPath = activeFile.parent ? activeFile.parent.path : '';
+
+		// 5. Create one note per chapter with previous summaries in memoryContent
+		for (let i = 0; i < chapters.length; i++) {
+			const chapter = chapters[i];
+			const previousSummaries = summaries.slice(0, i)
+				.map((s, j) => `${chapters[j].title}:\n${s}`)
+				.join('\n\n===\n\n');
+
+			const memoryContent = previousSummaries 
+				? `Previous chapter summaries:\n\n${previousSummaries}`
+				: '';
+
+			const chapterFileName = `${chapter.title.replace(/[\\/:*?"<>|]/g, '_')}.md`;
+			const chapterFilePath = folderPath ? `${folderPath}/${chapterFileName}` : chapterFileName;
+
+			// Build frontmatter with memoryContent
+			let chapterContent = '---\n';
+			if (memoryContent) {
+				chapterContent += `memoryContent: |\n  ${memoryContent.replace(/\n/g, '\n  ')}\n`;
+			}
+			chapterContent += `---\n\n${chapter.text}`;
+
+			// Check if file already exists
+			const existingFile = this.app.vault.getAbstractFileByPath(chapterFilePath);
+			if (existingFile instanceof TFile) {
+				await this.app.vault.modify(existingFile, chapterContent);
+			} else {
+				await this.app.vault.create(chapterFilePath, chapterContent);
+			}
+		}
+
+		// 6. Create "Capítulo Nuevo" note with full summary in memoryContent
+		const fullSummary = summaries
+			.map((s, i) => `${chapters[i].title}:\n${s}`)
+			.join('\n\n===\n\n');
+
+		const newChapterContent = `---\nmemoryContent: |\n  Complete story summary:\n  ${fullSummary.replace(/\n/g, '\n  ')}\n---\n\n`;
+		const newChapterPath = folderPath ? `${folderPath}/Capítulo Nuevo.md` : 'Capítulo Nuevo.md';
+
+		const existingNewFile = this.app.vault.getAbstractFileByPath(newChapterPath);
+		if (existingNewFile instanceof TFile) {
+			await this.app.vault.modify(existingNewFile, newChapterContent);
+		} else {
+			await this.app.vault.create(newChapterPath, newChapterContent);
+		}
+
+		new Notice(`Created ${chapters.length} chapter files + Capítulo Nuevo`);
+	}
+
 	async generateLorebookEntry(editor: Editor) {	
 		const noteText = editor.getValue();
 		const relatedLore = (await this.filterLorebookEntriesByContext(noteText))
@@ -313,9 +464,11 @@ export default class WriterAIPlugin extends Plugin {
 			.join('---\n\n---');
 
 		const prompt = `${this.settings.lorebook.prompt}	
-Description:
-${noteText}	
-${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}`;
+### Lore:
+${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}
+
+### This is the text of the note, write a lorebook entry about this:
+${noteText}`;
 		
 		const inputTokens = this.estimateTokens(prompt);
 		const result = await this.generateText(prompt, "Generating lorebook entry...", {
