@@ -94,7 +94,8 @@ export default class WriterAIPlugin extends Plugin {
 						.setTitle('Generate text')
 						.setIcon('text')
 						.onClick(async () => {
-							await this.generateCompletionAtSelection(editor);
+							const file = 'file' in view ? view.file : undefined;
+							await this.generateCompletionAtSelection(editor, file ?? undefined);
 						});
 				});
 
@@ -142,7 +143,7 @@ export default class WriterAIPlugin extends Plugin {
 				return;
 			}
 
-			await this.generateCompletionAtSelection(view.editor);
+			await this.generateCompletionAtSelection(view.editor, view.file ?? undefined);
 		});
 
         this.addSettingTab(new AIPluginSettingsTab(this.app, this));
@@ -151,7 +152,7 @@ export default class WriterAIPlugin extends Plugin {
             id: 'generate-text',
             name: 'Generate text with AI',
             editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-                await this.generateCompletionAtSelection(editor);
+                await this.generateCompletionAtSelection(editor, view.file ?? undefined);
             }
         });
 
@@ -247,16 +248,18 @@ export default class WriterAIPlugin extends Plugin {
   		}
     }
 
-	async generateCompletionAtSelection(editor: Editor) {
-		const context = editor.getValue();
-		const prompt = await this.generatePrompt(context);
+	async generateCompletionAtSelection(editor: Editor, sourceFile?: TFile) {
+		const cursor = editor.getCursor();
+		const context = editor.getRange({ line: 0, ch: 0 }, cursor);
+		const excludeFile = sourceFile ?? this.app.workspace.getActiveFile() ?? undefined;
+		const prompt = await this.generatePrompt(context, false, excludeFile);
 		const result = await this.generateText(prompt, "Generating text...");
 		if (!result) return;
 		this.continueText(editor, result);
 	}
 
-	async generatePrompt(context: string, skipTruncation: boolean = false): Promise<string> {
-		const loreEntries = await this.filterLorebookEntriesByContext(context);
+	async generatePrompt(context: string, skipTruncation: boolean = false, excludeFile?: TFile): Promise<string> {
+		const loreEntries = await this.filterLorebookEntriesByContext(context, excludeFile);
 		const authorNote = await getPromptMetaCascading(this.app, this.settings, 'authorNote');
 		const memoryContent = await getPromptMetaCascading(this.app, this.settings, 'memoryContent');
 
@@ -294,8 +297,10 @@ export default class WriterAIPlugin extends Plugin {
 			truncatedLoreText = keptEntries.join(loreEntrySeparator);
 		}
 
+		// We remove the metadata from the prompt
+		const content = context.replace(/^---[\s\S]*?---\s*/, '');
 		// Build the full prompt with truncated lore
-		let prompt = `${lorebookHeader}${truncatedLoreText}${lorebookFooter}${memorySection}${authorSection}${prefixSection}${context}`;
+		let prompt = `${lorebookHeader}${truncatedLoreText}${lorebookFooter}${memorySection}${authorSection}${prefixSection}${content}`;
 
 		// If the full prompt still exceeds maxContextTokens, truncate the story context from the beginning
 		if (!skipTruncation) {
@@ -515,13 +520,16 @@ ${noteText}`;
 		this.replaceSelection(editor, result);
 	}
 
-	async filterLorebookEntriesByContext(context: string): Promise<{file: TFile, content: string}[]> {
+	async filterLorebookEntriesByContext(context: string, excludeFile?: TFile): Promise<{file: TFile, content: string}[]> {
 		const files = this.app.vault.getFiles();
 		const lorebookFiles = files.filter(file => file.path.startsWith(`${this.settings.lorebook.folder}/`));
 		const entries = [];
 		const lastContext = context.slice(-this.settings.lorebook.searchRange).toLowerCase();
 	
 		for (const file of lorebookFiles) {
+			// Skip the excluded file (e.g., the current note being edited)
+			if (excludeFile && file.path === excludeFile.path) continue;
+
 			const content = await this.app.vault.read(file);
 			const meta = extractLorebookMeta(content);
 	

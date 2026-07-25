@@ -1,4 +1,4 @@
-import { App, Modal, MarkdownView } from 'obsidian';
+import { App, Modal, MarkdownView, TFile } from 'obsidian';
 import { getPromptMetaCascading } from '../utils/prompt-meta';
 import type WriterAIPlugin from '../../main';
 
@@ -55,6 +55,7 @@ export default class ContextModal extends Modal {
     }
 
     const context = targetView.editor.getValue();
+    const activeFile = targetView.file;
     
     if (!context || context.trim() === '') {
       contentEl.createEl('p', { text: 'El archivo está vacío.' });
@@ -63,34 +64,34 @@ export default class ContextModal extends Modal {
 
     const loadingEl = contentEl.createEl('p', { text: 'Generando prompt...' });
 
-    this.plugin.generatePrompt(context, true).then((prompt) => {
+    this.plugin.generatePrompt(context, true, activeFile ?? undefined).then((prompt) => {
       loadingEl.remove();
       
+      const content = context.replace(/^---[\s\S]*?---\s*/, '');
+
       // Contenedor del prompt con scroll
       const promptContainer = contentEl.createDiv('prompt-container');
       promptContainer.createEl('pre', { text: prompt });
 
       // Agregar tabla de tokens
-      this.createTokenTable(contentEl, context);
+      this.createTokenTable(contentEl, content, activeFile ?? undefined);
     }).catch((error) => {
       loadingEl.remove();
-      contentEl.createEl('p', { 
+      contentEl.createEl('p', {
         text: `Error: ${error.message}`,
         cls: 'mod-warning'
       });
     });
   }
 
-  private async createTokenTable(container: HTMLElement, context: string) {
+  private async createTokenTable(container: HTMLElement, context: string, excludeFile?: TFile) {
     const tokenSection = container.createDiv('token-table-section');
     tokenSection.createEl('h5', { text: 'Token Breakdown' });
 
-		const loreEntries = await this.plugin.filterLorebookEntriesByContext(context);
+    const loreEntries = await this.plugin.filterLorebookEntriesByContext(context, excludeFile);
 		const loreText = loreEntries
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
 			.join('\n---\n\n---\n');
-    const loreEntrySeparator = '\n---\n\n---\n';
-    const loreEntryList = loreText.split(loreEntrySeparator);
 
     const authorNote = await getPromptMetaCascading(this.app, this.plugin.settings, 'authorNote');
     const memoryContent = await getPromptMetaCascading(this.app, this.plugin.settings, 'memoryContent');
