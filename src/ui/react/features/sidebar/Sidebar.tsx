@@ -9,7 +9,7 @@ export function Sidebar({ plugin }: { plugin: NovelWriterPlugin }) {
 	const { activeSidebarTab, setSidebarTab } = useNovelWriter();
 	return (
 		<div className="nw-sidebar-tabs">
-			<div className="nw-tab-bar">
+			<div className="nw-tab-bar nw-tab-bar-compact">
 				<button className={activeSidebarTab === 'codex' ? 'active' : ''} onClick={() => setSidebarTab('codex')}>Codex</button>
 				<button className={activeSidebarTab === 'snippets' ? 'active' : ''} onClick={() => setSidebarTab('snippets')}>Snippets</button>
 				<button className={activeSidebarTab === 'chats' ? 'active' : ''} onClick={() => setSidebarTab('chats')}>Chats</button>

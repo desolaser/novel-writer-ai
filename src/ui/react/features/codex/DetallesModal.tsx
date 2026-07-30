@@ -83,19 +83,20 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 					<div className="nw-detalles-edit" style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%', overflow: 'hidden' }}>
 						<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
 							<h3 style={{ flex: 1, margin: 0 }}>Editar detalle</h3>
+						</div>						
+						<label>Nombre</label>
+						<input className="nw-input" value={sel.nombre} placeholder="Detalle sin nombre" onChange={e => updateDetalle({ ...sel, nombre: e.target.value })} onBlur={() => updateDetalle({ ...sel })} />
+						<div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+							<div className="nw-tab-bar nw-tab-bar-compact" style={{ flexShrink: 0 }}>
+								<button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>General</button>
+								<button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>IA</button>
+								{sel.tipo_detalle === TipoDetalle.Dropdown && <button className={tab === 'opciones' ? 'active' : ''} onClick={() => setTab('opciones')}>Opciones</button>}
+							</div>
 							<button className="nw-btn nw-btn-danger" onClick={async () => { if (confirm('Borrar detalle?')) { await useNovelWriter.getState().deleteDetalle(sel.id_detalle); setSelected(null); } }} title="Borrar"><Icon.Trash /></button>
-						</div>
-						<div className="nw-tab-bar" style={{ flexShrink: 0 }}>
-							<button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>General</button>
-							<button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>IA</button>
-							{sel.tipo_detalle === TipoDetalle.Dropdown && <button className={tab === 'opciones' ? 'active' : ''} onClick={() => setTab('opciones')}>Opciones</button>}
 						</div>
 						<div style={{ flex: 1, overflowY: 'auto' }}>
 							{tab === 'general' && (
-								<div className="nw-entry-tab" style={{ gap: 8 }}>
-									<label>Nombre</label>
-									<input className="nw-input" value={sel.nombre} placeholder="Detalle sin nombre" onChange={e => updateDetalle({ ...sel, nombre: e.target.value })} onBlur={() => updateDetalle({ ...sel })} />
-									<label>Tipo de detalle</label>
+								<div className="nw-entry-tab" style={{ gap: 8 }}><label>Tipo de detalle</label>
 									<select className="nw-select" value={sel.tipo_detalle} onChange={e => updateDetalle({ ...sel, tipo_detalle: e.target.value as TipoDetalle })}>
 										{tipos.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
 									</select>

@@ -40,6 +40,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [filterStyle, setFilterStyle] = useState<React.CSSProperties>({});
 	const [addMenuOpen, setAddMenuOpen] = useState(false);
 	const [configMenuOpen, setConfigMenuOpen] = useState(false);
+	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const filterRef = useRef<HTMLDivElement | null>(null);
 	const addRef = useRef<HTMLDivElement | null>(null);
 	const configRef = useRef<HTMLDivElement | null>(null);
@@ -105,6 +106,23 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		});
 	};
 	const clearFilters = () => setFilters(EMPTY_FILTERS);
+
+	const NO_CAT_KEY = '__no_cat__';
+	const isCatOpen = (catId: string) => !collapsed.has(catId);
+	const toggleCat = (catId: string) => {
+		setCollapsed((prev) => {
+			const next = new Set(prev);
+			if (next.has(catId)) next.delete(catId); else next.add(catId);
+			return next;
+		});
+	};
+	const allCatIds = (): string[] => {
+		const ids = categorias.filter((c) => filtered.some((e) => e.id_categoria === c.id_categoria)).map((c) => c.id_categoria);
+		if (!filters.isArchived && noCat.length > 0) ids.push(NO_CAT_KEY);
+		return ids;
+	};
+	const collapseAll = () => { setConfigMenuOpen(false); setCollapsed(new Set(allCatIds())); };
+	const openAll = () => { setConfigMenuOpen(false); setCollapsed(new Set()); };
 
 	const filtered = entradas.filter((e) => {
 		if (filters.isArchived ? !e.archivado : e.archivado) return false;
@@ -232,6 +250,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					</button>
 					{configMenuOpen && (
 						<div className="nw-dropdown nw-popover" style={{ minWidth: 200, right: 0, left: 'auto' }}>
+							<div className="nw-popover-item" onClick={openAll}><span>Open all</span></div>
+							<div className="nw-popover-item" onClick={collapseAll}><span>Collapse all</span></div>
+							<hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
 							<div className="nw-popover-item" onClick={openModalDetail}><span>Detalles Custom</span></div>
 							<div className="nw-popover-item" onClick={openModalCategories}><span>Categorias</span></div>
 						</div>
@@ -242,8 +263,11 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 				{catsWithEntries.map((c) => (
 					<CodexCategoryGroup
 						key={c.id_categoria}
+						catId={c.id_categoria}
 						catName={c.nombre}
 						catColor={c.color}
+						open={isCatOpen(c.id_categoria)}
+						onToggle={() => toggleCat(c.id_categoria)}
 						entries={filtered.filter((e) => e.id_categoria === c.id_categoria)}
 						tags={tags}
 						onEdit={setEditingEntry}
@@ -252,8 +276,11 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 				))}
 				{!filters.isArchived && noCat.length > 0 && (
 					<CodexCategoryGroup
+						catId={NO_CAT_KEY}
 						catName="Sin categoria"
 						catColor="#888"
+						open={isCatOpen(NO_CAT_KEY)}
+						onToggle={() => toggleCat(NO_CAT_KEY)}
 						entries={noCat}
 						tags={tags}
 						onEdit={setEditingEntry}
@@ -293,13 +320,12 @@ function FilterCategoryItem({ label, color, state, onClick }: { label: string; c
 	);
 }
 
-function CodexCategoryGroup({ catName, catColor, entries, tags, onEdit, onAddInCategory }: { catName: string; catColor: string; entries: any[]; tags: any[]; onEdit: (id: string) => void; onAddInCategory: () => void }) {
-	const [open, setOpen] = useState(true);
+function CodexCategoryGroup({ catId, catName, catColor, open, onToggle, entries, tags, onEdit, onAddInCategory }: { catId: string; catName: string; catColor: string; open: boolean; onToggle: () => void; entries: any[]; tags: any[]; onEdit: (id: string) => void; onAddInCategory: () => void }) {
 	if (entries.length === 0) return null;
 	return (
-		<div className="nw-cat-group">
+		<div className="nw-cat-group" data-cat-id={catId}>
 			<div className="nw-cat-header" style={{ borderLeftColor: catColor }}>
-				<button className="nw-cat-header-toggle" onClick={() => setOpen(!open)}>
+				<button className="nw-cat-header-toggle" onClick={onToggle}>
 					<span className="nw-cat-toggle-main">
 						<span className="nw-cat-caret">{open ? <Icon.ChevronDown /> : <Icon.ChevronRight />}</span>
 						<span className="nw-cat-name">{catName}</span>
@@ -307,9 +333,9 @@ function CodexCategoryGroup({ catName, catColor, entries, tags, onEdit, onAddInC
 					<span className="nw-cat-count">
 						{entries.length > 1 ? `Entries ${entries.length}` : `Entry ${entries.length}`}
 					</span>
-					<button className="nw-btn nw-btn-icon nw-cat-add" onClick={onAddInCategory} title={"Crear entrada en " + catName}>
-						<Icon.Plus width={12} height={12} />
-					</button>
+				</button>
+				<button className="nw-btn nw-btn-icon nw-btn-transparent nw-cat-add" onClick={onAddInCategory} title={"Crear entrada en " + catName}>
+					<Icon.Plus width={12} height={12} />
 				</button>
 			</div>
 			{open && (

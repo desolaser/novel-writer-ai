@@ -35,6 +35,13 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 	const dragRef = useRef<DragState>(null);
 
 	useEffect(() => {
+		const img = new Image();
+		img.onload = () => setImgNatural({ w: img.naturalWidth, h: img.naturalHeight });
+		img.onerror = () => console.error('ThumbnailCropModal: no se pudo cargar la imagen', imageUrl);
+		img.src = imageUrl;
+	}, [imageUrl]);
+
+	useEffect(() => {
 		if (!imgNatural) return;
 		const scale = Math.min(MAX_DISPLAY / imgNatural.w, MAX_DISPLAY / imgNatural.h, 1);
 		const dw = Math.round(imgNatural.w * scale);
@@ -118,7 +125,7 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 							alt=""
 							draggable={false}
 							style={{ width: displaySize.w, height: displaySize.h, display: 'block', userSelect: 'none' }}
-							onLoad={(e) => setImgNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+							
 						/>
 						<div className="nw-crop-overlay" style={{ width: displaySize.w, height: displaySize.h }}>
 							<div
