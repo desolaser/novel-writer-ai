@@ -14,6 +14,7 @@ import { CompletionResponse } from 'src/types/CompletionResponse';
 import providers, { ApiProvider } from 'src/constants/providers';
 import { extractLorebookMeta } from './src/utils/lorebook';
 import { getPromptMetaCascading } from './src/utils/prompt-meta';
+import { extractValueFromFrontmatter } from './src/utils/frontmatter';
 import { OptionsView, VIEW_TYPE_OPTIONS } from './src/views/OptionsView';
 import ContextModal from './src/modals/ContextModal';
 
@@ -169,6 +170,14 @@ export default class WriterAIPlugin extends Plugin {
 			name: 'Split note into chapters',
 			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
 				await this.splitIntoChapters(editor);
+			}
+		});
+
+		this.addCommand({
+			id: 'crear-nuevo-capitulo',
+			name: 'Create new chapter',
+			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
+				await this.crearNuevoCapitulo(editor);
 			}
 		});
 
@@ -462,7 +471,71 @@ ${chaptersForPrompt}`;
 		new Notice(`Created ${chapters.length} chapter files + Capítulo Nuevo`);
 	}
 
-	async generateLorebookEntry(editor: Editor) {	
+	async crearNuevoCapitulo(editor: Editor) {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			new Notice('No active file found.');
+			return;
+		}
+
+		// Get the full content of the current note
+		const content = editor.getValue();
+
+		// Remove YAML frontmatter for the summary prompt
+		const contentWithoutMeta = content.replace(/^---[\s\S]*?---\s*/, '').trim();
+
+		// Get memoryContent from the current chapter's frontmatter
+		const memoryContentChapter = extractValueFromFrontmatter(content, 'memoryContent') || '';
+
+		// Generate summary of the current chapter via AI
+		const summaryPrompt = `I need you to summarize the following chapter of a story.
+Provide a concise summary in spanish.
+
+Here is the chapter:
+
+${contentWithoutMeta}`;
+
+		const inputTokens = this.estimateTokens(summaryPrompt);
+		const summaryResult = await this.generateText(summaryPrompt, "Summarizing current chapter...", {
+			max_tokens: Math.floor(inputTokens * 0.5),
+			presence_penalty: 0,
+			frequency_penalty: 0,
+			temperature: 0.5,
+			top_p: 0.9,
+			stream: false
+		});
+
+		if (!summaryResult || !summaryResult.text) {
+			new Notice('Failed to generate summary.');
+			return;
+		}
+
+		const summaryActualChapter = summaryResult.text.trim();
+
+		// Build the new memoryContent combining previous memoryContent and the new summary
+		let newMemoryContent = '';
+		if (memoryContentChapter) {
+			newMemoryContent += memoryContentChapter + '\n\n===\n\n';
+		}
+		newMemoryContent += summaryActualChapter;
+
+		// Create the new note "Capítulo Nuevo" in the same folder
+		const folderPath = activeFile.parent ? activeFile.parent.path : '';
+		const newChapterPath = folderPath ? `${folderPath}/Capítulo Nuevo.md` : 'Capítulo Nuevo.md';
+
+		const newChapterContent = `---\nmemoryContent: |\n  ${newMemoryContent.replace(/\n/g, '\n  ')}\n---\n\n`;
+
+		const existingFile = this.app.vault.getAbstractFileByPath(newChapterPath);
+		if (existingFile instanceof TFile) {
+			await this.app.vault.modify(existingFile, newChapterContent);
+		} else {
+			await this.app.vault.create(newChapterPath, newChapterContent);
+		}
+
+		new Notice('New chapter created successfully.');
+	}
+
+	async generateLorebookEntry(editor: Editor) {
 		const noteText = editor.getValue();
 		const relatedLore = (await this.filterLorebookEntriesByContext(noteText))
 			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
