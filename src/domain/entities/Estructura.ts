@@ -11,7 +11,7 @@ export interface Acto {
 	updated_at: ISODate;
 }
 
-/** Capitulo: pertenece a un Acto. El texto vive en las Escenas (no aqui). */
+/** Capitulo: pertenece a un Acto y tiene un manuscrito Markdown asociado. */
 export interface Capitulo {
 	id_capitulo: EntityId;
 	nombre: string;
@@ -25,15 +25,3 @@ export interface Capitulo {
 	updated_at: ISODate;
 }
 
-/** Escena: unidad minima de manuscrito. Sin nombre. El texto vive en .md. */
-export interface Escena {
-	id_escena: EntityId;
-	/** Resumen / outline (etapa Planeacion). */
-	outline: string;
-	/** Path relativo del .md que contiene el texto real, o null. */
-	archivo: string | null;
-	id_capitulo: EntityId;
-	orden: number;
-	created_at: ISODate;
-	updated_at: ISODate;
-}

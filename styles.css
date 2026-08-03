@@ -846,3 +846,24 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 	justify-content: flex-end;
 	gap: 8px;
 }
+
+.nw-import-folder-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.nw-import-folder-list .nw-btn-block {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	text-align: left;
+	white-space: normal;
+	word-break: break-word;
+}
+
+.nw-import-option {
+	display: block;
+	width: 100%;
+	padding: 8px 0;
+}

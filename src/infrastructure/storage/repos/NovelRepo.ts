@@ -1,7 +1,7 @@
 import { App, TFolder, TAbstractFile, TFile } from 'obsidian';
 import { Novela, EntityId, ISODate } from '../../../domain';
 import { genId } from '../../../utils/ids';
-import { createActo as dbCreateActo, createCapitulo as dbCreateCapitulo, createEscena as dbCreateEscena } from './EstructuraRepo';
+import { createActo as dbCreateActo, createCapitulo as dbCreateCapitulo } from './EstructuraRepo';
 import { nowISO } from '../../../domain/types';
 import {
 	NOVELA_META_FILE, NOVELA_SCHEMA_VERSION, DEFAULT_CATEGORIES,
@@ -106,10 +106,9 @@ export async function createNovel(
 	}));
 	await writeJson(app, joinPath(finalPath, 'codex', 'categorias.json'), categorias);
 
-	// Estructura default: 1 acto + 1 capitulo + 1 escena
+	// Estructura default: 1 acto + 1 capitulo
 	const acto = await dbCreateActo(app, finalPath, idNovela, 'Acto 1');
 	const cap = await dbCreateCapitulo(app, finalPath, acto.id_acto, 'Capitulo 1', 0);
-	await dbCreateEscena(app, finalPath, cap.id_capitulo, 0);
 	return { folderPath: finalPath, novela };
 }
 

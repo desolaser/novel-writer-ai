@@ -94,7 +94,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	const onSelectColor = async (color: string | null) => { setMenuOpen(false); await patchAndSave({ color }); };
 	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); setEditingEntry(null); };
 	const onArchive = async () => { setMenuOpen(false); await archiveEntry(entry.id_entrada_codex, !entry.archivado); setEditingEntry(null); };
-	const onDelete = async () => { setMenuOpen(false); if (confirm('Borrar entrada definitivamente?')) { await deleteEntry(entry.id_entrada_codex); setEditingEntry(null); } };
+	const onDelete = async () => { setMenuOpen(false); if (confirm('Borrar entrada definitivamente?')) { await deleteEntry(entry.id_entrada_codex); setEditingEntry(null); onClose?.(); } };
 
 	const otherNovels = ((novels ?? []) as any[]).filter((n: any) => n.novela && n.novela.id_novela !== entry.id_novela);
 	return (
@@ -228,7 +228,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 				)}
 				{tab === 'menciones' && (
 					<div className="nw-entry-tab">
-						<p className="nw-muted">Esta entrada aún no ha sido mencionada en ninguna escena. Las menciones se rastrean al escribir escenas.</p>
+						<p className="nw-muted">Esta entrada aún no ha sido mencionada en ningún capítulo. Las menciones se rastrean al escribir capítulos.</p>
 					</div>
 				)}
 				{tab === 'tracking' && (

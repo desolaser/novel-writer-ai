@@ -11,15 +11,6 @@ export interface DetalleCategoria {
 	updated_at: ISODate;
 }
 
-/** Varias Etiquetas pueden aplicarse a una Escena. */
-export interface EscenaEtiqueta {
-	id_escena_etiqueta: EntityId;
-	id_escena: EntityId;
-	id_etiqueta: EntityId;
-	created_at: ISODate;
-	updated_at: ISODate;
-}
-
 /** Varias Etiquetas pueden aplicarse a un Capitulo. */
 export interface CapituloEtiqueta {
 	id_capitulo_etiqueta: EntityId;

@@ -2,7 +2,7 @@ import { EntityId, ISODate } from '../types';
 
 /**
  * Tag: etiquetado libre/curado para filtrar Entradas de Codex.
- * Distinto de Etiqueta (que aplica a capitulos/escenas).
+	 * Distinto de Etiqueta (que aplica a capitulos).
  */
 export interface Tag {
 	id_tag: EntityId;

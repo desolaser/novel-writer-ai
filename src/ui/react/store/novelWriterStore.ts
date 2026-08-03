@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
 	EntradaCodex, Categoria, Detalle, Etiqueta, Tag,
-	Acto, Capitulo, Escena, Snippet, Chat, EntityId, OpcionDetalle, TipoDetalle,
+	Acto, Capitulo, Snippet, Chat, EntityId, OpcionDetalle, TipoDetalle,
 } from '../../../domain';
 import { NovelStore, NovelScanResult } from '../../../infrastructure/storage/store';
 
@@ -24,11 +24,9 @@ interface NovelWriterStore extends UIState {
 	entradas: EntradaCodex[];
 	actos: Acto[];
 	capitulos: Capitulo[];
-	escenas: Escena[];
 	snippets: Snippet[];
 	chats: Chat[];
 	editingEntryId: EntityId | null;
-	editingEscenaId: EntityId | null;
 	activeChatId: EntityId | null;
 	loading: boolean;
 
@@ -68,10 +66,6 @@ interface NovelWriterStore extends UIState {
 	readCapituloTexto: (id: EntityId) => Promise<string>;
 	linkCapituloArchivo: (id: EntityId, path: string) => Promise<void>;
 	reconcileCapituloArchivos: () => Promise<void>;
-	createEscena: (idCap: EntityId, orden: number) => Promise<Escena>;
-	updateEscena: (id: EntityId, patch: Partial<Escena>) => Promise<void>;
-	deleteEscena: (id: EntityId) => Promise<void>;
-	writeEscenaTexto: (id: EntityId, content: string) => Promise<void>;
 
 	createDetalle: (nombre: string, tipo: TipoDetalle, incluirIa: boolean) => Promise<void>;
 	updateDetalle: (d: Detalle) => Promise<void>;
@@ -99,8 +93,8 @@ interface NovelWriterStore extends UIState {
 export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 	store: null, novels: [], activeNovelId: null,
 	categorias: [], etiquetas: [], tags: [], detalles: [], entradas: [],
-	actos: [], capitulos: [], escenas: [], snippets: [], chats: [],
-	editingEntryId: null, editingEscenaId: null, activeChatId: null, snippetEditorId: null,
+	actos: [], capitulos: [], snippets: [], chats: [],
+	editingEntryId: null, activeChatId: null, snippetEditorId: null,
 	loading: false,
 	sidebarWidth: 360, sidebarCollapsed: false, activeWorkTab: 'escribir', activeSidebarTab: 'codex',
 
@@ -109,11 +103,11 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 
 	setActiveNovel: async (id) => {
 		const s = get().store; if (!s) return;
-		set({ loading: true, editingEntryId: null, editingEscenaId: null, activeChatId: null, snippetEditorId: null });
+		set({ loading: true, editingEntryId: null, activeChatId: null, snippetEditorId: null });
 		await s.setActive(id);
 		set({ activeNovelId: id, loading: false });
 		if (id) await get().reloadAll();
-		else set({ categorias: [], entradas: [], actos: [], capitulos: [], escenas: [], snippets: [], chats: [], tags: [], etiquetas: [], detalles: [] });
+		else set({ categorias: [], entradas: [], actos: [], capitulos: [], snippets: [], chats: [], tags: [], etiquetas: [], detalles: [] });
 	},
 
 	reloadAll: async () => {
@@ -123,12 +117,7 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 			s.listCategorias(), s.listEtiquetas(), s.listTags(), s.listDetalles(),
 			s.listEntries(), s.listActos(), s.listCapitulos(), s.listSnippets(), s.listChats(),
 		]);
-		const escenasAll: Escena[] = [];
-		for (const cap of capitulos) {
-			const es = await s.listEscenasByCapitulo(cap.id_capitulo);
-			escenasAll.push(...es);
-		}
-		set({ categorias, etiquetas, tags, detalles, entradas, actos, capitulos, escenas: escenasAll, snippets, chats });
+		set({ categorias, etiquetas, tags, detalles, entradas, actos, capitulos, snippets, chats });
 	},
 
 	setSidebarWidth: (n) => set({ sidebarWidth: n }),
@@ -173,10 +162,6 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 	readCapituloTexto: async (id) => { const s = get().store; if (!s) return ''; return s.readCapituloTexto(id); },
 	linkCapituloArchivo: async (id, path) => { const s = get().store; if (!s) return; await s.linkCapituloArchivo(id, path); await get().reloadAll(); },
 	reconcileCapituloArchivos: async () => { const s = get().store; if (!s) return; await s.reconcileCapituloArchivos(); await get().reloadAll(); },
-	createEscena: async (idCap, orden) => { const s = get().store; if (!s) return; const es = await s.createEscena(idCap, orden); await get().reloadAll(); return es; },
-	updateEscena: async (id, patch) => { const s = get().store; if (!s) return; await s.updateEscena(id, patch); await get().reloadAll(); },
-	deleteEscena: async (id) => { const s = get().store; if (!s) return; await s.deleteEscena(id); await get().reloadAll(); },
-	writeEscenaTexto: async (id, content) => { const s = get().store; if (!s) return; await s.writeEscenaTexto(id, content); },
 
 	createDetalle: async (nombre, tipo, incluirIa) => { const s = get().store; if (!s) return; await s.createDetalle(nombre, tipo, incluirIa); await get().reloadAll(); },
 	updateDetalle: async (d) => { const s = get().store; if (!s) return; await s.updateDetalle(d); await get().reloadAll(); },

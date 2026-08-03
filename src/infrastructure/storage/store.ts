@@ -13,7 +13,7 @@ import * as SnipRepo from './repos/SnippetRepo';
 import * as ChatRepo from './repos/ChatRepo';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
-	Acto, Capitulo, Escena, Snippet, Chat, EntityId,
+	Acto, Capitulo, Snippet, Chat, EntityId,
 } from '../../domain';
 
 export type { NovelScanResult };
@@ -106,12 +106,6 @@ export class NovelStore {
 	async readCapituloTexto(id: EntityId) { return EstRepo.readCapituloTexto(this.app, this.activeFolder!, id); }
 	async linkCapituloArchivo(id: EntityId, path: string) { await EstRepo.linkCapituloArchivo(this.app, this.activeFolder!, id, path); }
 	async reconcileCapituloArchivos() { await EstRepo.reconcileCapituloArchivos(this.app, this.activeFolder!); }
-	async listEscenasByCapitulo(idCap: EntityId) { return EstRepo.listEscenasByCapitulo(this.app, this.activeFolder!, idCap); }
-	async createEscena(idCap: EntityId, orden: number) { return EstRepo.createEscena(this.app, this.activeFolder!, idCap, orden); }
-	async updateEscena(id: EntityId, patch: Partial<Escena>) { await EstRepo.updateEscena(this.app, this.activeFolder!, id, patch); }
-	async deleteEscena(id: EntityId) { await EstRepo.deleteEscena(this.app, this.activeFolder!, id); }
-	async readEscenaTexto(escena: Escena) { return EstRepo.readEscenaTexto(this.app, this.activeFolder!, escena); }
-	async writeEscenaTexto(id: EntityId, content: string) { await EstRepo.writeEscenaTexto(this.app, this.activeFolder!, id, content); }
 
 	// Snippets
 	async listSnippets(): Promise<Snippet[]> { return SnipRepo.listSnippets(this.app, this.activeFolder!); }

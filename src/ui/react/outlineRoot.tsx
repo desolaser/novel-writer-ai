@@ -31,7 +31,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	};
 
 	return <div className="nw-outline-view nw-outline-single-column">
-		<div className="nw-outline-title"><strong>Outline</strong><div className="nw-outline-actions"><label className="nw-draft-length">Palabras <input type="number" min={100} max={20000} step={100} value={targetWords} onChange={e => { const n = Math.max(100, Number(e.target.value) || 2000); setTargetWords(n); plugin.settings.data.draftWordCount = n; void plugin.settings.save(); }} /></label><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateAllMemory()}>Generar memoria</button><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => new FolderPickerModal(plugin.app, folder => void createAllManuscripts(folder.path)).open()}>Crear manuscritos</button><button className="nw-btn nw-btn-experimental" title="Función experimental: la longitud final depende del proveedor y del modelo" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateDrafts()}>Generar drafts (experimental)</button></div></div>
+		<div className="nw-outline-title"><strong>Outline</strong><div className="nw-outline-actions"><label className="nw-draft-length">Palabras <input type="number" min={100} max={20000} step={100} value={targetWords} onChange={e => { const n = Math.max(100, Number(e.target.value) || 2000); setTargetWords(n); plugin.settings.data.draftWordCount = n; void plugin.settings.save(); }} /></label><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateAllMemory()}>Generar memoria</button><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateAllOutlines()}>Generar Outlines</button><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => new FolderPickerModal(plugin.app, folder => void createAllManuscripts(folder.path)).open()}>Crear manuscritos</button><button className="nw-btn nw-btn-experimental" title="Función experimental: la longitud final depende del proveedor y del modelo" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateDrafts()}>Generar drafts (experimental)</button></div></div>
 		{batchStatus && <div className="nw-outline-status">{batchStatus}</div>}
 		<div className="nw-outline-add"><input className="nw-input" value={newAct} onChange={e => setNewAct(e.target.value)} placeholder="Nuevo acto" onKeyDown={e => { if (e.key === 'Enter') void (async () => { if (newAct.trim()) { await createActo(newAct.trim()); setNewAct(''); } })(); }} /><button className="nw-btn nw-btn-primary" onClick={async () => { if (newAct.trim()) { await createActo(newAct.trim()); setNewAct(''); } }}>+ Acto</button></div>
 		{actos.map(a => { const caps = capitulos.filter(c => c.id_acto === a.id_acto); return <section className="nw-outline-act" key={a.id_acto}>
@@ -91,6 +91,36 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			await updateCapitulo(chapter.id_capitulo, { outline });
 			setBatchStatus(`Outline actualizado: ${chapter.nombre}`);
 		} catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
+	}
+
+	async function generateAllOutlines() {
+		if (!store) return;
+		if (!plugin.settings.data.proveedor.modelo) { setBatchStatus('Configura un modelo en Settings.'); return; }
+		setBatchBusy(true);
+		try {
+			const chapters = orderedChapters();
+			for (let i = 0; i < chapters.length; i++) {
+				setBatchStatus(`Generando outline: ${i + 1}/${chapters.length} — ${chapters[i].nombre}`);
+				await generateChapterOutlineForBatch(chapters[i]);
+			}
+			setBatchStatus(`Outlines generados para ${chapters.length} capítulos.`);
+		} catch (e: any) {
+			setBatchStatus('Error: ' + (e?.message ?? String(e)));
+		} finally {
+			setBatchBusy(false);
+		}
+	}
+
+	async function generateChapterOutlineForBatch(chapter: any) {
+		if (!store || !chapter.archivo) return;
+		const settings = plugin.settings.data;
+		const manuscript = await readCapituloTexto(chapter.id_capitulo);
+		if (!manuscript.trim()) return;
+		const prompt = `Resume el siguiente capítulo en UN ÚNICO PÁRRAFO breve, de aproximadamente 80 a 120 palabras. Prioriza una respuesta completa y terminada; no la cortes a mitad de una oración. Escribe una síntesis narrativa breve en prosa continua. No uses saltos de línea, viñetas, listas numeradas, guiones, encabezados, etiquetas, formato Markdown ni estructura de presentación. Menciona solo los acontecimientos esenciales en orden, los cambios importantes de los personajes y el estado final de la trama. No inventes información, no escribas el capítulo y devuelve únicamente ese único párrafo, sin introducción ni comentarios adicionales.\n\nTítulo del capítulo: ${chapter.nombre}\n\nTexto del capítulo:\n${manuscript}`;
+		const api = new ApiFactory().createApi(settings.proveedor.id, settings.apiToken[settings.proveedor.id] ?? '');
+		const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, 800, settings.aiOptions.temperature, settings.aiOptions.topP);
+		const outline = (result.text ?? '').replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+		if (outline) await updateCapitulo(chapter.id_capitulo, { outline });
 	}
 
 	async function writeChapterMemory(chapter: any, memory: string) {

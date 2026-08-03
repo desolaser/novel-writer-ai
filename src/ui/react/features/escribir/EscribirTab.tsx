@@ -9,9 +9,8 @@ import { MarkdownPreview } from '../../components/MarkdownPreview';
 import { ApiFactory } from '../../../../factories/api-factory';
 
 export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { actos, capitulos, escenas, createActo, createCapitulo, createEscena, store, writeEscenaTexto, updateActo, deleteActo, updateCapitulo, deleteCapitulo } = useNovelWriter();
+	const { actos, capitulos, createActo, createCapitulo, store, updateActo, deleteActo, updateCapitulo, deleteCapitulo } = useNovelWriter();
 	const [selCap, setSelCap] = useState<string | null>(null);
-	const [selEsc, setSelEsc] = useState<string | null>(null);
 	const [text, setText] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [viewMode, setViewMode] = useState<'edit'|'preview'|'split'>('split');
@@ -21,28 +20,27 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [newActo, setNewActo] = useState(''); const [addingActo, setAddingActo] = useState(false);
 	const [newCap, setNewCap] = useState(''); const [addingCap, setAddingCap] = useState<string | null>(null);
 
-	const escaSel = escenas.find(e => e.id_escena === selEsc);
 	const capSel = capitulos.find(c => c.id_capitulo === selCap);
 
 	const loadText = useCallback(async () => {
-		if (!escaSel || !store) { setText(''); return; }
+		if (!capSel || !store) { setText(''); return; }
 		setLoading(true);
-		const t = await store.readEscenaTexto(escaSel);
+		const t = await store.readCapituloTexto(capSel.id_capitulo);
 		setText(t);
 		setLoading(false);
-	}, [escaSel?.id_escena, store]);
+	}, [capSel?.id_capitulo, store]);
 
-	useEffect(() => { loadText(); }, [selEsc]);
+	useEffect(() => { void loadText(); }, [selCap]);
 
 	useEffect(() => {
-		if (!escaSel || loading) return;
-		const id = setTimeout(async () => { await writeEscenaTexto(escaSel.id_escena, text); }, 800);
+		if (!capSel || loading) return;
+		const id = setTimeout(async () => { await store?.writeCapituloTexto(capSel.id_capitulo, text); }, 800);
 		return () => clearTimeout(id);
-	}, [text, escaSel?.id_escena]);
+	}, [text, capSel?.id_capitulo, loading, store]);
 
 	const openInObsidian = async () => {
-		if (!escaSel?.archivo || !store?.activeFolderPath) return;
-		const path = `${store.activeFolderPath}/${escaSel.archivo}`;
+		if (!capSel?.archivo || !store?.activeFolderPath) return;
+		const path = capSel.archivo.startsWith('escritura/') ? `${store.activeFolderPath}/${capSel.archivo}` : capSel.archivo;
 		const f = plugin.app.vault.getAbstractFileByPath(path);
 		if (f instanceof TFile) await plugin.app.workspace.openLinkText(f.path, '', false);
 	};
@@ -75,7 +73,6 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								<button className="nw-btn nw-btn-icon nw-btn-danger" title="Borrar" onClick={() => { if (confirm(`Borrar acto "${a.nombre}"?`)) deleteActo(a.id_acto); }}><Icon.Trash width={12} height={12} /></button>
 							</div>
 							{caps.map(c => {
-								const escs = escenas.filter(e => e.id_capitulo === c.id_capitulo);
 								return (
 									<div key={c.id_capitulo} className="nw-cap-node">
 										<div className="nw-cap-row">
@@ -84,19 +81,9 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 											) : (
 												<button className="nw-cap-name" onClick={() => setSelCap(c.id_capitulo)} title="Click para abrir">{c.nombre}</button>
 											)}
-											<span className="nw-node-count">{escs.length}</span>
-											<button className="nw-btn nw-btn-icon nw-btn-danger" title="Borrar" onClick={() => { if (confirm(`Borrar "${c.nombre}"?`)) deleteCapitulo(c.id_capitulo); }}><Icon.Trash width={12} height={12} /></button>
-										</div>
-										{c.id_capitulo === selCap && (
-											<div className="nw-esc-list">
-												{escs.map((e, i) => (
-													<button key={e.id_escena} className={`nw-esc-btn ${e.id_escena === selEsc ? 'active' : ''}`} onClick={() => setSelEsc(e.id_escena)}>
-														Escena {i + 1}{e.outline ? ' *' : ''}
-													</button>
-												))}
-												<button className="nw-esc-add" onClick={async () => { const newEsc = await createEscena(c.id_capitulo, escs.length); setSelEsc(newEsc.id_escena); }}>+ Escena</button>
-											</div>
-										)}
+										<span className="nw-node-count">{c.archivo ? 'Archivo' : 'Sin archivo'}</span>
+										<button className="nw-btn nw-btn-icon nw-btn-danger" title="Borrar" onClick={() => { if (confirm(`Borrar "${c.nombre}"?`)) deleteCapitulo(c.id_capitulo); }}><Icon.Trash width={12} height={12} /></button>
+									</div>
 									</div>
 								);
 							})}
@@ -116,11 +103,11 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			</div>
 			<div className="nw-escribir-main">
 				<div className="nw-escribir-right">
-					{escaSel ? (
+					{capSel ? (
 						<>
 							<div className="nw-escribir-header">
 								<span>{capSel?.nombre}</span>
-								{escaSel.outline && <span className="nw-muted nw-outline-badge">outline: {escaSel.outline.slice(0, 60)}{escaSel.outline.length > 60 ? '...' : ''}</span>}
+								{capSel.outline && <span className="nw-muted nw-outline-badge">outline: {capSel.outline.slice(0, 60)}{capSel.outline.length > 60 ? '...' : ''}</span>}
 								<div className="nw-view-toggle"><button className={"nw-btn nw-btn-mini" + (viewMode === "edit" ? " nw-btn-primary" : "")} onClick={() => setViewMode("edit")} title="Editor">E</button><button className={"nw-btn nw-btn-mini" + (viewMode === "split" ? " nw-btn-primary" : "")} onClick={() => setViewMode("split")} title="Editor+Preview">[]</button><button className={"nw-btn nw-btn-mini" + (viewMode === "preview" ? " nw-btn-primary" : "")} onClick={() => setViewMode("preview")} title="Preview">V</button></div><button className="nw-btn" onClick={openInObsidian} title="Abrir .md en Obsidian">Abrir .md</button> <button className="nw-btn nw-btn-primary" onClick={generate}>Generar IA</button>
 							</div>
 							<div className="nw-writer-wrap">
@@ -129,7 +116,7 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 										className="nw-manuscript"
 										value={text}
 										onChange={e => setText(e.target.value)}
-										placeholder="Escribe el manuscrito de la escena..."
+										placeholder="Escribe el manuscrito del capítulo..."
 										disabled={loading}
 									/>
 								)}
@@ -139,16 +126,16 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								{viewMode === 'split' && text && (
 									<MarkdownPreview app={plugin.app} text={text} />
 								)}
-								{escaSel.outline && (
+								{capSel.outline && (
 									<div className="nw-outline-side">
 										<h4>Outline</h4>
-										<div className="nw-outline-body">{escaSel.outline}</div>
+										<div className="nw-outline-body">{capSel.outline}</div>
 									</div>
 								)}
 							</div>
 						</>
 					) : (
-						<p className="nw-muted">Selecciona una escena para escribir.</p>
+						<p className="nw-muted">Selecciona un capítulo para escribir.</p>
 					)}
 				</div>
 			</div>
@@ -156,12 +143,12 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	);
 
 	async function generate() {
-		if (!store || !escaSel) return;
+		if (!store || !capSel) return;
 		setLoading(true);
 		try {
 			const settings = plugin.settings.data;
 			if (!settings.proveedor.modelo) { alert('Configura un modelo en Settings.'); return; }
-			const prompt = await buildScenePrompt(plugin.app, store.activeFolderPath!, settings, escaSel.outline ?? '', text);
+			const prompt = await buildScenePrompt(plugin.app, store.activeFolderPath!, settings, capSel.outline ?? '', text);
 			const token = settings.apiToken[settings.proveedor.id] ?? '';
 			const api = new ApiFactory().createApi(settings.proveedor.id, token);
 			const result = await api.generateCompletion(prompt, settings.proveedor.modelo, {
