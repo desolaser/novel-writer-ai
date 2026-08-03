@@ -181,3 +181,4 @@ export function EscribirTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	async function doRenameActo(a: Acto, val?: string) { const n = (val ?? '').trim() || a.nombre; if (n !== a.nombre) await updateActo(a.id_acto, { nombre: n }); setRenamingActo(null); }
 	async function doRenameCap(c: Capitulo, val?: string) { const n = (val ?? '').trim() || c.nombre; if (n !== c.nombre) await updateCapitulo(c.id_capitulo, { nombre: n }); setRenamingCap(null); }
 }
+
