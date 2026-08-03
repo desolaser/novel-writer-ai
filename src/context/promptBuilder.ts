@@ -57,7 +57,7 @@ export async function buildCodexYaml(
 
 export async function buildScenePrompt(
 	app: App, folderPath: string, settings: PluginSettings,
-	outline: string, currentText: string,
+	outline: string, currentText: string, historicalContext = '', targetWords?: number,
 ): Promise<string> {
  const codexYaml = await buildCodexYaml(app, folderPath, undefined, currentText, settings.codexOptions.searchRange);
 	const parts: string[] = [];
@@ -66,11 +66,18 @@ export async function buildScenePrompt(
 	parts.push("--- End Codex ---");
 	const memory = await getPromptMetaCascading(app, settings, 'memoryContent');
 	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
-	if (memory) parts.push("Memoria: " + memory);
+	const generatedStart = '[Novel Writer AI - Generated Story Context]';
+	const generatedEnd = '[End Novel Writer AI - Generated Story Context]';
+	const generatedContext = memory.match(new RegExp(`${generatedStart}[\\s\\S]*?${generatedEnd}`))?.[0] ?? '';
+	const manualMemory = memory.replace(new RegExp(`\\n?${generatedStart}[\\s\\S]*?${generatedEnd}\\n?`, 'g'), '').trim();
+	if (manualMemory) parts.push("Memoria del autor (instrucciones persistentes): " + manualMemory);
+	if (generatedContext) parts.push("Contexto histórico previo (solo continuidad; no es el capítulo actual): " + generatedContext);
 	if (authorNote) parts.push("Author note: " + authorNote);
 	if (outline) parts.push("Outline de la escena: " + outline);
+	if (historicalContext) parts.push("--- Contexto de capítulos anteriores (úsalo solo como continuidad; no lo repitas ni lo trates como el capítulo actual) ---\n" + historicalContext + "\n--- Fin del contexto anterior ---");
+	if (targetWords) parts.push(currentText ? `Continúa este draft y, cuando te acerques al objetivo, resuelve el conflicto y escribe un cierre natural. No reinicies ni repitas el texto ya escrito.` : `Escribe un capítulo nuevo e independiente de aproximadamente ${targetWords} palabras. Desarrolla el outline actual, alcanza una extensión cercana al objetivo y reserva espacio para cerrar el capítulo. No copies el contexto anterior.`);
 	if (settings.prefix) parts.push(settings.prefix);
-	parts.push("Continua la narracion del manuscrito:");
+	parts.push(currentText ? "Continua la narracion del manuscrito:" : "Comienza el capítulo nuevo:");
 	parts.push(currentText || "");
 	return parts.join("\n\n");
 }

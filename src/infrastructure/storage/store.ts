@@ -101,6 +101,11 @@ export class NovelStore {
 	async createCapitulo(idActo: EntityId, nombre: string, orden: number) { return EstRepo.createCapitulo(this.app, this.activeFolder!, idActo, nombre, orden); }
 	async updateCapitulo(id: EntityId, patch: Partial<Capitulo>) { await EstRepo.updateCapitulo(this.app, this.activeFolder!, id, patch); }
 	async deleteCapitulo(id: EntityId) { await EstRepo.deleteCapitulo(this.app, this.activeFolder!, id); }
+	async ensureCapituloArchivo(id: EntityId, targetFolder?: string) { return EstRepo.ensureCapituloArchivo(this.app, this.activeFolder!, id, targetFolder); }
+	async writeCapituloTexto(id: EntityId, content: string) { return EstRepo.writeCapituloTexto(this.app, this.activeFolder!, id, content); }
+	async readCapituloTexto(id: EntityId) { return EstRepo.readCapituloTexto(this.app, this.activeFolder!, id); }
+	async linkCapituloArchivo(id: EntityId, path: string) { await EstRepo.linkCapituloArchivo(this.app, this.activeFolder!, id, path); }
+	async reconcileCapituloArchivos() { await EstRepo.reconcileCapituloArchivos(this.app, this.activeFolder!); }
 	async listEscenasByCapitulo(idCap: EntityId) { return EstRepo.listEscenasByCapitulo(this.app, this.activeFolder!, idCap); }
 	async createEscena(idCap: EntityId, orden: number) { return EstRepo.createEscena(this.app, this.activeFolder!, idCap, orden); }
 	async updateEscena(id: EntityId, patch: Partial<Escena>) { await EstRepo.updateEscena(this.app, this.activeFolder!, id, patch); }

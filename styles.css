@@ -496,6 +496,8 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .nw-outline-add { margin-bottom: 12px; }
 .nw-outline-add .nw-input { width: 100%; }
+.nw-outline-add { display: flex; gap: 6px; }
+.nw-outline-add .nw-input { flex: 1; }
 .nw-outline-tree .nw-acto-node { margin-bottom: 12px; }
 .nw-outline-tree .nw-cap-row { margin-left: 12px; padding: 4px 0; border-radius: 3px; }
 .nw-outline-tree .nw-cap-row.active { background: var(--background-modifier-hover); }
@@ -509,10 +511,18 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-chapter { margin-left: 12px; }
 .nw-outline-chapter-row { display: flex; align-items: center; gap: 5px; padding: 5px 4px; }
 .nw-outline-expand { width: 22px; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
-.nw-outline-chapter-name { flex: 1; text-align: left; border: 0; background: none; color: var(--text-normal); cursor: pointer; padding: 4px; }
+.nw-outline-chapter-name { flex: 1; display: block; justify-content: flex-start; text-align: left !important; border: 0; background: none; color: var(--text-normal); cursor: pointer; padding: 4px; }
+.nw-outline-act-name { flex: 1; display: block; justify-content: flex-start; text-align: left !important; border: 0; background: none; color: var(--text-normal); font-weight: 600; cursor: pointer; padding: 4px; }
+.nw-outline-chapter-row .nw-inline-rename, .nw-outline-act-header .nw-inline-rename { flex: 1; text-align: left !important; }
 .nw-outline-inline-editor { display: block; width: calc(100% - 27px); margin: 0 0 8px 27px; min-height: 72px; resize: vertical; box-sizing: border-box; }
 .nw-outline-single-column .nw-btn-icon { opacity: .65; }
 .nw-outline-single-column .nw-btn-icon:hover { opacity: 1; }
+.nw-outline-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.nw-draft-length { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; }
+.nw-draft-length input { width: 72px; }
+.nw-btn-experimental { border-color: var(--text-muted); color: var(--text-muted); }
+.nw-outline-status { color: var(--text-muted); font-size: 11px; margin: 5px 0; }
+.nw-chapter-file-status { color: var(--text-muted); font-size: 10px; opacity: .7; }
 .nw-companion-sidebar { height: 100%; display: flex; flex-direction: column; background: var(--background-secondary); }
 .nw-companion-sidebar .nw-sidebar-content { min-height: 0; }
 .nw-chat-toolbar { gap: 6px; }

@@ -32,6 +32,12 @@ export const Icon = {
 	Link: (p?: any) => (
 		<svg viewBox="0 0 24 24" {...base(p)}><path d="M3.9 12a3.1 3.1 0 0 1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7A3.1 3.1 0 0 1 3.9 12zM8 13h8v-2H8v2zm9-6h-4v1.9h4A3.1 3.1 0 0 1 20.1 12 3.1 3.1 0 0 1 17 15.1h-4V17h4a5 5 0 0 0 0-10z"/></svg>
 	),
+	ExternalLink: (p?: any) => (
+		<svg viewBox="0 0 24 24" {...base(p)}><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42L17.59 5H14V3zM19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7z"/></svg>
+	),
+	Magic: (p?: any) => (
+		<svg viewBox="0 0 24 24" {...base(p)}><path d="m19.5 2.5 2 2-12 12-2-2 12-12zM5 5l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2zm13 9 1 2 2 1-2 1-1 2-1-2-2-1 2-1 1zM6 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"/></svg>
+	),
 	TrashSmall: (p?: any) => (
 		<svg viewBox="0 0 24 24" width={11} height={11} fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v1H4v2h1v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6h1V4h-5V3H9z"/></svg>
 	),

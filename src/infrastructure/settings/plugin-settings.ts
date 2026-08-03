@@ -48,6 +48,8 @@ export interface PluginSettings {
 	memoryContent: string;
 	/** Author's note global. */
 	authorNote: string;
+	/** Target word count used by batch chapter drafts. */
+	draftWordCount: number;
 	/** Opciones de IA. */
 	aiOptions: AiOptions;
 	/** Opciones de codex. */
@@ -91,6 +93,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	prefix: 'Continue the text following the narration style of the user: ',
 	memoryContent: '',
 	authorNote: '',
+	draftWordCount: 2000,
 	aiOptions: DEFAULT_AI_OPTIONS,
 	codexOptions: DEFAULT_CODEX_OPTIONS,
 	lastActiveNovelId: null,

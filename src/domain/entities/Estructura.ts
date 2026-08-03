@@ -17,6 +17,8 @@ export interface Capitulo {
 	nombre: string;
 	/** Resumen / outline de lo que pasara en el capitulo. */
 	outline: string;
+	/** Path relativo al vault del manuscrito asociado, si ya fue creado. */
+	archivo: string | null;
 	id_acto: EntityId;
 	orden: number;
 	created_at: ISODate;

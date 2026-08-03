@@ -1,4 +1,5 @@
 import { App } from 'obsidian';
+import { TFile } from 'obsidian';
 import { Acto, Capitulo, Escena, EntityId, nowISO } from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { readJson, writeJson, joinPath, ensureFolder, readText, writeText, deleteFile } from '../fsHelpers';
@@ -70,7 +71,7 @@ export async function listCapitulos(app: App, fp: string): Promise<Capitulo[]> {
 export async function createCapitulo(app: App, folderPath: string, idActo: EntityId, nombre: string, orden: number): Promise<Capitulo> {
 	const data = await readFile(app, folderPath);
 	const cap: Capitulo = {
-		id_capitulo: genId(), nombre, outline: '', id_acto: idActo, orden,
+		id_capitulo: genId(), nombre, outline: '', archivo: null, id_acto: idActo, orden,
 		created_at: nowISO(), updated_at: nowISO(),
 	};
 	data.capitulos.push(cap);
@@ -156,4 +157,65 @@ export async function writeEscenaTexto(app: App, folderPath: string, id: EntityI
 
 function stripFrontmatter(text: string): string {
 	return text.replace(/^---\s*[\s\S]*?---\s*/, '');
+}
+
+/** Crea el manuscrito del capítulo sin depender de escenas legacy. */
+export async function ensureCapituloArchivo(app: App, folderPath: string, id: EntityId, targetFolder?: string): Promise<string | null> {
+	const data = await readFile(app, folderPath);
+	const cap = data.capitulos.find(x => x.id_capitulo === id);
+	if (!cap) return null;
+	const acto = data.actos.find(x => x.id_acto === cap.id_acto);
+	if (!cap.archivo) cap.archivo = targetFolder ? joinPath(targetFolder, `capitulo_${id}.md`) : joinPath('escritura', 'capitulos', `capitulo_${id}.md`);
+	const fullPath = resolveChapterPath(folderPath, cap.archivo);
+	await ensureFolder(app, targetFolder ? targetFolder : joinPath(folderPath, 'escritura', 'capitulos'));
+	if (!(await readText(app, fullPath))) {
+		await writeText(app, fullPath, `---\nnovel_writer_type: chapter\nnovel_writer_novel_id: "${acto?.id_novela ?? ''}"\nnovel_writer_chapter_id: "${cap.id_capitulo}"\nnovel_writer_status: draft\n---\n\n`);
+	}
+	await writeFile(app, folderPath, data);
+	return cap.archivo;
+}
+
+export async function writeCapituloTexto(app: App, folderPath: string, id: EntityId, content: string): Promise<string | null> {
+	const path = await ensureCapituloArchivo(app, folderPath, id);
+	if (!path) return null;
+	const raw = await readText(app, resolveChapterPath(folderPath, path)) ?? '';
+	const body = raw.replace(/^---[\s\S]*?---\s*/, '');
+	const front = raw.match(/^---[\s\S]*?---/i)?.[0] ?? '';
+	await writeText(app, resolveChapterPath(folderPath, path), `${front}\n\n${content}`);
+	return path;
+}
+
+export async function readCapituloTexto(app: App, folderPath: string, id: EntityId): Promise<string> {
+	const data = await readFile(app, folderPath); const cap = data.capitulos.find(x => x.id_capitulo === id);
+	if (!cap?.archivo) return '';
+	const raw = await readText(app, resolveChapterPath(folderPath, cap.archivo)) ?? '';
+	return raw.replace(/^---[\s\S]*?---\s*/, '').trim();
+}
+
+export async function linkCapituloArchivo(app: App, folderPath: string, id: EntityId, vaultPath: string): Promise<void> {
+	const data = await readFile(app, folderPath); const cap = data.capitulos.find(x => x.id_capitulo === id); if (!cap) return;
+	cap.archivo = vaultPath; await writeFile(app, folderPath, data);
+	const file = app.vault.getAbstractFileByPath(vaultPath); if (!(file instanceof TFile)) return;
+	const raw = await app.vault.read(file); const acto = data.actos.find(x => x.id_acto === cap.id_acto);
+	const metadata = `novel_writer_type: chapter\nnovel_writer_novel_id: "${acto?.id_novela ?? ''}"\nnovel_writer_chapter_id: "${cap.id_capitulo}"\nnovel_writer_status: linked`;
+	const next = raw.match(/^---[\s\S]*?---/) ? raw.replace(/^---[\s\S]*?---/, `---\n${metadata}\n---`) : `---\n${metadata}\n---\n\n${raw}`;
+	await app.vault.modify(file, next);
+}
+
+/** Reconciles paths after users move linked Markdown files in the vault. */
+export async function reconcileCapituloArchivos(app: App, folderPath: string): Promise<void> {
+	const data = await readFile(app, folderPath); const byId = new Map<string, string>();
+	for (const file of app.vault.getMarkdownFiles()) {
+		const raw = await app.vault.read(file); const match = raw.match(/novel_writer_chapter_id:\s*["']?([^\s"']+)/);
+		const novel = raw.match(/novel_writer_novel_id:\s*["']?([^\s"']+)/);
+		if (match && novel && data.actos.some(a => a.id_novela === novel[1])) byId.set(match[1], file.path);
+	}
+	let changed = false; for (const cap of data.capitulos) { const path = byId.get(cap.id_capitulo); if (path && cap.archivo !== path) { cap.archivo = path; changed = true; } }
+	if (changed) await writeFile(app, folderPath, data);
+}
+
+function resolveChapterPath(folderPath: string, path: string): string {
+	// Legacy/default chapter paths are relative to the novel. User-linked paths
+	// are vault-relative and therefore already include their complete location.
+	return path.startsWith('escritura/') ? joinPath(folderPath, path) : path;
 }
