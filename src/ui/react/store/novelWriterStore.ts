@@ -40,6 +40,8 @@ interface NovelWriterStore extends UIState {
 	bindStore: (s: NovelStore) => void;
 	refreshNovels: () => Promise<void>;
 	setActiveNovel: (id: string | null) => Promise<void>;
+	updateNovel: (id: string, patch: { nombre: string; autor: string }, thumbnailFile?: ArrayBuffer | null) => Promise<void>;
+	deleteNovel: (id: string, deleteFolder?: boolean) => Promise<void>;
 	reloadAll: () => Promise<void>;
 	setSidebarTab: (t: NovelWriterStore["activeSidebarTab"]) => void;
 
@@ -139,6 +141,19 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		if (!s) return;
 		await s.refresh();
 		set({ novels: [...s.novels] });
+	},
+	updateNovel: async (id, patch, thumbnailFile = null) => {
+		const s = get().store;
+		if (!s) return;
+		await s.updateNovel(id, patch, thumbnailFile);
+		set({ novels: [...s.novels] });
+	},
+	deleteNovel: async (id, deleteFolder = false) => {
+		const s = get().store;
+		if (!s) return;
+		await s.deleteNovel(id, deleteFolder);
+		set({ novels: [...s.novels] });
+		if (get().activeNovelId === id) await get().setActiveNovel(null);
 	},
 
 	setActiveNovel: async (id) => {

@@ -8,7 +8,7 @@ import {
 	defaultCategoryColor,
 } from '../../../constants/novel';
 import {
-	readJson, writeJson, ensureFolder, ensureNovelFolders,
+	readJson, writeJson, ensureFolder, ensureNovelFolders, deleteFile,
 	joinPath, basenameNoExt,
 } from '../fsHelpers';
 import { Categoria } from '../../../domain';
@@ -48,6 +48,26 @@ export async function readNovel(app: App, folderPath: string): Promise<Novela | 
 export async function writeNovel(app: App, folderPath: string, novela: Novela): Promise<void> {
 	novela.updated_at = nowISO();
 	await writeJson(app, joinPath(folderPath, NOVELA_META_FILE), novela);
+}
+
+export async function updateNovelThumbnail(app: App, folderPath: string, novela: Novela, data: ArrayBuffer): Promise<void> {
+	const thumbnail = 'images/thumbnail_novela.png';
+	const path = joinPath(folderPath, thumbnail);
+	const file = app.vault.getAbstractFileByPath(path);
+	const bytes = Uint8Array.from(new Uint8Array(data));
+	if (file instanceof TFile) await app.vault.modifyBinary(file, bytes);
+	else await app.vault.createBinary(path, bytes);
+	novela.thumbnail = thumbnail;
+}
+
+/** Retira una novela del índice y, opcionalmente, elimina toda su carpeta. */
+export async function deleteNovel(app: App, folderPath: string, deleteFolder: boolean): Promise<void> {
+	if (deleteFolder) {
+		const folder = app.vault.getAbstractFileByPath(folderPath);
+		if (folder instanceof TFolder) await app.vault.trash(folder, true);
+		return;
+	}
+	await deleteFile(app, joinPath(folderPath, NOVELA_META_FILE));
 }
 
 /**

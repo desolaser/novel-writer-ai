@@ -198,6 +198,16 @@
 .novel-writer-layout { display: flex; height: 100%; width: 100%; }
 .nw-sidebar { position: relative; border-right: 1px solid var(--background-modifier-border); display: flex; flex-direction: column; min-width: 200px; max-width: 600px; background: var(--background-secondary); }
 .nw-sidebar-header { padding: 8px; border-bottom: 1px solid var(--background-modifier-border); }
+.nw-sidebar-header { display: flex; align-items: center; gap: 6px; }
+.nw-sidebar-header .nw-switcher { flex: 1; min-width: 0; }
+.nw-novel-actions { position: relative; flex: 0 0 auto; }
+.nw-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 5px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 4px; }
+.nw-icon-btn:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.nw-novel-menu { position: absolute; z-index: 120; right: 0; top: calc(100% + 4px); min-width: 170px; padding: 4px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.nw-novel-menu button { display: block; width: 100%; padding: 7px 9px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.nw-novel-menu button:hover:not(:disabled) { background: var(--background-modifier-hover); }
+.nw-novel-menu button:disabled { opacity: .45; cursor: not-allowed; }
+.nw-novel-menu .danger, .nw-danger-icon { color: var(--text-error); }
 .nw-sidebar-content { flex: 1; overflow: auto; display: flex; flex-direction: column; }
 .nw-sidebar-toggle { margin: 0; padding: 0 6px; border: none; background: var(--background-secondary); color: var(--text-muted); cursor: pointer; }
 .nw-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
@@ -584,6 +594,45 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-modal-large .modal-content { display: flex; }
 .nw-modal-large .modal-content > div:first-child { width: 100%; }
 .nw-modal-2col { width: 100%; }
+.nw-novels-modal { width: 1280px !important; max-width: 94vw; }
+.nw-novels-modal .modal-content { padding: 0; }
+.nw-novels-options-modal { width: 680px !important; max-width: 94vw; }
+.nw-novels-options-modal .modal-content { padding: 0; }
+.nw-novel-manager { position: relative; min-height: 560px; max-height: 78vh; display: flex; flex-direction: column; padding: 18px; }
+.nw-modal-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nw-modal-heading h2, .nw-modal-heading h3 { margin: 0; }
+.nw-novel-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; overflow-y: auto; padding: 14px 3px 3px; }
+.nw-novel-card { min-width: 0; overflow: hidden; border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-secondary); }
+.nw-novel-card.active { border-color: var(--interactive-accent); box-shadow: 0 0 0 1px var(--interactive-accent); }
+.nw-novel-thumbnail { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 190px; aspect-ratio: 1 / 1; padding: 0; border: 0; background: var(--background-primary); color: var(--text-muted); font-size: 30px; cursor: pointer; overflow: hidden; }
+.nw-novel-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+.nw-novel-card-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 8px 9px 4px;
+}
+.nw-novel-card-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; line-height: 1.2; }
+.nw-novel-card-info .nw-muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 0; margin: 0; line-height: 1.2; }
+.nw-novel-card-info time { color: var(--text-muted); font-size: 11px; margin: 0; line-height: 1.2; }
+.nw-novel-card-actions { display: flex; justify-content: flex-end; gap: 2px; padding: 2px 5px 5px; }
+.nw-overlay-modal { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.55); }
+.nw-confirm-card { width: min(430px, 100%); padding: 18px; border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-primary); box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.nw-confirm-card h3 { margin-top: 0; }
+.nw-confirm-card label { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.nw-checkbox { flex-direction: row !important; align-items: center; gap: 8px !important; }
+.nw-checkbox input { margin: 0; }
+.nw-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.nw-direct-action { align-items: center; justify-content: center; }
+.nw-direct-content {
+	display: flex; 
+	flex-direction: column;
+	width: 100%; 
+	height: 100%; 
+	gap: 12px;
+}
+.nw-edit-thumbnail { display: block; width: 160px; height: 110px; object-fit: cover; border-radius: 5px; border: 1px solid var(--background-modifier-border); }
+@media (max-width: 700px) { .nw-novel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .nw-modal-right { height: 100%; }
 .nw-add-row { display: flex; gap: 4px; margin-top: 8px; align-items: center; }
 .nw-add-row .nw-input { flex: 1; }

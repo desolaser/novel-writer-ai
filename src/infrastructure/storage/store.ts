@@ -1,6 +1,6 @@
 import { App, Notice } from 'obsidian';
 import {
-	scanNovels, createNovel, findNovelFolder,
+	scanNovels, createNovel, findNovelFolder, writeNovel, deleteNovel as deleteNovelFolder, updateNovelThumbnail,
 } from './repos/NovelRepo';
 import type { NovelScanResult } from './repos/NovelRepo';
 import * as CatRepo from './repos/CategoriaRepo';
@@ -43,6 +43,23 @@ export class NovelStore {
 		await this.refresh();
 		this.activeId = novela.id_novela; this.activeFolder = folderPath;
 		return novela;
+	}
+
+	async updateNovel(id: EntityId, patch: Pick<Novela, 'nombre' | 'autor'>, thumbnailFile: ArrayBuffer | null = null): Promise<void> {
+		const found = this.scan.find(n => n.novela.id_novela === id);
+		if (!found) throw new Error('Novela no encontrada.');
+		const updated = { ...found.novela, ...patch };
+		if (thumbnailFile) await updateNovelThumbnail(this.app, found.folderPath, updated, thumbnailFile);
+		await writeNovel(this.app, found.folderPath, updated);
+		await this.refresh();
+	}
+
+	async deleteNovel(id: EntityId, deleteFolder = false): Promise<void> {
+		const folder = await findNovelFolder(this.app, id);
+		if (!folder) throw new Error('Novela no encontrada.');
+		await deleteNovelFolder(this.app, folder, deleteFolder);
+		if (this.activeId === id) { this.activeId = null; this.activeFolder = null; }
+		await this.refresh();
 	}
 
 	// Categoria
