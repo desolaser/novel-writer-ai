@@ -65,7 +65,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 					const remainingWords = Math.max(100, targetWords - currentWords);
 					const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, c.outline ?? '', text, history, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${currentWords === 0 ? 'Escribe el capítulo completo.' : `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`} ${currentWords >= targetWords * 0.8 ? 'Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción.' : 'Todavía no cierres prematuramente el capítulo.'}`;
 					const requestTokens = Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192));
-					const result = await api.generateCompletion(prompt, settings.proveedor.modelo, { max_tokens: requestTokens, temperature: settings.aiOptions.temperature, top_p: settings.aiOptions.topP, stream: false });
+					const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, requestTokens, settings.aiOptions.temperature, settings.aiOptions.topP);
 					const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${c.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
 				}
 				if (text.trim() && !isCorruptGeneration(text)) { await writeCapituloTexto(c.id_capitulo, text); const summary = `Capítulo ${c.nombre}: ${makeContextExcerpt(text)}`; summaries.push(summary); history += `\n\n${summary}`; }
@@ -87,7 +87,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
 				const currentWords = text.trim().split(/\s+/).filter(Boolean).length; const remainingWords = Math.max(100, targetWords - currentWords);
 				const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, chapter.outline ?? '', text, history, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${currentWords >= targetWords * 0.8 ? 'Cierra la trama en esta respuesta.' : 'Continúa desarrollando el capítulo sin reiniciarlo.'}`;
-				const result = await api.generateCompletion(prompt, settings.proveedor.modelo, { max_tokens: Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)), temperature: settings.aiOptions.temperature, top_p: settings.aiOptions.topP, stream: false }); const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${chapter.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
+				const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)), settings.aiOptions.temperature, settings.aiOptions.topP); const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${chapter.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
 			}
 			await ensureCapituloArchivo(chapter.id_capitulo); await writeCapituloTexto(chapter.id_capitulo, text); await refreshGeneratedContext(); setBatchStatus(`Draft listo: ${chapter.nombre}`);
 		} catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
@@ -134,4 +134,20 @@ class FolderPickerModal extends FuzzySuggestModal<TFolder> {
 	getItems() { return this.app.vault.getAllLoadedFiles().filter((file: any): file is TFolder => file instanceof TFolder); }
 	getItemText(folder: TFolder) { return folder.path || '/'; }
 	onChooseItem(folder: TFolder) { this.onPick(folder); }
+}
+
+async function requestDraftCompletion(api: any, prompt: string, model: string, maxTokens: number, temperature: number, topP?: number): Promise<{ text?: string }> {
+	try {
+		return await api.generateCompletion(prompt, model, { max_tokens: maxTokens, temperature, top_p: topP, stream: false });
+	} catch (error: any) {
+		const message = String(error?.message ?? error).toLowerCase();
+		if (!message.includes('internal server') && !message.includes('max_tokens') && !message.includes('context')) throw error;
+		// Some providers reject large output budgets even when the model advertises them.
+		// Retry with conservative budgets; the caller can request another continuation.
+		for (const fallback of [2048, 1024, 512]) {
+			if (fallback >= maxTokens) continue;
+			try { return await api.generateCompletion(prompt, model, { max_tokens: fallback, temperature, top_p: topP, stream: false }); } catch { /* try next provider-safe budget */ }
+		}
+		throw error;
+	}
 }
