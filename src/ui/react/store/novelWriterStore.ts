@@ -9,7 +9,7 @@ interface UIState {
 	sidebarWidth: number;
 	sidebarCollapsed: boolean;
 	activeWorkTab: 'planear' | 'escribir' | 'chat' | 'review';
-	activeSidebarTab: 'codex' | 'snippets' | 'chats';
+	activeSidebarTab: 'codex' | 'config' | 'chats';
 	snippetEditorId: EntityId | null;
 }
 
@@ -85,8 +85,9 @@ interface NovelWriterStore extends UIState {
 	writeSnippetTexto: (id: EntityId, texto: string) => Promise<void>;
 
 	createChat: (nombre: string) => Promise<Chat | null>;
-	selectChat: (id: EntityId) => void;
-	renameChat: (id: EntityId, nombre: string) => Promise<void>;
+	selectChat: (id: EntityId | null) => void;
+	 renameChat: (id: EntityId, nombre: string) => Promise<void>;
+	deleteChat: (id: EntityId) => Promise<void>;
 	appendMensaje: (role: 'user' | 'assistant', msg: string) => Promise<void>;
 }
 
@@ -185,6 +186,7 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 
 	createChat: async (nombre) => { const s = get().store; if (!s) return null; const c = await s.createChat(nombre); await get().reloadAll(); return c; },
 	selectChat: (id) => set({ activeChatId: id }),
-	renameChat: async (id, nombre) => { const s = get().store; if (!s) return; await s.renameChat(id, nombre); await get().reloadAll(); },
+	 renameChat: async (id, nombre) => { const s = get().store; if (!s) return; await s.renameChat(id, nombre); await get().reloadAll(); },
+	deleteChat: async (id) => { const s = get().store; if (!s) return; await s.deleteChat(id); if (get().activeChatId === id) set({ activeChatId: null }); await get().reloadAll(); },
 	appendMensaje: async (role, msg) => { const s = get().store; if (!s || !get().activeChatId) return; await s.appendMensaje(get().activeChatId, role, msg); },
 }));

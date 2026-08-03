@@ -5,6 +5,7 @@ import { AiContextPolicy } from '../../../../domain';
 import { Icon } from '../../components/Icon';
 import { CategoriasModal } from './CategoriasModal';
 import { DetallesModal } from './DetallesModal';
+import { openEntryModal } from './CodexEntryModal';
 
 type TriState = null | true | false;
 type Filters = {

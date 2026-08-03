@@ -1,13 +1,20 @@
 import { Plugin, WorkspaceLeaf, Notice, App, Modal, Setting } from 'obsidian';
-import { NovelWriterView, VIEW_TYPE_NOVELWRITER } from './src/ui/views/NovelWriterView';
+import { CompanionView, VIEW_TYPE_COMPANION } from './src/ui/views/CompanionView';
+import { OutlineView, VIEW_TYPE_OUTLINE } from './src/ui/views/OutlineView';
 import { NovelStore } from './src/infrastructure/storage/store';
 import { SettingsService } from './src/infrastructure/settings/settings-service';
 import { NovelWriterSettingsTab } from './src/ai-plugin-settings-tab-v2';
 import { prepareImport, runImport } from './src/utils/lorebookImport';
 
+// onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
+// callbacks left by the previous instance. Keep the lock outside the class so
+// those instances share the same reservation while creating the leaves.
+const AUTO_OPEN_LOCK = '__novelWriterAutoOpenLock';
+
 export default class NovelWriterPlugin extends Plugin {
 	store!: NovelStore;
 	settings!: SettingsService;
+	private openingWorkingViews = false;
 
 	async onload() {
 		this.settings = new SettingsService(this);
@@ -20,26 +27,55 @@ export default class NovelWriterPlugin extends Plugin {
 			await this.store.setActive(this.settings.data.lastActiveNovelId);
 		}
 
-		this.registerView(VIEW_TYPE_NOVELWRITER, (leaf) => new NovelWriterView(leaf, this));
+		this.registerView(VIEW_TYPE_COMPANION, (leaf) => new CompanionView(leaf, this));
+		this.registerView(VIEW_TYPE_OUTLINE, (leaf) => new OutlineView(leaf, this));
+		// Restore both working views automatically once Obsidian has finished restoring its layout.
+		// Obsidian may restore persisted ItemViews just after layout-ready. Wait a
+		// moment so we do not create a second Companion before that restoration is visible.
+		this.app.workspace.onLayoutReady(() => { window.setTimeout(() => { void this.openWorkingViews(); }, 1000); });
 
-		this.addRibbonIcon('book', 'Novel Writer AI', async () => { await this.activateView(); });
+		this.addRibbonIcon('book', 'Novel Writer Companion', async () => { await this.activateCompanionView(); });
 
-		this.addCommand({ id: 'open-novel-writer', name: 'Open Novel Writer', callback: async () => { await this.activateView(); } });
+		this.addCommand({ id: 'open-novel-writer', name: 'Open Novel Writer Companion', callback: async () => { await this.activateCompanionView(); } });
+		this.addCommand({ id: 'open-novel-writer-outline', name: 'Open Novel Writer Outline', callback: async () => { await this.activateOutlineView(); } });
 		this.addCommand({ id: 'create-novel', name: 'Create new novel', callback: async () => { await this.createNovel(); } });
 		this.addCommand({ id: 'import-legacy-lorebook', name: 'Import legacy lorebook', callback: async () => { await this.importLorebook(); } });
 
-		this.addSettingTab(new NovelWriterSettingsTab(this.app, this));
+		this.addSettingTab(new NovelWriterSettingsTab(this.app, this)); //
 	}
 
-	async activateView() {
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_NOVELWRITER);
+	async activateCompanionView() {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_COMPANION);
 		let leaf: WorkspaceLeaf | null = null;
 		if (leaves.length > 0) leaf = leaves[0];
 		else {
-			leaf = this.app.workspace.getLeaf(false);
-			if (leaf) await leaf.setViewState({ type: VIEW_TYPE_NOVELWRITER, active: true });
+			leaf = this.app.workspace.getLeftLeaf(true);
+			if (leaf) await leaf.setViewState({ type: VIEW_TYPE_COMPANION, active: true });
 		}
 		if (leaf) this.app.workspace.revealLeaf(leaf);
+	}
+	async activateOutlineView() { const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OUTLINE); let leaf = leaves[0]; if (!leaf) { leaf = this.app.workspace.getRightLeaf(true); if (leaf) await leaf.setViewState({ type: VIEW_TYPE_OUTLINE, active: true }); } if (leaf) this.app.workspace.revealLeaf(leaf); }
+
+	/** Opens the Companion on the left and the Outline on the right on every plugin load. */
+	async openWorkingViews() {
+		const runtime = globalThis as typeof globalThis & { [AUTO_OPEN_LOCK]?: boolean };
+		if (this.openingWorkingViews || runtime[AUTO_OPEN_LOCK]) return;
+		this.openingWorkingViews = true;
+		runtime[AUTO_OPEN_LOCK] = true;
+		try {
+			this.removeDuplicateViews(VIEW_TYPE_COMPANION);
+			this.removeDuplicateViews(VIEW_TYPE_OUTLINE);
+			await this.activateCompanionView();
+			await this.activateOutlineView();
+		} finally {
+			this.openingWorkingViews = false;
+			runtime[AUTO_OPEN_LOCK] = false;
+		}
+	}
+
+	private removeDuplicateViews(viewType: string) {
+		const leaves = this.app.workspace.getLeavesOfType(viewType);
+		for (const duplicate of leaves.slice(1)) duplicate.detach();
 	}
 
 	async createNovel() {

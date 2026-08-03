@@ -1,25 +1,26 @@
 import React, { useState } from 'react';
 import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
+import { ChatTab } from '../chat/ChatTab';
 
 export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { chats, createChat, activeChatId, selectChat, renameChat, store } = useNovelWriter();
+	const { chats, createChat, activeChatId, selectChat, renameChat, deleteChat, store } = useNovelWriter();
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const [renameV, setRenameV] = useState('');
+	const [showList, setShowList] = useState(false);
 
 	const doCreate = async () => {
 		const c = await createChat('Chat sin nombre');
-		selectChat(c.id_chat);
-		// navigate to chat work tab
-		useNovelWriter.getState().setWorkTab('chat');
+		selectChat(c.id_chat); setShowList(false);
 	};
 
 	return (
 		<div className="nw-panel">
-			<div className="nw-panel-toolbar">
+			<div className="nw-panel-toolbar nw-chat-toolbar">
 				<button className="nw-btn nw-btn-primary" onClick={doCreate}>+ Chat</button>
+				<button className="nw-btn" onClick={() => setShowList(v => !v)}>{showList ? 'Cerrar lista' : 'Ver chats'}</button>
 			</div>
-			<div className="nw-list">
+			{showList && <div className="nw-list">
 				{chats.map(c => (
 					<div key={c.id_chat} className={`nw-list-item-row ${c.id_chat === activeChatId ? 'active' : ''} ${c.archivado ? 'archived' : ''}`}>
 						{renaming === c.id_chat ? (
@@ -30,15 +31,18 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						) : (
 							<button
 								className={`nw-list-item ${c.id_chat === activeChatId ? 'active' : ''}`}
-								onClick={() => { selectChat(c.id_chat); useNovelWriter.getState().setWorkTab('chat'); }}
+								onClick={() => { selectChat(c.id_chat); setShowList(false); }}
 							>
-								<span>{c.nombre}</span>
+									<span>{c.nombre}</span>
+									<span className="nw-chat-date">{formatChatDate(c.created_at)}</span>
 							</button>
 						)}
-						<button className="nw-btn nw-btn-icon" title="Renombrar" onClick={() => { setRenaming(c.id_chat); setRenameV(c.nombre); }}>e</button>
+								<button className="nw-btn nw-btn-icon" title="Renombrar" onClick={() => { setRenaming(c.id_chat); setRenameV(c.nombre); }}>e</button>
+								<button className="nw-btn nw-btn-icon nw-btn-danger" title="Eliminar" onClick={async () => { if (confirm(`Eliminar chat "${c.nombre}"?`)) { await deleteChat(c.id_chat); if (activeChatId === c.id_chat) selectChat(null); } }}>×</button>
 					</div>
 				))}
-			</div>
+			</div>}
+			{activeChatId && !showList && <ChatTab plugin={plugin} />}
 		</div>
 	);
 
@@ -48,5 +52,10 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 			await useNovelWriter.getState().reloadAll();
 		}
 		setRenaming(null);
+	}
+
+	function formatChatDate(value: string) {
+		const date = new Date(value);
+		return Number.isNaN(date.getTime()) ? value.slice(0, 10) : date.toISOString().slice(0, 10);
 	}
 }

@@ -481,6 +481,36 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-body { white-space: pre-wrap; }
 .nw-outline-badge { font-size: 11px; }
 
+/* Standalone Outline ItemView (Acts -> Chapters; manuscript remains native). */
+.nw-outline-view { display: flex; height: 100%; min-width: 0; }
+.nw-outline-tree { width: 280px; min-width: 220px; overflow: auto; padding: 12px; border-right: 1px solid var(--background-modifier-border); }
+.nw-outline-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.nw-outline-add { margin-bottom: 12px; }
+.nw-outline-add .nw-input { width: 100%; }
+.nw-outline-tree .nw-acto-node { margin-bottom: 12px; }
+.nw-outline-tree .nw-cap-row { margin-left: 12px; padding: 4px 0; border-radius: 3px; }
+.nw-outline-tree .nw-cap-row.active { background: var(--background-modifier-hover); }
+.nw-outline-tree .nw-cap-name { padding: 4px 6px; }
+.nw-outline-editor { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.nw-outline-editor .nw-textarea-large { flex: 1; min-height: 240px; resize: vertical; }
+.nw-outline-single-column { display: block; overflow: auto; padding: 16px; }
+.nw-outline-single-column .nw-outline-title { max-width: 100%; }
+.nw-outline-act { margin: 14px 0; }
+.nw-outline-act-header { display: flex; align-items: center; gap: 6px; padding: 7px 4px; border-bottom: 1px solid var(--background-modifier-border); }
+.nw-outline-chapter { margin-left: 12px; }
+.nw-outline-chapter-row { display: flex; align-items: center; gap: 5px; padding: 5px 4px; }
+.nw-outline-expand { width: 22px; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
+.nw-outline-chapter-name { flex: 1; text-align: left; border: 0; background: none; color: var(--text-normal); cursor: pointer; padding: 4px; }
+.nw-outline-inline-editor { display: block; width: calc(100% - 27px); margin: 0 0 8px 27px; min-height: 72px; resize: vertical; box-sizing: border-box; }
+.nw-outline-single-column .nw-btn-icon { opacity: .65; }
+.nw-outline-single-column .nw-btn-icon:hover { opacity: 1; }
+.nw-companion-sidebar { height: 100%; display: flex; flex-direction: column; background: var(--background-secondary); }
+.nw-companion-sidebar .nw-sidebar-content { min-height: 0; }
+.nw-chat-toolbar { gap: 6px; }
+.nw-chat-list .nw-list-item-row, .nw-list-item-row { min-height: 50px; }
+.nw-list-item-row .nw-list-item { text-align: left; align-items: flex-start; justify-content: center; }
+.nw-chat-date { display: block; color: var(--text-muted); opacity: .75; font-size: 11px; margin-top: 2px; text-align: left; }
+
 /* Planear/Escribir tree rows */
 .nw-acto-row, .nw-cap-row { display: flex; align-items: center; gap: 6px; }
 .nw-acto-name { font-weight: 600; cursor: text; flex: 1; }

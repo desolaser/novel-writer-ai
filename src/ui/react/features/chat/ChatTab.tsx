@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
 import { ApiFactory } from '../../../../factories/api-factory';
+import { getPromptMetaCascading } from '../../../../context/promptMeta';
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { chats, activeChatId, selectChat, appendMensaje, store } = useNovelWriter();
+	const { chats, activeChatId, selectChat, appendMensaje, createChat, store } = useNovelWriter();
 	const [input, setInput] = useState('');
 	const [mensajes, setMensajes] = useState<any[]>([]);
 	const [busy, setBusy] = useState(false);
@@ -19,7 +20,14 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const send = async () => {
 		const t = input.trim();
-		if (!t || !activeChatId) return;
+		if (!t) return;
+		let chatId = activeChatId;
+		if (!chatId) {
+			const created = await createChat('Chat sin nombre');
+			if (!created) return;
+			chatId = created.id_chat;
+			selectChat(chatId);
+		}
 		setInput('');
 		await appendMensaje('user', t);
 		setMensajes(m => [...m, { id_mensaje: 'tmp_u', role: 'user', mensaje: t, created_at: '' }]);
@@ -34,8 +42,10 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				.filter(m => m.role === 'user' || m.role === 'assistant')
 				.map(m => ({ role: m.role, content: m.role === 'user' ? m.mensaje : m.mensaje }));
 			// Usar prompt como string (API espera un solo prompt)
-			const sysPrompt = settings.memoryContent
-				? `Contexto: ${settings.memoryContent}\n\n`
+			const memory = await getPromptMetaCascading(plugin.app, settings, 'memoryContent');
+			const authorNote = await getPromptMetaCascading(plugin.app, settings, 'authorNote');
+			const sysPrompt = memory || authorNote
+				? `Contexto: ${memory}${authorNote ? `\n\nAuthor's note: ${authorNote}` : ''}\n\n`
 				: '';
 			const prompt = sysPrompt + history.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.content}`).join('\n\n') + '\n\nIA: ';
 			const result = await api.generateCompletion(prompt, settings.proveedor.modelo, {
@@ -54,9 +64,6 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		}
 		setBusy(false);
 	};
-
-	if (chats.length === 0) return <p className="nw-muted">Crea un chat desde el sidebar.</p>;
-	if (!activeChatId) return <p className="nw-muted">Selecciona un chat en el sidebar.</p>;
 
 	return (
 		<div className="nw-chat">

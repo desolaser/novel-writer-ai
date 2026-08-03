@@ -9,7 +9,7 @@ import { ThumbnailCropModal } from './ThumbnailCropModal';
 
 type Tab = 'detalles' | 'investigacion' | 'relaciones' | 'menciones' | 'tracking';
 
-export function CodexEntryEditor({ plugin }: { plugin: NovelWriterPlugin }) {
+export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugin; onClose?: () => void }) {
 	const storeState = useNovelWriter() as any;
 	const {
 		entradas, editingEntryId, setEditingEntry, updateEntry, deleteEntry, archiveEntry,
@@ -102,7 +102,7 @@ export function CodexEntryEditor({ plugin }: { plugin: NovelWriterPlugin }) {
 			<div className="nw-editor-top">
 				<div className="nw-editor-top-left">
 					<div style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start" }}>
-						<button className="nw-btn nw-btn-icon nw-editor-back-btn" onClick={() => setEditingEntry(null)} title="Volver a la WorkZone"><Icon.X width={16} height={16} /></button>
+						<button className="nw-btn nw-btn-icon nw-editor-back-btn" onClick={() => { setEditingEntry(null); onClose?.(); }} title="Cerrar"><Icon.X width={16} height={16} /></button>
 						<CategoriaPicker value={draft.id_categoria} categorias={categorias} onChange={(v) => patchAndSave({ id_categoria: v })} />
 					</div>
 					<input

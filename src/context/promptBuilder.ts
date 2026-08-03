@@ -4,6 +4,7 @@ import { EntradaCodex, AiContextPolicy } from '../domain';
 import { listEntries } from '../infrastructure/storage/repos/CodexEntryRepo';
 import { listCategorias } from '../infrastructure/storage/repos/CategoriaRepo';
 import { PluginSettings } from '../infrastructure/settings/plugin-settings';
+import { getPromptMetaCascading } from './promptMeta';
 
 export function estimateTokens(text: string): number { return Math.ceil((text || '').length / 4); }
 
@@ -43,8 +44,10 @@ export async function buildScenePrompt(
 	parts.push("--- Codex ---");
 	parts.push(codexYaml || "(vacio)");
 	parts.push("--- End Codex ---");
-	if (settings.memoryContent) parts.push("Memoria: " + settings.memoryContent);
-	if (settings.authorNote) parts.push("Author note: " + settings.authorNote);
+	const memory = await getPromptMetaCascading(app, settings, 'memoryContent');
+	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
+	if (memory) parts.push("Memoria: " + memory);
+	if (authorNote) parts.push("Author note: " + authorNote);
 	if (outline) parts.push("Outline de la escena: " + outline);
 	if (settings.prefix) parts.push(settings.prefix);
 	parts.push("Continua la narracion del manuscrito:");
