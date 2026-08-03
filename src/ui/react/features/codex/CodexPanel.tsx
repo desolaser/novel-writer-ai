@@ -271,7 +271,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						onToggle={() => toggleCat(c.id_categoria)}
 						entries={filtered.filter((e) => e.id_categoria === c.id_categoria)}
 						tags={tags}
-						onEdit={setEditingEntry}
+						onEdit={(entryId) => openEntryModal(plugin, entryId)}
 						onAddInCategory={() => createAndEdit(c.id_categoria)}
 					/>
 				))}
@@ -284,7 +284,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						onToggle={() => toggleCat(NO_CAT_KEY)}
 						entries={noCat}
 						tags={tags}
-						onEdit={setEditingEntry}
+						onEdit={(entryId) => openEntryModal(plugin, entryId)}
 						onAddInCategory={() => createAndEdit('')}
 					/>
 				)}

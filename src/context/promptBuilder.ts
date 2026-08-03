@@ -8,14 +8,34 @@ import { getPromptMetaCascading } from './promptMeta';
 
 export function estimateTokens(text: string): number { return Math.ceil((text || '').length / 4); }
 
-export async function buildCodexYaml(app: App, folderPath: string, out?: EntradaCodex[]): Promise<string> {
+function matchesEntry(text: string, entry: EntradaCodex): boolean {
+	const normalize = (value: string) => {
+		const withoutAccents = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+		return entry.case_sensitive ? withoutAccents : withoutAccents.toLowerCase();
+	};
+	const normalizedText = normalize(text || '');
+	const candidates = [entry.nombre, ...(entry.alias || '').split(',')]
+		.map((value) => normalize(value.trim()))
+		.filter(Boolean);
+	return candidates.some((candidate) => {
+		const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, entry.case_sensitive ? '' : 'i').test(normalizedText);
+	});
+}
+
+export async function buildCodexYaml(
+	app: App, folderPath: string, out?: EntradaCodex[], currentText = '', searchRange = 1000,
+): Promise<string> {
 	const entries = out ?? await listEntries(app, folderPath);
 	const cats = await listCategorias(app, folderPath);
 	const catMap = new Map(cats.map(c => [c.id_categoria, c.nombre]));
+	const recentText = (currentText || '').slice(-Math.max(0, searchRange));
 	const items: any[] = [];
 	for (const e of entries) {
 		if (e.archivado || e.ai_context_policy === AiContextPolicy.Never) continue;
-		if (e.ai_context_policy === AiContextPolicy.NeverIfDetected) continue;
+		const detected = e.tracking_por_nombre && matchesEntry(recentText, e);
+		if (e.ai_context_policy === AiContextPolicy.OnDetect && !detected) continue;
+		if (e.ai_context_policy === AiContextPolicy.NeverIfDetected && detected) continue;
 		if (!e.nombre && !e.descripcion) continue;
 		const item: any = { nombre: e.nombre };
 		if (e.alias) item.alias = e.alias.split(",").map(s => s.trim()).filter(Boolean);
@@ -39,7 +59,7 @@ export async function buildScenePrompt(
 	app: App, folderPath: string, settings: PluginSettings,
 	outline: string, currentText: string,
 ): Promise<string> {
-	const codexYaml = await buildCodexYaml(app, folderPath);
+ const codexYaml = await buildCodexYaml(app, folderPath, undefined, currentText, settings.codexOptions.searchRange);
 	const parts: string[] = [];
 	parts.push("--- Codex ---");
 	parts.push(codexYaml || "(vacio)");

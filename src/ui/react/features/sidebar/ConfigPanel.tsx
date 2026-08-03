@@ -50,7 +50,7 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		const leaf = plugin.app.workspace.getMostRecentLeaf();
 		const view = leaf?.view instanceof MarkdownView ? leaf.view : null;
 		const currentText = view?.editor?.getValue() ?? '';
-			Promise.all([buildScenePrompt(plugin.app, store.activeFolderPath, settings, '', currentText), buildCodexYaml(plugin.app, store.activeFolderPath), getPromptMetaCascading(plugin.app, settings, 'memoryContent'), getPromptMetaCascading(plugin.app, settings, 'authorNote')])
+			Promise.all([buildScenePrompt(plugin.app, store.activeFolderPath, settings, '', currentText), buildCodexYaml(plugin.app, store.activeFolderPath, undefined, currentText, settings.codexOptions.searchRange), getPromptMetaCascading(plugin.app, settings, 'memoryContent'), getPromptMetaCascading(plugin.app, settings, 'authorNote')])
 			.then(([prompt, codex, resolvedMemory, resolvedAuthor]) => {
 				new ContextModal(plugin.app, prompt, currentText.replace(/^---[\s\S]*?---\s*/, ''), codex, resolvedMemory, resolvedAuthor).open();
 			})

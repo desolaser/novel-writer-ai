@@ -374,6 +374,15 @@
 .nw-btn-transparent { background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
 /* Entry editor */
+.modal.nw-codex-modal {
+	width: min(1100px, 92vw);
+	height: min(820px, 90vh);
+	max-width: none;
+	max-height: none;
+}
+.modal.nw-codex-modal .modal-content {
+	height: 100%;
+}
 .nw-entry-editor { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .nw-editor-header { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid var(--background-modifier-border); }
 .nw-entry-title { flex: 1; margin: 0; }
@@ -507,8 +516,21 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-companion-sidebar { height: 100%; display: flex; flex-direction: column; background: var(--background-secondary); }
 .nw-companion-sidebar .nw-sidebar-content { min-height: 0; }
 .nw-chat-toolbar { gap: 6px; }
-.nw-chat-list .nw-list-item-row, .nw-list-item-row { min-height: 50px; }
-.nw-list-item-row .nw-list-item { text-align: left; align-items: flex-start; justify-content: center; }
+.nw-chat-list .nw-list-item-row, .nw-list-item-row {
+	min-height: 60px;
+	height: 60px;
+	box-sizing: border-box;
+}
+.nw-list-item-row .nw-list-item {
+	text-align: left;
+	align-items: flex-start;
+	justify-content: center;
+	flex-direction: column;
+	gap: 2px;
+	height: 100%;
+	min-height: 60px;
+	box-sizing: border-box;
+}
 .nw-chat-date { display: block; color: var(--text-muted); opacity: .75; font-size: 11px; margin-top: 2px; text-align: left; }
 
 /* Planear/Escribir tree rows */

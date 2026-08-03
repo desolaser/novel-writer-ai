@@ -50,7 +50,7 @@ export async function createEntry(
 		thumbnail: null,
 		color: null,
 		archivado: false,
-		tracking_por_nombre: false,
+		tracking_por_nombre: true,
 		case_sensitive: false,
 		ai_context_policy: AiContextPolicy.OnDetect,
 		referencias_externas: [],
