@@ -39,7 +39,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			{caps.map(c => <div className="nw-outline-chapter" key={c.id_capitulo}>
 				<div className="nw-outline-chapter-row"><button className="nw-outline-expand" onClick={() => toggle(c.id_capitulo)}>{expanded.has(c.id_capitulo) ? '▾' : '▸'}</button>
 					{editingCap === c.id_capitulo ? <input className="nw-input nw-inline-rename" autoFocus defaultValue={c.nombre} onBlur={e => { const n = e.target.value.trim(); if (n && n !== c.nombre) void updateCapitulo(c.id_capitulo, { nombre: n }); setEditingCap(null); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCap(null); }} /> : <button className="nw-outline-chapter-name" onClick={() => setEditingCap(c.id_capitulo)} title="Click para renombrar">{c.nombre}{c.outline ? ' *' : ''}</button>}
-					<span className="nw-chapter-file-status">{c.archivo ? 'Archivo' : 'Sin archivo'}</span>{c.archivo && <button className="nw-btn nw-btn-icon" title="Abrir manuscrito" aria-label="Abrir manuscrito" onClick={() => openChapter(c.archivo!)}><Icon.ExternalLink width={13} height={13} /></button>}<button className="nw-btn nw-btn-icon" title="Acciones del capítulo" aria-label="Acciones del capítulo" onClick={() => setOpenChapterMenu(openChapterMenu === c.id_capitulo ? null : c.id_capitulo)}>⋯</button>{openChapterMenu === c.id_capitulo && <div className="nw-chapter-actions-menu"><button onClick={() => { setOpenChapterMenu(null); void generateChapterMemory(c); }}>Generar memoria</button><button disabled={batchBusy} onClick={() => { setOpenChapterMenu(null); void generateSingleDraft(c); }}>Generar draft</button><button onClick={() => { setOpenChapterMenu(null); new ChapterFileModal(plugin.app, file => linkCapituloArchivo(c.id_capitulo, file.path)).open(); }}>Vincular archivo Markdown</button><button className="nw-btn-danger" onClick={() => { setOpenChapterMenu(null); if (confirm(`Borrar "${c.nombre}"?`)) void deleteCapitulo(c.id_capitulo); }}>Borrar capítulo</button></div>}
+					<span className="nw-chapter-file-status">{c.archivo ? 'Archivo' : 'Sin archivo'}</span>{c.archivo && <button className="nw-btn nw-btn-icon" title="Abrir manuscrito" aria-label="Abrir manuscrito" onClick={() => openChapter(c.archivo!)}><Icon.ExternalLink width={13} height={13} /></button>}<button className="nw-btn nw-btn-icon" title="Acciones del capítulo" aria-label="Acciones del capítulo" onClick={() => setOpenChapterMenu(openChapterMenu === c.id_capitulo ? null : c.id_capitulo)}>⋯</button>{openChapterMenu === c.id_capitulo && <div className="nw-chapter-actions-menu"><button disabled={batchBusy || !c.archivo} onClick={() => { setOpenChapterMenu(null); void generateChapterOutline(c); }}>Generar Outline</button><button disabled={batchBusy} onClick={() => { setOpenChapterMenu(null); void generateChapterMemory(c); }}>Generar memoria</button><button disabled={batchBusy} onClick={() => { setOpenChapterMenu(null); void generateSingleDraft(c); }}>Generar draft</button><button onClick={() => { setOpenChapterMenu(null); new ChapterFileModal(plugin.app, file => linkCapituloArchivo(c.id_capitulo, file.path)).open(); }}>Vincular archivo Markdown</button><button className="nw-btn-danger" onClick={() => { setOpenChapterMenu(null); if (confirm(`Borrar "${c.nombre}"?`)) void deleteCapitulo(c.id_capitulo); }}>Borrar capítulo</button></div>}
 				</div>
 				{expanded.has(c.id_capitulo) && <textarea className="nw-outline-inline-editor" value={drafts[c.id_capitulo] ?? ''} onChange={e => saveOutline(c.id_capitulo, e.target.value)} placeholder="Resumen de lo que pasará en este capítulo..." />}
 			</div>)}
@@ -65,6 +65,33 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		setBatchBusy(true); setBatchStatus(`Generando memoria: ${chapter.nombre}`);
 		try { const memory = buildChapterMemory(chapter); await updateCapitulo(chapter.id_capitulo, { memory_context: memory }); await writeChapterMemory(chapter, memory); setBatchStatus(`Memoria actualizada: ${chapter.nombre}`); }
 		catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
+	}
+
+	async function generateChapterOutline(chapter: any) {
+		if (!store || !chapter.archivo) return;
+		const settings = plugin.settings.data;
+		if (!settings.proveedor.modelo) { 
+			setBatchStatus('Configura un modelo en Settings.');
+			return; 
+		}
+
+		setBatchBusy(true); 
+		setBatchStatus(`Generando outline: ${chapter.nombre}`);
+
+		try {
+			const manuscript = await readCapituloTexto(chapter.id_capitulo);
+			if (!manuscript.trim()) { 
+				setBatchStatus(`El manuscrito de ${chapter.nombre} está vacío.`); 
+				return; 
+			}
+			const prompt = `Resume el siguiente capítulo en UN ÚNICO PÁRRAFO breve, de aproximadamente 80 a 120 palabras. Prioriza una respuesta completa y terminada; no la cortes a mitad de una oración. Escribe una síntesis narrativa breve en prosa continua. No uses saltos de línea, viñetas, listas numeradas, guiones, encabezados, etiquetas, formato Markdown ni estructura de presentación. Menciona solo los acontecimientos esenciales en orden, los cambios importantes de los personajes y el estado final de la trama. No inventes información, no escribas el capítulo y devuelve únicamente ese único párrafo, sin introducción ni comentarios adicionales.\n\nTítulo del capítulo: ${chapter.nombre}\n\nTexto del capítulo:\n${manuscript}`;
+			const api = new ApiFactory().createApi(settings.proveedor.id, settings.apiToken[settings.proveedor.id] ?? '');
+			const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, 800, settings.aiOptions.temperature, settings.aiOptions.topP);
+			const outline = (result.text ?? '').replace(/\s*\n+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+			if (!outline) { setBatchStatus(`La IA no devolvió un outline para ${chapter.nombre}.`); return; }
+			await updateCapitulo(chapter.id_capitulo, { outline });
+			setBatchStatus(`Outline actualizado: ${chapter.nombre}`);
+		} catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
 	}
 
 	async function writeChapterMemory(chapter: any, memory: string) {
