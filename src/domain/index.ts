@@ -6,7 +6,6 @@ export * from './entities/Categoria';
 export * from './entities/Detalle';
 export * from './entities/OpcionDetalle';
 export * from './entities/EntradaCodex';
-export * from './entities/Snippet';
 export * from './entities/Estructura';
 export * from './entities/Chat';
 export * from './entities/Junctions';

@@ -1,7 +1,7 @@
 import { EntityId, ISODate } from '../types';
 
 /**
- * Etiqueta: marca curada (con color) para capitulos y/o escenas.
+ * Etiqueta: marca curada (con color) para capitulos
  * Ej: estados (draft, editado) o tiempo narrativo (flashback, presente).
  */
 export interface Etiqueta {

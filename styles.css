@@ -460,7 +460,7 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-review-table table { width: 100%; border-collapse: collapse; }
 .nw-review-table th, .nw-review-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--background-modifier-border); }
 .nw-review-table th { font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
-/* Fix: botones X fuerzan caracteres legibles, dropdown, filas renombrar, snippet editor */
+/* Fix: botones X fuerzan caracteres legibles, dropdown, filas renombrar */
 .nw-add-wrap { position: relative; display: flex; }
 .nw-dropdown { position: absolute; top: 100%; right: 0; z-index: 50; min-width: 180px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
 .nw-dropdown-item { padding: 6px 10px; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--background-modifier-border); }
@@ -478,9 +478,6 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-list-item-row { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--background-modifier-border); }
 .nw-list-item-row.active > .nw-list-item { background: var(--interactive-accent); color: var(--text-on-accent); }
 .nw-list-item-row .nw-list-item { flex: 1; border: none; }
-.nw-snippet-editor { display: flex; flex-direction: column; height: 100%; padding: 12px; gap: 6px; }
-.nw-snippet-header { display: flex; align-items: center; gap: 8px; }
-.nw-snippet-title { flex: 1; font-size: 16px; font-weight: 600; padding: 6px; border: 1px solid var(--background-modifier-border); background: var(--background-primary); color: var(--text-normal); border-radius: 3px; }
 .nw-tab-extra { padding: 10px 16px !important; background: var(--background-modifier-hover) !important; color: var(--text-accent) !important; font-style: italic; }
 /* Outline + Escribir layout */
 .nw-writer-wrap { display: flex; gap: 12px; flex: 1; overflow: hidden; }

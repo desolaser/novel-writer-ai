@@ -58,9 +58,6 @@ export interface PluginSettings {
 	lastActiveNovelId: string | null;
 	/** Preferencias de UI. */
 	uiPrefs: {
-		sidebarWidth: number;
-		sidebarCollapsed: boolean;
-		activeWorkTab: 'planear' | 'escribir' | 'chat' | 'review';
 		activeSidebarTab: 'codex' | string;
 	};
 }
@@ -98,9 +95,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	codexOptions: DEFAULT_CODEX_OPTIONS,
 	lastActiveNovelId: null,
 	uiPrefs: {
-		sidebarWidth: 320,
-		sidebarCollapsed: false,
-		activeWorkTab: 'escribir',
 		activeSidebarTab: 'codex',
 	},
 };

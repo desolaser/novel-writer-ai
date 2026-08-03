@@ -10,7 +10,7 @@ export const NOVELA_META_FILE = '__metadata.json';
 export const NOVELA_CONFIG_FILE = '__config.json';
 
 /** Subcarpetas creadas por novela. */
-export const NOVELA_SUBFOLDERS = ['escritura', 'snippets', 'codex', 'images'] as const;
+export const NOVELA_SUBFOLDERS = ['escritura', 'codex', 'images'] as const;
 
 /** Subcarpeta interna de codex para imagenes de entradas (si se usa). */
 export const CODEX_IMAGES_SUBFOLDER = 'images';

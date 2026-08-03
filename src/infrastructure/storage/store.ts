@@ -9,11 +9,10 @@ import * as TagRepo from './repos/TagRepo';
 import * as DetRepo from './repos/DetalleRepo';
 import * as EntryRepo from './repos/CodexEntryRepo';
 import * as EstRepo from './repos/EstructuraRepo';
-import * as SnipRepo from './repos/SnippetRepo';
 import * as ChatRepo from './repos/ChatRepo';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
-	Acto, Capitulo, Snippet, Chat, EntityId,
+	Acto, Capitulo, Chat, EntityId,
 } from '../../domain';
 
 export type { NovelScanResult };
@@ -106,17 +105,6 @@ export class NovelStore {
 	async readCapituloTexto(id: EntityId) { return EstRepo.readCapituloTexto(this.app, this.activeFolder!, id); }
 	async linkCapituloArchivo(id: EntityId, path: string) { await EstRepo.linkCapituloArchivo(this.app, this.activeFolder!, id, path); }
 	async reconcileCapituloArchivos() { await EstRepo.reconcileCapituloArchivos(this.app, this.activeFolder!); }
-
-	// Snippets
-	async listSnippets(): Promise<Snippet[]> { return SnipRepo.listSnippets(this.app, this.activeFolder!); }
-	async createSnippet(nombre: string) { return SnipRepo.createSnippet(this.app, this.activeFolder!, this.activeId!, nombre); }
-	async updateSnippet(item: Snippet) { await SnipRepo.updateSnippet(this.app, this.activeFolder!, item); }
-	async getSnippetTexto(id: EntityId) { return SnipRepo.getSnippetTexto(this.app, this.activeFolder!, id); }
-	async writeSnippetTexto(id: EntityId, t: string) { await SnipRepo.writeSnippetTexto(this.app, this.activeFolder!, id, t); }
-	async getSnippetArchivo(id: EntityId) { return SnipRepo.getSnippetArchivo(this.app, this.activeFolder!, id); }
-	async renameSnippet(id: EntityId, n: string) { await SnipRepo.renameSnippet(this.app, this.activeFolder!, id, n); }
-	async archiveSnippet(id: EntityId) { await SnipRepo.archiveSnippet(this.app, this.activeFolder!, id); }
-	async deleteSnippet(id: EntityId) { await SnipRepo.deleteSnippet(this.app, this.activeFolder!, id); }
 
 	// Chats
 	async listChats(): Promise<Chat[]> { return ChatRepo.listChats(this.app, this.activeFolder!); }

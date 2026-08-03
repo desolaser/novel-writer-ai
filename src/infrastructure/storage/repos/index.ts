@@ -5,5 +5,4 @@ export * from './TagRepo';
 export * from './DetalleRepo';
 export * from './CodexEntryRepo';
 export * from './EstructuraRepo';
-export * from './SnippetRepo';
 export * from './ChatRepo';

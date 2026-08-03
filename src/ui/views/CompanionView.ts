@@ -11,15 +11,19 @@ export class CompanionView extends ItemView {
 	constructor(leaf: WorkspaceLeaf, private plugin: NovelWriterPlugin) {
 		super(leaf);
 	}
+
 	getViewType() {
 		return VIEW_TYPE_COMPANION;
 	}
+
 	getDisplayText() {
 		return "Novel Writer Companion";
 	}
+
 	getIcon() {
 		return "book";
 	}
+
 	async onOpen() {
 		await initializeStore(this.plugin);
 		const el = this.containerEl.children[1] as HTMLElement;
@@ -30,6 +34,7 @@ export class CompanionView extends ItemView {
 			React.createElement(CompanionRoot, { plugin: this.plugin })
 		);
 	}
+
 	async onClose() {
 		this.root?.unmount();
 		this.root = null;
@@ -44,8 +49,6 @@ export async function initializeStore(plugin: NovelWriterPlugin) {
 	if (id) await state.setActiveNovel(id);
 	const p = plugin.settings.data.uiPrefs;
 	useNovelWriter.setState({
-		sidebarWidth: p.sidebarWidth,
-		sidebarCollapsed: p.sidebarCollapsed,
 		activeSidebarTab: (p.activeSidebarTab as any) ?? "codex",
 	});
 }
