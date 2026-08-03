@@ -16,6 +16,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [addingTo, setAddingTo] = useState<string | null>(null); const [capName, setCapName] = useState('');
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [batchBusy, setBatchBusy] = useState(false); const [batchStatus, setBatchStatus] = useState('');
+	const [openChapterMenu, setOpenChapterMenu] = useState<string | null>(null);
 	const [targetWords, setTargetWords] = useState(plugin.settings.data.draftWordCount || 2000);
 	const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 	useEffect(() => { const next: Record<string, string> = {}; capitulos.forEach(c => next[c.id_capitulo] = c.outline ?? ''); setDrafts(next); }, [capitulos]);
@@ -24,9 +25,13 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const saveOutline = (id: string, value: string) => { setDrafts(d => ({ ...d, [id]: value })); const old = timers.current[id]; if (old) clearTimeout(old); timers.current[id] = setTimeout(() => { void updateCapitulo(id, { outline: value }); }, 600); };
 	const addCap = async (idActo: string) => { if (!capName.trim()) return; const c = await createCapitulo(idActo, capName.trim(), capitulos.filter(x => x.id_acto === idActo).length); setExpanded(s => new Set(s).add(c.id_capitulo)); setCapName(''); setAddingTo(null); };
 	const orderedChapters = () => actos.flatMap(a => capitulos.filter(c => c.id_acto === a.id_acto));
+	const buildChapterMemory = (chapter: any, chapters = orderedChapters()) => {
+		const index = chapters.findIndex(c => c.id_capitulo === chapter.id_capitulo);
+		return chapters.slice(0, Math.max(0, index)).filter(c => c.outline?.trim()).map(c => `${c.nombre}:\n${c.outline.trim()}`).join('\n\n===\n\n');
+	};
 
 	return <div className="nw-outline-view nw-outline-single-column">
-		<div className="nw-outline-title"><strong>Outline</strong><div className="nw-outline-actions"><label className="nw-draft-length">Palabras <input type="number" min={100} max={20000} step={100} value={targetWords} onChange={e => { const n = Math.max(100, Number(e.target.value) || 2000); setTargetWords(n); plugin.settings.data.draftWordCount = n; void plugin.settings.save(); }} /></label><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => new FolderPickerModal(plugin.app, folder => void createAllManuscripts(folder.path)).open()}>Crear manuscritos</button><button className="nw-btn nw-btn-experimental" title="Función experimental: la longitud final depende del proveedor y del modelo" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateDrafts()}>Generar drafts (experimental)</button></div></div>
+		<div className="nw-outline-title"><strong>Outline</strong><div className="nw-outline-actions"><label className="nw-draft-length">Palabras <input type="number" min={100} max={20000} step={100} value={targetWords} onChange={e => { const n = Math.max(100, Number(e.target.value) || 2000); setTargetWords(n); plugin.settings.data.draftWordCount = n; void plugin.settings.save(); }} /></label><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateAllMemory()}>Generar memoria</button><button className="nw-btn nw-btn-primary" disabled={batchBusy || capitulos.length === 0} onClick={() => new FolderPickerModal(plugin.app, folder => void createAllManuscripts(folder.path)).open()}>Crear manuscritos</button><button className="nw-btn nw-btn-experimental" title="Función experimental: la longitud final depende del proveedor y del modelo" disabled={batchBusy || capitulos.length === 0} onClick={() => void generateDrafts()}>Generar drafts (experimental)</button></div></div>
 		{batchStatus && <div className="nw-outline-status">{batchStatus}</div>}
 		<div className="nw-outline-add"><input className="nw-input" value={newAct} onChange={e => setNewAct(e.target.value)} placeholder="Nuevo acto" onKeyDown={e => { if (e.key === 'Enter') void (async () => { if (newAct.trim()) { await createActo(newAct.trim()); setNewAct(''); } })(); }} /><button className="nw-btn nw-btn-primary" onClick={async () => { if (newAct.trim()) { await createActo(newAct.trim()); setNewAct(''); } }}>+ Acto</button></div>
 		{actos.map(a => { const caps = capitulos.filter(c => c.id_acto === a.id_acto); return <section className="nw-outline-act" key={a.id_acto}>
@@ -34,13 +39,54 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			{caps.map(c => <div className="nw-outline-chapter" key={c.id_capitulo}>
 				<div className="nw-outline-chapter-row"><button className="nw-outline-expand" onClick={() => toggle(c.id_capitulo)}>{expanded.has(c.id_capitulo) ? '▾' : '▸'}</button>
 					{editingCap === c.id_capitulo ? <input className="nw-input nw-inline-rename" autoFocus defaultValue={c.nombre} onBlur={e => { const n = e.target.value.trim(); if (n && n !== c.nombre) void updateCapitulo(c.id_capitulo, { nombre: n }); setEditingCap(null); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCap(null); }} /> : <button className="nw-outline-chapter-name" onClick={() => setEditingCap(c.id_capitulo)} title="Click para renombrar">{c.nombre}{c.outline ? ' *' : ''}</button>}
-					<span className="nw-chapter-file-status">{c.archivo ? 'Archivo' : 'Sin archivo'}</span><button className="nw-btn nw-btn-icon" title="Generar draft de este capítulo" aria-label="Generar draft de este capítulo" disabled={batchBusy} onClick={() => void generateSingleDraft(c)}><Icon.Magic width={13} height={13} /></button>{c.archivo && <button className="nw-btn nw-btn-icon" title="Abrir manuscrito" aria-label="Abrir manuscrito" onClick={() => openChapter(c.archivo!)}><Icon.ExternalLink width={13} height={13} /></button>}<button className="nw-btn nw-btn-icon" title="Vincular archivo Markdown" aria-label="Vincular archivo Markdown" onClick={() => new ChapterFileModal(plugin.app, file => linkCapituloArchivo(c.id_capitulo, file.path)).open()}><Icon.Link width={13} height={13} /></button><button className="nw-btn nw-btn-icon nw-btn-danger" title="Borrar capítulo" aria-label="Borrar capítulo" onClick={() => { if (confirm(`Borrar "${c.nombre}"?`)) void deleteCapitulo(c.id_capitulo); }}><Icon.Trash width={12} height={12} /></button>
+					<span className="nw-chapter-file-status">{c.archivo ? 'Archivo' : 'Sin archivo'}</span>{c.archivo && <button className="nw-btn nw-btn-icon" title="Abrir manuscrito" aria-label="Abrir manuscrito" onClick={() => openChapter(c.archivo!)}><Icon.ExternalLink width={13} height={13} /></button>}<button className="nw-btn nw-btn-icon" title="Acciones del capítulo" aria-label="Acciones del capítulo" onClick={() => setOpenChapterMenu(openChapterMenu === c.id_capitulo ? null : c.id_capitulo)}>⋯</button>{openChapterMenu === c.id_capitulo && <div className="nw-chapter-actions-menu"><button onClick={() => { setOpenChapterMenu(null); void generateChapterMemory(c); }}>Generar memoria</button><button disabled={batchBusy} onClick={() => { setOpenChapterMenu(null); void generateSingleDraft(c); }}>Generar draft</button><button onClick={() => { setOpenChapterMenu(null); new ChapterFileModal(plugin.app, file => linkCapituloArchivo(c.id_capitulo, file.path)).open(); }}>Vincular archivo Markdown</button><button className="nw-btn-danger" onClick={() => { setOpenChapterMenu(null); if (confirm(`Borrar "${c.nombre}"?`)) void deleteCapitulo(c.id_capitulo); }}>Borrar capítulo</button></div>}
 				</div>
 				{expanded.has(c.id_capitulo) && <textarea className="nw-outline-inline-editor" value={drafts[c.id_capitulo] ?? ''} onChange={e => saveOutline(c.id_capitulo, e.target.value)} placeholder="Resumen de lo que pasará en este capítulo..." />}
 			</div>)}
 			{addingTo === a.id_acto ? <div className="nw-cap-add-row"><input className="nw-input" autoFocus value={capName} onChange={e => setCapName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void addCap(a.id_acto); if (e.key === 'Escape') setAddingTo(null); }} /><button className="nw-btn nw-btn-primary" onClick={() => void addCap(a.id_acto)}><Icon.Plus /></button></div> : <button className="nw-cap-add" onClick={() => { setAddingTo(a.id_acto); setCapName(''); }}>+ Capítulo</button>}
 		</section>; })}
 	</div>;
+
+	async function generateAllMemory() {
+		setBatchBusy(true); setBatchStatus('Generando memoria acumulada...');
+		try {
+			const chapters = orderedChapters();
+			for (let i = 0; i < chapters.length; i++) {
+				const memory = buildChapterMemory(chapters[i], chapters);
+				await updateCapitulo(chapters[i].id_capitulo, { memory_context: memory });
+				await writeChapterMemory(chapters[i], memory);
+				setBatchStatus(`Memoria: ${i + 1}/${chapters.length}`);
+			}
+			setBatchStatus(`Memoria generada para ${chapters.length} capítulos.`);
+		} catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
+	}
+
+	async function generateChapterMemory(chapter: any) {
+		setBatchBusy(true); setBatchStatus(`Generando memoria: ${chapter.nombre}`);
+		try { const memory = buildChapterMemory(chapter); await updateCapitulo(chapter.id_capitulo, { memory_context: memory }); await writeChapterMemory(chapter, memory); setBatchStatus(`Memoria actualizada: ${chapter.nombre}`); }
+		catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
+	}
+
+	async function writeChapterMemory(chapter: any, memory: string) {
+		const relativePath = await ensureCapituloArchivo(chapter.id_capitulo);
+		if (!relativePath || !store?.activeFolderPath) return;
+		const fullPath = relativePath.startsWith('escritura/') ? `${store.activeFolderPath}/${relativePath}` : relativePath;
+		const file = plugin.app.vault.getAbstractFileByPath(fullPath);
+		if (!(file instanceof TFile)) return;
+		const raw = await plugin.app.vault.read(file);
+		const match = raw.match(/^---\s*[\s\S]*?---/);
+		const yamlValue = memory.trim() ? `memoryContent: |-\n${memory.split('\n').map(line => `  ${line}`).join('\n')}` : 'memoryContent: ""';
+		if (!match) { await plugin.app.vault.modify(file, `---\n${yamlValue}\n---\n\n${raw}`); return; }
+		const body = match[0].replace(/^---\s*/, '').replace(/---\s*$/, '');
+		const lines = body.split('\n');
+		const kept: string[] = [];
+		for (let i = 0; i < lines.length; i++) {
+			if (/^\s*memoryContent\s*:/.test(lines[i])) { while (i + 1 < lines.length && /^\s{2,}/.test(lines[i + 1])) i++; continue; }
+			kept.push(lines[i]);
+		}
+		const nextFrontmatter = `---\n${kept.join('\n').replace(/\n+$/, '')}\n${yamlValue}\n---`;
+		await plugin.app.vault.modify(file, raw.replace(match[0], nextFrontmatter));
+	}
 
 	async function createAllManuscripts(targetFolder: string) {
 		if (!store) return; setBatchBusy(true); setBatchStatus('Creando archivos...');
@@ -63,7 +109,8 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
 					const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
 					const remainingWords = Math.max(100, targetWords - currentWords);
-					const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, c.outline ?? '', text, history, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${currentWords === 0 ? 'Escribe el capítulo completo.' : `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`} ${currentWords >= targetWords * 0.8 ? 'Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción.' : 'Todavía no cierres prematuramente el capítulo.'}`;
+					const chapterHistory = [c.memory_context, history].filter(Boolean).join('\n\n');
+					const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, c.outline ?? '', text, chapterHistory, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${currentWords === 0 ? 'Escribe el capítulo completo.' : `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`} ${currentWords >= targetWords * 0.8 ? 'Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción.' : 'Todavía no cierres prematuramente el capítulo.'}`;
 					const requestTokens = Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192));
 					const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, requestTokens, settings.aiOptions.temperature, settings.aiOptions.topP);
 					const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${c.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
@@ -86,7 +133,8 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			let text = ''; let attempts = 0;
 			while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
 				const currentWords = text.trim().split(/\s+/).filter(Boolean).length; const remainingWords = Math.max(100, targetWords - currentWords);
-				const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, chapter.outline ?? '', text, history, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${currentWords >= targetWords * 0.8 ? 'Cierra la trama en esta respuesta.' : 'Continúa desarrollando el capítulo sin reiniciarlo.'}`;
+				const chapterHistory = [chapter.memory_context, history].filter(Boolean).join('\n\n');
+				const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, chapter.outline ?? '', text, chapterHistory, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${currentWords >= targetWords * 0.8 ? 'Cierra la trama en esta respuesta.' : 'Continúa desarrollando el capítulo sin reiniciarlo.'}`;
 				const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)), settings.aiOptions.temperature, settings.aiOptions.topP); const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${chapter.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
 			}
 			await ensureCapituloArchivo(chapter.id_capitulo); await writeCapituloTexto(chapter.id_capitulo, text); await refreshGeneratedContext(); setBatchStatus(`Draft listo: ${chapter.nombre}`);

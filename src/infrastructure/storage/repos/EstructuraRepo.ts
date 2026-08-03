@@ -71,7 +71,7 @@ export async function listCapitulos(app: App, fp: string): Promise<Capitulo[]> {
 export async function createCapitulo(app: App, folderPath: string, idActo: EntityId, nombre: string, orden: number): Promise<Capitulo> {
 	const data = await readFile(app, folderPath);
 	const cap: Capitulo = {
-		id_capitulo: genId(), nombre, outline: '', archivo: null, id_acto: idActo, orden,
+		id_capitulo: genId(), nombre, outline: '', memory_context: '', archivo: null, id_acto: idActo, orden,
 		created_at: nowISO(), updated_at: nowISO(),
 	};
 	data.capitulos.push(cap);
