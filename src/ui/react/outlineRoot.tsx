@@ -53,7 +53,6 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			const chapters = orderedChapters();
 			for (let i = 0; i < chapters.length; i++) {
 				const memory = buildChapterMemory(chapters[i], chapters);
-				await updateCapitulo(chapters[i].id_capitulo, { memory_context: memory });
 				await writeChapterMemory(chapters[i], memory);
 				setBatchStatus(`Memoria: ${i + 1}/${chapters.length}`);
 			}
@@ -63,7 +62,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	async function generateChapterMemory(chapter: any) {
 		setBatchBusy(true); setBatchStatus(`Generando memoria: ${chapter.nombre}`);
-		try { const memory = buildChapterMemory(chapter); await updateCapitulo(chapter.id_capitulo, { memory_context: memory }); await writeChapterMemory(chapter, memory); setBatchStatus(`Memoria actualizada: ${chapter.nombre}`); }
+		try { const memory = buildChapterMemory(chapter); await writeChapterMemory(chapter, memory); setBatchStatus(`Memoria actualizada: ${chapter.nombre}`); }
 		catch (e: any) { setBatchStatus('Error: ' + (e?.message ?? String(e))); } finally { setBatchBusy(false); }
 	}
 
@@ -136,8 +135,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
 					const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
 					const remainingWords = Math.max(100, targetWords - currentWords);
-					const chapterHistory = [c.memory_context, history].filter(Boolean).join('\n\n');
-					const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, c.outline ?? '', text, chapterHistory, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${currentWords === 0 ? 'Escribe el capítulo completo.' : `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`} ${currentWords >= targetWords * 0.8 ? 'Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción.' : 'Todavía no cierres prematuramente el capítulo.'}`;
+					const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, c.outline ?? '', text, '', targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${currentWords === 0 ? 'Escribe el capítulo completo.' : `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`} ${currentWords >= targetWords * 0.8 ? 'Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción.' : 'Todavía no cierres prematuramente el capítulo.'}`;
 					const requestTokens = Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192));
 					const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, requestTokens, settings.aiOptions.temperature, settings.aiOptions.topP);
 					const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${c.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
@@ -160,8 +158,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			let text = ''; let attempts = 0;
 			while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
 				const currentWords = text.trim().split(/\s+/).filter(Boolean).length; const remainingWords = Math.max(100, targetWords - currentWords);
-				const chapterHistory = [chapter.memory_context, history].filter(Boolean).join('\n\n');
-				const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, chapter.outline ?? '', text, chapterHistory, targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${currentWords >= targetWords * 0.8 ? 'Cierra la trama en esta respuesta.' : 'Continúa desarrollando el capítulo sin reiniciarlo.'}`;
+				const prompt = `${await buildScenePrompt(plugin.app, store.activeFolderPath!, draftSettings, chapter.outline ?? '', text, '', targetWords)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${currentWords >= targetWords * 0.8 ? 'Cierra la trama en esta respuesta.' : 'Continúa desarrollando el capítulo sin reiniciarlo.'}`;
 				const result = await requestDraftCompletion(api, prompt, settings.proveedor.modelo, Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)), settings.aiOptions.temperature, settings.aiOptions.topP); const addition = result.text ?? ''; if (!addition.trim()) break; if (isCorruptGeneration(addition)) { setBatchStatus(`La IA devolvió una respuesta inválida para ${chapter.nombre}; se detuvo el capítulo.`); break; } text += `${text ? '\n\n' : ''}${addition}`;
 			}
 			await ensureCapituloArchivo(chapter.id_capitulo); await writeCapituloTexto(chapter.id_capitulo, text); await refreshGeneratedContext(); setBatchStatus(`Draft listo: ${chapter.nombre}`);

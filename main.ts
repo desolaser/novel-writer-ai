@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, Notice, App, Modal, Setting, Editor, Menu, MarkdownView, TFile } from 'obsidian';
+import { Plugin, WorkspaceLeaf, Notice, App, Modal, Setting, Editor, Menu, MarkdownView, TFile, TFolder } from 'obsidian';
 import { CompanionView, VIEW_TYPE_COMPANION } from './src/ui/views/CompanionView';
 import { OutlineView, VIEW_TYPE_OUTLINE } from './src/ui/views/OutlineView';
 import { NovelStore } from './src/infrastructure/storage/store';
@@ -107,20 +107,28 @@ export default class NovelWriterPlugin extends Plugin {
 	}
 
 	async importLorebook() {
-		const folder = window.prompt('Carpeta del lorebook legacy:', 'Lorebook');
-		if (!folder) return;
-		const plan = await prepareImport(this.app, folder);
-		if (plan.subfolders.length === 0 && plan.rootFiles.length === 0) { new Notice('No se encontro contenido en ' + folder); return; }
-		const selected = await pickSubfolders(this.app, plan);
-		if (!selected) return;
-		if (!this.store.activeNovelId) { new Notice('Selecciona o crea una novela primero.'); return; }
-		const folderPath = this.store.activeFolderPath;
-		if (!folderPath) { new Notice('No hay novela activa.'); return; }
-		new Notice('Importando...');
-		const res = await runImport(this.app, folderPath, this.store.activeNovelId, plan, selected);
-		new Notice('Importadas ' + res.entradas + ' entradas, ' + res.categoriasCreadas + ' categorias.');
-		const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
-		await useNovelWriter.getState().reloadAll();
+		new Notice('Iniciando importación del lorebook...');
+		try {
+			if (!this.store.activeNovelId) { new Notice('Importación cancelada: selecciona o crea una novela primero.'); return; }
+			const folderPath = this.store.activeFolderPath;
+			if (!folderPath) { new Notice('Importación cancelada: no hay novela activa.'); return; }
+			new Notice('Selecciona la carpeta del lorebook que quieres importar.');
+			const folder = await pickLorebookFolder(this.app);
+			if (!folder) { new Notice('Importación cancelada: no se seleccionó ninguna carpeta.'); return; }
+			new Notice('Procesando carpeta: ' + folder.path);
+			const plan = await prepareImport(this.app, folder.path);
+			if (plan.subfolders.length === 0 && plan.rootFiles.length === 0) { new Notice('No se encontraron archivos Markdown en ' + folder.path); return; }
+			new Notice(`Encontradas ${plan.rootFiles.length} entradas en la raíz y ${plan.subfolders.length} subcarpetas.`);
+			// Import the complete selected folder recursively. The old second modal
+			// made it too easy to confirm an empty selection and import nothing.
+			const selected = plan.subfolders.map(subfolder => subfolder.name);
+			new Notice(`Importando ${plan.rootFiles.length + plan.subfolders.reduce((total, subfolder) => total + subfolder.count, 0)} archivos Markdown...`);
+			new Notice('Importando lorebook...');
+			const res = await runImport(this.app, folderPath, this.store.activeNovelId, plan, selected);
+			new Notice(`Importadas ${res.entradas} entradas y ${res.categoriasCreadas} categorías desde ${folder.path}.`);
+			const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
+			await useNovelWriter.getState().reloadAll();
+		} catch (error: any) { new Notice('Error importando lorebook: ' + (error?.message ?? String(error))); }
 	}
 
 	private addEditorMenuItems(menu: Menu, editor: Editor) {
@@ -172,11 +180,14 @@ export default class NovelWriterPlugin extends Plugin {
 		if (!target) { new Notice('Abre una nota para generar texto.'); return; }
 		const cursor = target.getCursor();
 		const beforeCursor = target.getRange({ line: 0, ch: 0 }, cursor);
+		// Frontmatter is metadata, never story context. Keep it in the note but
+		// exclude it from the prompt sent to the model and from Codex detection.
+		const storyBeforeCursor = beforeCursor.replace(/^---\s*[\s\S]*?---\s*/, '');
 		const fullText = target.getValue();
 		const afterCursor = fullText.slice(beforeCursor.length);
 		try {
 			const settings = this.settings.data;
-			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, '', beforeCursor);
+			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, '', storyBeforeCursor);
 			const result = await this.requestCompletion(prompt, 'Generando texto');
 			let generated = '';
 			if (result.text) {
@@ -292,6 +303,34 @@ export default class NovelWriterPlugin extends Plugin {
 	}
 
 	onunload() {}
+}
+
+async function pickLorebookFolder(app: App): Promise<TFolder | null> {
+	return new Promise(resolve => {
+		let done = false;
+		const modal = new Modal(app);
+		modal.titleEl.setText('Seleccionar carpeta de lorebook');
+		const folders = app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder).sort((a, b) => a.path.localeCompare(b.path));
+		const search = modal.contentEl.createEl('input', { type: 'search', placeholder: 'Buscar carpeta...' });
+		search.style.width = '100%';
+		const list = modal.contentEl.createDiv();
+		list.style.maxHeight = '50vh'; list.style.overflowY = 'auto'; list.style.marginTop = '8px';
+		const render = () => {
+			list.empty();
+			const query = search.value.trim().toLowerCase();
+			const visible = folders.filter(folder => !query || folder.path.toLowerCase().includes(query));
+			if (!visible.length) { list.createEl('p', { text: 'No se encontraron carpetas.' }); return; }
+			for (const folder of visible) {
+				const button = list.createEl('button', { text: folder.path || '/', cls: 'mod-list-item' });
+				button.style.display = 'block'; button.style.width = '100%'; button.style.textAlign = 'left'; button.style.marginTop = '4px';
+				button.onclick = () => { done = true; resolve(folder); modal.close(); };
+			}
+		};
+		search.addEventListener('input', render);
+		render();
+		modal.onClose = () => { if (!done) resolve(null); };
+		modal.open();
+	});
 }
 
 /** Modal con Nombre (obligatorio), Autor (opcional) y Thumbnail (opcional). */

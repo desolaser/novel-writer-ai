@@ -31,7 +31,7 @@ function parseLegacyMeta(content: string): { meta: LorebookMeta; body: string } 
 		const fm: any = yaml.load(match[1]);
 		if (fm) {
 			if (Array.isArray(fm['keys'])) keys = fm['keys'].map((k: any) => String(k));
-			else if (typeof fm['keys'] === 'string') keys = [fm['keys']];
+			else if (typeof fm['keys'] === 'string') keys = fm['keys'].split(/[,\n]/).map((key: string) => key.trim()).filter(Boolean);
 			if (typeof fm['enabled'] === 'boolean') enabled = fm['enabled'];
 			if (typeof fm['alwaysOn'] === 'boolean') alwaysOn = fm['alwaysOn'];
 		}

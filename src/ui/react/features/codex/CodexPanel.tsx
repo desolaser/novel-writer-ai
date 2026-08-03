@@ -256,6 +256,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							<hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
 							<div className="nw-popover-item" onClick={openModalDetail}><span>Detalles Custom</span></div>
 							<div className="nw-popover-item" onClick={openModalCategories}><span>Categorias</span></div>
+							<div className="nw-popover-item" onClick={() => { setConfigMenuOpen(false); void plugin.importLorebook(); }}><span>Importar lorebook</span></div>
 						</div>
 					)}
 				</div>
