@@ -1,5 +1,4 @@
 import { App, Modal } from 'obsidian';
-import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import type NovelWriterPlugin from '../../../../../main';
 import { CodexEntryEditor } from './CodexEntryEditor';

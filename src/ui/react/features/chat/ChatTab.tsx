@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
 import { ApiFactory } from '../../../../factories/api-factory';
 import { getPromptMetaCascading } from '../../../../context/promptMeta';
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { chats, activeChatId, selectChat, appendMensaje, createChat, store } = useNovelWriter();
+	const { activeChatId, selectChat, appendMensaje, createChat, store } = useNovelWriter();
 	const [input, setInput] = useState('');
 	const [mensajes, setMensajes] = useState<any[]>([]);
 	const [busy, setBusy] = useState(false);

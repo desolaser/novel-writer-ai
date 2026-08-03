@@ -1,5 +1,3 @@
-import React from 'react';
-
 /** Iconos SVG planos (sin dependencias, sin unicode raro). */
 
 const base = (props: { width?: number; height?: number; className?: string; fill?: string }) => ({
