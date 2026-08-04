@@ -7,6 +7,7 @@ import { NovelWriterSettingsTab } from './src/ai-plugin-settings-tab-v2';
 import { prepareImport, runImport } from './src/utils/lorebookImport';
 import { buildScenePrompt } from './src/context/promptBuilder';
 import { ApiFactory } from './src/factories/api-factory';
+import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
 
 // onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
 // callbacks left by the previous instance. Keep the lock outside the class so
@@ -250,14 +251,11 @@ export default class NovelWriterPlugin extends Plugin {
 		new Notice(action + '…');
 		const settings = this.settings.data;
 		try {
-			if (!settings.proveedor.modelo) throw new Error('Configura un modelo en Settings.');
-			const token = settings.apiToken[settings.proveedor.id] ?? '';
-			const api = new ApiFactory().createApi(settings.proveedor.id, token);
-			const result = await api.generateCompletion(prompt, settings.proveedor.modelo, {
-				max_tokens: settings.aiOptions.maxOutput, temperature: settings.aiOptions.temperature,
-				presence_penalty: settings.aiOptions.presencePenalty, frequency_penalty: settings.aiOptions.frequencyPenalty,
-				top_p: settings.aiOptions.topP, stream: settings.aiOptions.streaming,
-			});
+			const active = getActiveModelConfig(settings);
+			if (!active.modelName) throw new Error('Configura un modelo en Settings.');
+			const token = settings.apiToken[active.providerId] ?? '';
+			const api = new ApiFactory().createApi(active.providerId, token);
+			const result = await api.generateCompletion(prompt, active.modelName, active.options);
 			if (result.stream && typeof result.stream[Symbol.asyncIterator] === 'function') {
 				let text = '';
 				for await (const chunk of result.stream as AsyncIterable<any>) {
@@ -281,13 +279,10 @@ export default class NovelWriterPlugin extends Plugin {
 		this.operationStatusBarItem.setText(action + '…');
 		new Notice(action + '…');
 		const settings = this.settings.data;
-		if (!settings.proveedor.modelo) throw new Error('Configura un modelo en Settings.');
-		const api = new ApiFactory().createApi(settings.proveedor.id, settings.apiToken[settings.proveedor.id] ?? '');
-		return api.generateCompletion(prompt, settings.proveedor.modelo, {
-			max_tokens: settings.aiOptions.maxOutput, temperature: settings.aiOptions.temperature,
-			presence_penalty: settings.aiOptions.presencePenalty, frequency_penalty: settings.aiOptions.frequencyPenalty,
-			top_p: settings.aiOptions.topP, stream: settings.aiOptions.streaming,
-		});
+		const active = getActiveModelConfig(settings);
+		if (!active.modelName) throw new Error('Configura un modelo en Settings.');
+		const api = new ApiFactory().createApi(active.providerId, settings.apiToken[active.providerId] ?? '');
+		return api.generateCompletion(prompt, active.modelName, active.options);
 	}
 
 	private async *readCompletionStream(stream: any): AsyncIterable<any> {

@@ -5,6 +5,7 @@ import type NovelWriterPlugin from '../../../../../main';
 import { ApiFactory } from '../../../../factories/api-factory';
 import { Icon } from '../../components/Icon';
 import { openEntryModal } from '../codex/CodexEntryModal';
+import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 
 type ContextKind = 'codex' | 'chapter' | 'outline' | 'note' | 'folder' | 'active-note';
 type ContextItem = {
@@ -33,6 +34,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [contextOpen, setContextOpen] = useState(false);
 	const [contextMenu, setContextMenu] = useState<ContextMenu>('root');
 	const [query, setQuery] = useState('');
+	const [modelMenuOpen, setModelMenuOpen] = useState(false);
+	const [modelVersion, setModelVersion] = useState(0);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const initialActiveNotePath = useRef<string | null>(null);
 
@@ -150,14 +153,16 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setBusy(true);
 		try {
 			const settings = plugin.settings.data;
-			const token = settings.apiToken[settings.proveedor.id] ?? '';
-			const api = new ApiFactory().createApi(settings.proveedor.id, token);
+			const activeModel = getActiveModelConfig(settings);
+			if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
+			const token = settings.apiToken[activeModel.providerId] ?? '';
+			const api = new ApiFactory().createApi(activeModel.providerId, token);
 			const history = [...mensajes, { role: 'user', mensaje: t }]
 				.filter(m => m.role === 'user' || m.role === 'assistant')
 				.map(m => ({ role: m.role, content: m.mensaje }));
 			const selectedContext = contextPrompt();
 			const prompt = `${selectedContext ? `Contexto seleccionado explícitamente por el usuario:\n${selectedContext}\n\n` : ''}${history.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.content}`).join('\n\n')}\n\nIA: `;
-			const result = await api.generateCompletion(prompt, settings.proveedor.modelo, { max_tokens: settings.aiOptions.maxOutput, temperature: settings.aiOptions.temperature, top_p: settings.aiOptions.topP, stream: false });
+			const result = await api.generateCompletion(prompt, activeModel.modelName, { ...activeModel.options, stream: false });
 			const reply = result.text ?? '(sin respuesta)';
 			await appendMensaje('assistant', reply);
 			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, created_at: '' }]);
@@ -196,5 +201,15 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			</div>}
 		</div>
 		<div className="nw-chat-input"><textarea className="nw-chat-textarea" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Escribe un mensaje..." rows={2} /><button className="nw-btn nw-btn-primary" onClick={() => void send()} disabled={busy}>Enviar</button></div>
+		<div className="nw-chat-model-selector" key={modelVersion}>
+			<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
+				{plugin.settings.data.modelos.find(model => model.id_modelo === plugin.settings.data.modeloPredeterminadoId)?.nombre_listado ?? 'Sin modelo activo'}
+				<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
+			</span>
+			{modelMenuOpen && <div className="nw-chat-model-dropdown">{plugin.settings.data.modelos.length ? plugin.settings.data.modelos.map(model => <button key={model.id_modelo} className="nw-context-row" onClick={() => {
+				plugin.settings.data.modeloPredeterminadoId = model.id_modelo;
+				void plugin.settings.save(); setModelMenuOpen(false); setModelVersion(version => version + 1);
+			}}>{model.nombre_listado}</button>) : <span>No hay modelos creados.</span>}</div>}
+		</div>
 	</div>;
 }

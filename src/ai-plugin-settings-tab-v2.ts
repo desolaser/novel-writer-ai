@@ -1,194 +1,113 @@
-import { PluginSettingTab, Setting, App, Notice } from "obsidian";
-import type NovelWriterPlugin from "../main";
-import { AiProviderId } from "./infrastructure/settings/plugin-settings";
-import { ApiFactory } from "./factories/api-factory";
-import type { Model } from "./types/Model";
+import { PluginSettingTab, Setting, App, Notice, Modal } from 'obsidian';
+import type NovelWriterPlugin from '../main';
+import { ModelRepository } from './infrastructure/settings/model-repository';
+import { getProvider } from './constants/providers';
+import { ModelModal } from './ui/modals/ModelModal';
 
-const PROVIDERS: { id: AiProviderId; label: string }[] = [
-	{ id: "openrouter", label: "OpenRouter" },
-	{ id: "deepseek", label: "Deepseek" },
-	{ id: "ooba", label: "Text Generation WebUI" },
-	{ id: "ollama", label: "Ollama" },
-	{ id: "opencodezen", label: "OpenCodeZen" },
-	{ id: "opencodego", label: "OpenCodeGo" },
-	{ id: "novelai", label: "NovelAI" },
-];
-
+/** Plugin settings focused on selecting and managing reusable model profiles. */
 export class NovelWriterSettingsTab extends PluginSettingTab {
-	plugin: NovelWriterPlugin;
-	models: Model[] = [];
+	private readonly models: ModelRepository;
 
-	constructor(app: App, plugin: NovelWriterPlugin) {
+	constructor(app: App, private readonly plugin: NovelWriterPlugin) {
 		super(app, plugin);
-		this.plugin = plugin;
+		this.models = new ModelRepository(plugin.settings);
 	}
 
-	async display() {
+	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl("h1", { text: "Novel Writer AI" });
-		const s = this.plugin.settings.data;
-
-		new Setting(containerEl)
-			.setName("Proveedor de IA")
-			.setDesc("Selecciona el proveedor.")
-			.addDropdown((d) => {
-				PROVIDERS.forEach((p) => d.addOption(p.id, p.label));
-				d.setValue(s.proveedor.id).onChange(async (v: any) => {
-					s.proveedor.id = v;
-					s.proveedor.modelo = "";
-					await this.plugin.settings.save();
-					this.models = [];
-					this.display();
-				});
-			});
-
-		if (s.proveedor.id !== "ollama") {
-			new Setting(containerEl).setName("API Token").addText((t) =>
-				t
-					.setValue(s.apiToken[s.proveedor.id] ?? "")
-					.onChange(async (v) => {
-						s.apiToken[s.proveedor.id] = v;
-						await this.plugin.settings.save();
-					})
-			);
-		}
-
-		const modelContainer = containerEl.createDiv();
-		modelContainer.createEl("h3", { text: "Modelos disponibles" });
-		const token = s.apiToken[s.proveedor.id] ?? "";
-		if (s.proveedor.id === "ollama" || s.proveedor.id === "ooba" || token) {
-			if (this.models.length > 0) {
-				this.renderModelDropdown(modelContainer);
-			} else {
-				const loading = modelContainer.createEl("p", {
-					text: "Cargando modelos...",
-				});
-				try {
-					const api = new ApiFactory().createApi(
-						s.proveedor.id,
-						token
-					);
-					this.models = await api.getAvailableModels();
-					loading.remove();
-					if (this.models.length > 0)
-						this.renderModelDropdown(modelContainer);
-					else
-						modelContainer.createEl("p", {
-							text: "No hay modelos disponibles.",
-						});
-				} catch (e: any) {
-					loading.remove();
-					modelContainer.createEl("p", {
-						text: "Error: " + (e?.message ?? String(e)),
-					}).style.color = "var(--text-error)";
-				}
-			}
-		} else {
-			modelContainer.createEl("p", {
-				text: "Agrega un API token para ver los modelos disponibles.",
-			});
-		}
-
-		new Setting(containerEl).setName("Streaming").addToggle((t) =>
-			t.setValue(s.aiOptions.streaming).onChange(async (v) => {
-				s.aiOptions.streaming = v;
-				await this.plugin.settings.save();
-			})
-		);
-
-		const num = (n: keyof typeof s.aiOptions, label: string, desc = "") =>
-			new Setting(containerEl)
-				.setName(label)
-				.setDesc(desc)
-				.addText((t) =>
-					t
-						.setValue(String(s.aiOptions[n] ?? 0))
-						.onChange(async (v) => {
-							const p = parseFloat(v);
-							if (!isNaN(p)) {
-								(s.aiOptions as any)[n] = p;
-								await this.plugin.settings.save();
-							}
-						})
-				);
-
-		containerEl.createEl("h3", { text: "Opciones de IA" });
-		num("maxContext", "Max Context Tokens");
-		num("maxOutput", "Max Output Tokens");
-		num("temperature", "Temperature");
-		num("topP", "Top P");
-		num("presencePenalty", "Presence Penalty");
-		num("frequencyPenalty", "Frequency Penalty");
-
-		containerEl.createEl("h3", { text: "Opciones de Codex" });
-		new Setting(containerEl).setName("Search Range").addText((t) =>
-			t
-				.setValue(String(s.codexOptions.searchRange))
-				.onChange(async (v) => {
-					const p = parseInt(v);
-					if (!isNaN(p)) {
-						s.codexOptions.searchRange = p;
-						await this.plugin.settings.save();
-					}
-				})
-		);
-		new Setting(containerEl).setName("Lorebook %").addText((t) =>
-			t
-				.setValue(String(s.codexOptions.lorebookPercentage))
-				.onChange(async (v) => {
-					const p = parseInt(v);
-					if (!isNaN(p) && p >= 0 && p <= 100) {
-						s.codexOptions.lorebookPercentage = p;
-						await this.plugin.settings.save();
-					}
-				})
-		);
-		new Setting(containerEl)
-			.setName("Numerar capitulos automaticamente")
-			.addToggle((t) =>
-				t.setValue(s.numerarCapitulosAuto).onChange(async (v) => {
-					s.numerarCapitulosAuto = v;
-					await this.plugin.settings.save();
-				})
-			);
-
-		containerEl.createEl("h3", { text: "Prompt global" });
-		const ta = (
-			label: string,
-			value: string,
-			key: "prefix" | "memoryContent" | "authorNote"
-		) => {
-			const sec = containerEl.createDiv("options-section");
-			sec.createEl("p", { text: label });
-			const el = sec.createEl("textarea");
-			el.rows = 4;
-			el.style.width = "100%";
-			el.value = value;
-			el.onchange = async () => {
-				(s as any)[key] = el.value;
-				await this.plugin.settings.save();
-			};
-		};
-		ta("Prefix prompt", s.prefix, "prefix");
-		ta("Global Memory Content", s.memoryContent, "memoryContent");
-		ta("Global Author's Note", s.authorNote, "authorNote");
+		containerEl.createEl('h1', { text: 'Novel Writer AI' });
+		this.renderModels(containerEl);
+		this.renderCodexOptions(containerEl);
+		this.renderGlobalPrompts(containerEl);
 	}
 
-	private renderModelDropdown(host: HTMLElement) {
-		const s = this.plugin.settings.data;
-		const match = this.models.find((m) => m.id === s.proveedor.modelo);
-		const sel = new Setting(host)
-			.setName("Modelo por defecto")
-			.setDesc(match?.name && match.name !== match.id ? match.name : "")
-			.addDropdown((d) => {
-				this.models.forEach((m) => d.addOption(m.id, m.name || m.id));
-				d.setValue(s.proveedor.modelo || (this.models[0]?.id ?? ""));
-				d.onChange(async (v: string) => {
-					s.proveedor.modelo = v;
-					await this.plugin.settings.save();
-					this.display();
+	private renderModels(host: HTMLElement): void {
+		host.createEl('h3', { text: 'Modelos' });
+		const saved = this.models.list();
+		new Setting(host)
+			.setName('Modelo activo')
+			.setDesc('Este perfil se utiliza para las generaciones y los chats.')
+			.addDropdown(dropdown => {
+				dropdown.addOption('', saved.length ? 'Selecciona un modelo' : 'No hay modelos creados');
+				saved.forEach(model => dropdown.addOption(model.id_modelo, model.nombre_listado));
+				dropdown.setValue(this.plugin.settings.data.modeloPredeterminadoId).onChange(async id => {
+					if (!id) return;
+					await this.models.setDefault(id); this.display();
 				});
-			});
+			})
+			.addButton(button => button.setIcon('settings').setTooltip('Gestionar modelos').onClick(() => this.openManager()));
+		if (!saved.length) host.createEl('p', { text: 'Crea un modelo para comenzar a usar la IA.' });
+	}
+
+	private openManager(): void {
+		const modal = new Modal(this.app);
+		modal.onOpen = () => {
+			const content = modal.contentEl;
+			content.createEl('h2', { text: 'Gestionar modelos' });
+			let pendingDeletion: string | undefined;
+			const render = () => {
+				const list = content.querySelector('.nw-model-manager-list') as HTMLElement | null;
+				list?.remove();
+				const listHost = content.createDiv('nw-model-manager-list');
+				const models = this.models.list();
+				const deletionTarget = models.find(model => model.id_modelo === pendingDeletion);
+				if (deletionTarget) {
+					const warning = listHost.createDiv('nw-model-delete-confirm');
+					warning.createEl('strong', { text: `¿Borrar "${deletionTarget.nombre_listado}"?` });
+					warning.createEl('p', { text: 'Esta acción no se puede deshacer.' });
+					const cancel = warning.createEl('button', { text: 'Cancelar' });
+					cancel.onclick = () => { pendingDeletion = undefined; render(); };
+					const confirm = warning.createEl('button', { text: 'Borrar', cls: 'mod-warning' });
+					confirm.onclick = async () => {
+						await this.models.remove(deletionTarget.id_modelo); pendingDeletion = undefined;
+						new Notice('Modelo eliminado.'); render(); this.display();
+					};
+				}
+				if (!models.length) listHost.createEl('p', { text: 'No hay modelos guardados.' });
+				models.forEach(model => {
+					const provider = getProvider(model.id_proveedor);
+					new Setting(listHost).setName(model.nombre_listado).setDesc(`${provider?.nombre_display ?? 'Proveedor desconocido'} · ${model.nombre_modelo}`)
+						.addToggle(toggle => toggle.setTooltip('Modelo por defecto').setValue(this.plugin.settings.data.modeloPredeterminadoId === model.id_modelo).onChange(async value => {
+							if (value) { await this.models.setDefault(model.id_modelo); render(); }
+						}))
+						.addButton(button => button.setIcon('pencil').setTooltip('Editar').onClick(() => {
+							new ModelModal(this.plugin, model, () => { render(); this.display(); }).open();
+						}))
+						.addButton(button => button.setIcon('trash').setTooltip('Borrar').onClick(() => {
+							pendingDeletion = model.id_modelo; render();
+						}));
+				});
+			};
+			const create = content.createEl('button', { text: 'Crear modelo', cls: 'mod-cta' });
+			create.onclick = () => new ModelModal(this.plugin, undefined, () => { render(); this.display(); }).open();
+			render();
+		};
+		modal.open();
+	}
+
+	private renderCodexOptions(host: HTMLElement): void {
+		const settings = this.plugin.settings.data;
+		host.createEl('h3', { text: 'Opciones de Codex' });
+		new Setting(host).setName('Search Range').addText(text => text.setValue(String(settings.codexOptions.searchRange)).onChange(async value => {
+			const parsed = Number(value); if (!Number.isNaN(parsed)) { settings.codexOptions.searchRange = parsed; await this.plugin.settings.save(); }
+		}));
+		new Setting(host).setName('Lorebook %').addText(text => text.setValue(String(settings.codexOptions.lorebookPercentage)).onChange(async value => {
+			const parsed = Number(value); if (parsed >= 0 && parsed <= 100) { settings.codexOptions.lorebookPercentage = parsed; await this.plugin.settings.save(); }
+		}));
+		new Setting(host).setName('Numerar capitulos automaticamente').addToggle(toggle => toggle.setValue(settings.numerarCapitulosAuto).onChange(async value => {
+			settings.numerarCapitulosAuto = value; await this.plugin.settings.save();
+		}));
+	}
+
+	private renderGlobalPrompts(host: HTMLElement): void {
+		const settings = this.plugin.settings.data;
+		host.createEl('h3', { text: 'Prompt global' });
+		(['prefix', 'memoryContent', 'authorNote'] as const).forEach(key => {
+			const labels = { prefix: 'Prefix prompt', memoryContent: 'Global Memory Content', authorNote: "Global Author's Note" };
+			const section = host.createDiv('options-section'); section.createEl('p', { text: labels[key] });
+			const textarea = section.createEl('textarea'); textarea.rows = 4; textarea.style.width = '100%'; textarea.value = settings[key];
+			textarea.onchange = async () => { settings[key] = textarea.value; await this.plugin.settings.save(); };
+		});
 	}
 }

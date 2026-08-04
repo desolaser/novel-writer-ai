@@ -1,4 +1,5 @@
 import { DEFAULT_COLORS } from '../../constants/novel';
+import type { Modelo } from '../../domain/entities/Modelo';
 
 /** Proveedor de IA seleccionado. */
 export type AiProviderId =
@@ -40,6 +41,10 @@ export interface PluginSettings {
 	};
 	/** Tokens por proveedor. */
 	apiToken: Record<string, string>;
+	/** Modelos reutilizables creados por el usuario. */
+	modelos: Modelo[];
+	/** Identificador del modelo activo por defecto. */
+	modeloPredeterminadoId: string;
 	/** Numerar capitulos automaticamente. */
 	numerarCapitulosAuto: boolean;
 	/** Prefix prompt global. */
@@ -86,6 +91,8 @@ Do not include anything except the codex entry.`,
 export const DEFAULT_SETTINGS: PluginSettings = {
 	proveedor: { id: 'openrouter', modelo: '' },
 	apiToken: {},
+	modelos: [],
+	modeloPredeterminadoId: '',
 	numerarCapitulosAuto: true,
 	prefix: 'Continue the text following the narration style of the user: ',
 	memoryContent: '',
