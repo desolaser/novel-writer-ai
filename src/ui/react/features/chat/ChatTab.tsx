@@ -273,6 +273,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setEditingMsgText('');
 	}, [activeChatId, editingMsgText, updateMensaje]);
 
+	const handleDeleteMessage = useCallback(async (msgId: string) => {
+		if (!activeChatId) return;
+		await deleteMensaje(activeChatId, msgId);
+		setMensajes(prev => prev.filter(m => m.id_mensaje !== msgId));
+	}, [activeChatId, deleteMensaje]);
+
 	const cancelEdit = useCallback(() => {
 		setEditingMsgId(null);
 		setEditingMsgText('');
@@ -580,6 +586,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 									<Icon.Refresh width={13} height={13} />
 								</button>
 							)}
+							<button className="nw-msg-action-btn nw-msg-action-delete" title="Eliminar mensaje" onClick={() => void handleDeleteMessage(m.id_mensaje)}>
+								<Icon.X width={13} height={13} />
+							</button>
 						</div>
 					)}
 				</div>
