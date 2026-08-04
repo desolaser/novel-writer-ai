@@ -14,6 +14,8 @@ export interface Modelo {
 	repetition_penalty_range?: number;
 	frecuence_penalty?: number;
 	presence_penalty?: number;
+	/** Whether this saved model profile can generate images. */
+	supports_image_generation?: boolean;
 	created_at: string;
 	updated_at: string;
 }

@@ -36,6 +36,9 @@ export const Icon = {
 	Magic: (p?: any) => (
 		<svg viewBox="0 0 24 24" {...base(p)}><path d="m19.5 2.5 2 2-12 12-2-2 12-12zM5 5l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2zm13 9 1 2 2 1-2 1-1 2-1-2-2-1 2-1 1zM6 17l1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2z"/></svg>
 	),
+	Paintbrush: (p?: any) => (
+		<svg viewBox="0 0 24 24" {...base(p)}><path d="m14.1 3.2 6.7 6.7-9.9 9.9-3.9.8.8-3.9 9.9-9.9 1.4 1.4-8.6 8.6-.3 1.5 1.5-.3 8.6-8.6-3.9-3.9-1.4 1.4-1.4-1.4 1.4-1.4zM4 20a2 2 0 1 0 4 0c0-.7-.4-1.2-1-1.6L6 17l-1 1.4c-.6.4-1 .9-1 1.6z"/></svg>
+	),
 	TrashSmall: (p?: any) => (
 		<svg viewBox="0 0 24 24" width={11} height={11} fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M9 3v1H4v2h1v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6h1V4h-5V3H9z"/></svg>
 	),
@@ -56,5 +59,8 @@ export const Icon = {
 	),
 	Filter: (p?: any) => (
 		<svg viewBox="0 0 24 24" {...base(p)}><path d="M3 4h18l-7 9v6l-4 2v-8L3 4z"/></svg>
+	),
+	Download: (p?: any) => (
+		<svg viewBox="0 0 24 24" {...base(p)}><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
 	),
 };

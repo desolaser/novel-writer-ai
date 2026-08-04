@@ -21,6 +21,19 @@ type ContextItem = {
 type ContextMenu = 'root' | 'codex' | 'chapters' | 'outlines' | 'notes' | 'folders';
 const chatContexts = new Map<string, ContextItem[]>();
 
+const extractImageUrls = (result: { images?: string[] }): string[] => result.images?.filter(url => typeof url === 'string' && url.trim()) ?? [];
+
+const downloadImage = (dataUrl: string, filename: string) => {
+	const link = document.createElement('a');
+	link.href = dataUrl;
+	const mimeMatch = dataUrl.match(/^data:(image\/\w+);/);
+	const ext = mimeMatch ? mimeMatch[1].split('/')[1] : 'png';
+	link.download = `${filename}.${ext}`;
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
+};
+
 const stripFrontmatter = (content: string) => content.replace(/^---\s*\r?\n[\s\S]*?\r?\n---\s*(?:\r?\n)?/, '');
 const includesQuery = (query: string, ...values: Array<string | null | undefined>) =>
 	values.join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
@@ -157,15 +170,23 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
 			const token = settings.apiToken[activeModel.providerId] ?? '';
 			const api = new ApiFactory().createApi(activeModel.providerId, token);
+			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
 			const history = [...mensajes, { role: 'user', mensaje: t }]
 				.filter(m => m.role === 'user' || m.role === 'assistant')
 				.map(m => ({ role: m.role, content: m.mensaje }));
 			const selectedContext = contextPrompt();
 			const prompt = `${selectedContext ? `Contexto seleccionado explícitamente por el usuario:\n${selectedContext}\n\n` : ''}${history.map(m => `${m.role === 'user' ? 'Usuario' : 'IA'}: ${m.content}`).join('\n\n')}\n\nIA: `;
-			const result = await api.generateCompletion(prompt, activeModel.modelName, { ...activeModel.options, stream: false });
-			const reply = result.text ?? '(sin respuesta)';
-			await appendMensaje('assistant', reply);
-			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, created_at: '' }]);
+			// OpenRouter only returns generated image blocks when the requested
+			// output modalities explicitly include image.
+			const result = await api.generateCompletion(prompt, activeModel.modelName, {
+				...activeModel.options,
+				stream: false,
+				...(activeModel.providerId === 'openrouter' && savedModel?.supports_image_generation ? { modalities: ['image', 'text'] } : {}),
+			});
+			const images = extractImageUrls(result);
+			const reply = result.text ?? (images.length ? '' : '(sin respuesta)');
+			await appendMensaje('assistant', reply, images);
+			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: images, created_at: '' }]);
 		} catch (e: any) {
 			const err = 'Error: ' + (e?.message ?? String(e));
 			await appendMensaje('assistant', err);
@@ -181,7 +202,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const filteredCategories = categorias.map(category => ({ category, entries: entradas.filter(entry => !entry.archivado && entry.id_categoria === category.id_categoria && includesQuery(query, entry.nombre, entry.alias, entry.descripcion)) })).filter(group => group.entries.length);
 
 	return <div className="nw-chat">
-		<div className="nw-chat-messages" ref={scrollRef}>{mensajes.map(m => <div key={m.id_mensaje} className={`nw-msg nw-msg-${m.role}`}><div className="nw-msg-role">{m.role === 'user' ? 'Tu' : 'IA'}</div><div className="nw-msg-body">{m.mensaje}</div></div>)}{busy && <div className="nw-msg nw-msg-assistant"><em>...escribiendo...</em></div>}</div>
+		<div className="nw-chat-messages" ref={scrollRef}>{mensajes.map(m => <div key={m.id_mensaje} className={`nw-msg nw-msg-${m.role}`}><div className="nw-msg-role">{m.role === 'user' ? 'Tu' : 'IA'}</div>{m.mensaje && <div className="nw-msg-body">{m.mensaje}</div>}{m.imagenes?.length > 0 && <div className="nw-msg-images">{m.imagenes.map((url: string, index: number) => <div key={`${url}-${index}`} className="nw-msg-image-wrapper"><img src={url} alt={`Imagen generada ${index + 1}`} onClick={() => window.open(url, '_blank')} /><button className="nw-msg-image-download" title="Descargar imagen" onClick={() => downloadImage(url, `imagen-${index + 1}`)}><Icon.Download width={16} height={16} /></button></div>)}</div>}</div>)}{busy && <div className="nw-msg nw-msg-assistant"><em>...escribiendo...</em></div>}</div>
 		<div className="nw-chat-context-bar">
 			<div className="nw-context-badges">{contextItems.map(item => <button key={item.id} className={`nw-context-badge nw-context-badge-${item.kind}`} onClick={() => void openContextItem(item)} title={`Abrir ${item.name}`}>
 				{item.kind === 'codex' && item.thumbnail ? <img src={item.thumbnail} alt="" /> : renderIcon(item.kind)}<span>{item.name}</span><span className="nw-context-badge-remove" role="button" aria-label={`Quitar ${item.name}`} onClick={event => { event.stopPropagation(); updateContextItems(items => items.filter(existing => existing.id !== item.id)); }}><Icon.X width={12} height={12} /></span>
@@ -203,13 +224,13 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		<div className="nw-chat-input"><textarea className="nw-chat-textarea" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Escribe un mensaje..." rows={2} /><button className="nw-btn nw-btn-primary" onClick={() => void send()} disabled={busy}>Enviar</button></div>
 		<div className="nw-chat-model-selector" key={modelVersion}>
 			<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
-				{plugin.settings.data.modelos.find(model => model.id_modelo === plugin.settings.data.modeloPredeterminadoId)?.nombre_listado ?? 'Sin modelo activo'}
+				{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'Sin modelo activo'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</>; })()}
 				<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
 			</span>
 			{modelMenuOpen && <div className="nw-chat-model-dropdown">{plugin.settings.data.modelos.length ? plugin.settings.data.modelos.map(model => <button key={model.id_modelo} className="nw-context-row" onClick={() => {
 				plugin.settings.data.modeloPredeterminadoId = model.id_modelo;
 				void plugin.settings.save(); setModelMenuOpen(false); setModelVersion(version => version + 1);
-			}}>{model.nombre_listado}</button>) : <span>No hay modelos creados.</span>}</div>}
+			}}>{model.nombre_listado}{model.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</button>) : <span>No hay modelos creados.</span>}</div>}
 		</div>
 	</div>;
 }

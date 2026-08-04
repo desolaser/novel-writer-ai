@@ -26,7 +26,7 @@ export class ModelModal extends Modal {
 			max_context: defaults.maxContext, max_output: defaults.maxOutput, stream: defaults.streaming,
 			temperature: defaults.temperature, top_p: defaults.topP, top_k: defaults.topK,
 			repetition_penalty: defaults.repetitionPenalty, repetition_penalty_range: defaults.repetitionPenaltyRange,
-			frecuence_penalty: defaults.frequencyPenalty, presence_penalty: defaults.presencePenalty,
+			frecuence_penalty: defaults.frequencyPenalty, presence_penalty: defaults.presencePenalty, supports_image_generation: false,
 		};
 	}
 
@@ -57,8 +57,8 @@ export class ModelModal extends Modal {
 		const modelDescription = this.loadingModels ? 'Cargando modelos...' : this.modelsError || 'Modelo disponible en el proveedor seleccionado.';
 		new Setting(modelsHost).setName('Model').setDesc(modelDescription).addDropdown(dropdown => {
 			if (!this.availableModels.length) dropdown.addOption('', this.loadingModels ? 'Cargando...' : 'No hay modelos disponibles');
-			this.availableModels.forEach(model => dropdown.addOption(model.id, model.pricing ? `${model.name || model.id} — ${model.pricing}` : (model.name || model.id)));
-			dropdown.setValue(this.form.nombre_modelo).onChange(value => { this.form.nombre_modelo = value; });
+			this.availableModels.forEach(model => dropdown.addOption(model.id, `${model.supportsImageGeneration ? '🖌 ' : ''}${model.pricing ? `${model.name || model.id} — ${model.pricing}` : (model.name || model.id)}`));
+			dropdown.setValue(this.form.nombre_modelo).onChange(value => { this.form.nombre_modelo = value; this.form.supports_image_generation = this.availableModels.find(model => model.id === value)?.supportsImageGeneration ?? false; });
 		}).addButton(button => button.setButtonText('Reintentar').setDisabled(this.loadingModels).onClick(() => void this.loadAvailableModels()));
 		contentEl.createEl('h3', { text: 'Parameters' });
 		this.numberSetting(contentEl, 'Max Context', 'max_context');

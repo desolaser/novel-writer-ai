@@ -130,6 +130,6 @@ export class NovelStore {
 	async renameChat(id: EntityId, nombre: string) { await ChatRepo.renameChat(this.app, this.activeFolder!, id, nombre); }
 	async archiveChat(id: EntityId, val: boolean) { await ChatRepo.archiveChat(this.app, this.activeFolder!, id, val); }
 	async deleteChat(id: EntityId) { await ChatRepo.deleteChat(this.app, this.activeFolder!, id); }
-	async appendMensaje(idChat: EntityId, role: 'user' | 'assistant', msg: string) { return ChatRepo.appendMensaje(this.app, this.activeFolder!, idChat, role, msg); }
+	async appendMensaje(idChat: EntityId, role: 'user' | 'assistant', msg: string, imagenes?: string[]) { return ChatRepo.appendMensaje(this.app, this.activeFolder!, idChat, role, msg, imagenes); }
 	async deleteMensaje(idChat: EntityId, idMsg: EntityId) { await ChatRepo.deleteMensaje(this.app, this.activeFolder!, idChat, idMsg); }
 }

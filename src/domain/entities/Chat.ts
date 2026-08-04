@@ -16,6 +16,8 @@ export interface Mensaje {
 	id_chat: EntityId;
 	role: MessageRole;
 	mensaje: string;
+	/** Generated images associated with this message, stored as URLs or data URLs. */
+	imagenes?: string[];
 	created_at: ISODate;
 	updated_at: ISODate;
 }
