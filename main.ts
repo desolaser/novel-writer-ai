@@ -70,6 +70,12 @@ export default class NovelWriterPlugin extends Plugin {
 		if (leaf) this.app.workspace.revealLeaf(leaf);
 	}
 	async activateOutlineView() { const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OUTLINE); let leaf = leaves[0]; if (!leaf) { leaf = this.app.workspace.getRightLeaf(true); if (leaf) await leaf.setViewState({ type: VIEW_TYPE_OUTLINE, active: true }); } if (leaf) this.app.workspace.revealLeaf(leaf); }
+	async openOutlineChapter(chapterId: string) {
+		await this.activateOutlineView();
+		// Let React mount (or reveal) the outline before asking it to expand and focus
+		// the requested chapter.
+		window.setTimeout(() => window.dispatchEvent(new CustomEvent('novel-writer:open-outline-chapter', { detail: chapterId })), 50);
+	}
 
 	/** Opens the Companion on the left and the Outline on the right on every plugin load. */
 	async openWorkingViews() {

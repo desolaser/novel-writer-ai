@@ -35,7 +35,7 @@ function truncate(s: string | null | undefined, n: number): string {
 }
 
 export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { categorias, entradas, tags, setEditingEntry, createEntry } = useNovelWriter();
+	const { categorias, entradas, tags, setEditingEntry, createEntry, deleteEntry } = useNovelWriter();
 	const [query, setQuery] = useState('');
 	const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 	const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -45,6 +45,8 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [configMenuOpen, setConfigMenuOpen] = useState(false);
 	const [importBusy, setImportBusy] = useState(false);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+	const [deleteMode, setDeleteMode] = useState(false);
+	const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
 	const filterRef = useRef<HTMLDivElement | null>(null);
 	const addRef = useRef<HTMLDivElement | null>(null);
 	const configRef = useRef<HTMLDivElement | null>(null);
@@ -165,6 +167,25 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		});
 	};
 	const clearFilters = () => setFilters(EMPTY_FILTERS);
+	const startBatchDelete = () => {
+		setConfigMenuOpen(false);
+		setSelectedForDeletion(new Set());
+		setDeleteMode(true);
+		new Notice('Seleccione entradas para borrar');
+	};
+	const cancelBatchDelete = () => { setDeleteMode(false); setSelectedForDeletion(new Set()); };
+	const toggleDeletion = (id: string) => setSelectedForDeletion(previous => {
+		const next = new Set(previous);
+		if (next.has(id)) next.delete(id); else next.add(id);
+		return next;
+	});
+	const confirmBatchDelete = async () => {
+		const count = selectedForDeletion.size;
+		if (!count || !confirm(`¿Estás seguro de borrar ${count} entradas?`)) return;
+		for (const id of selectedForDeletion) await deleteEntry(id);
+		cancelBatchDelete();
+		new Notice(`Has borrados ${count} entradas`);
+	};
 
 	const NO_CAT_KEY = '__no_cat__';
 	const isCatOpen = (catId: string) => !collapsed.has(catId);
@@ -314,12 +335,17 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							<hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
 							<div className="nw-popover-item" onClick={openModalDetail}><span>Detalles Custom</span></div>
 							<div className="nw-popover-item" onClick={openModalCategories}><span>Categorias</span></div>
+							<div className="nw-popover-item" onClick={startBatchDelete}><span>Borrar Entradas</span></div>
 							<div className="nw-popover-item" onClick={() => { setConfigMenuOpen(false); void plugin.importLorebook(); }}><span>Importar lorebook</span></div>
 							<div className={'nw-popover-item' + (importBusy ? ' is-disabled' : '')} onClick={importBusy ? undefined : openNovelImport}><span>Importar novela</span></div>
 						</div>
 					)}
 				</div>
 			</div>
+			{deleteMode && <div className="nw-codex-batch-actions">
+				<button className="nw-btn nw-btn-danger" disabled={selectedForDeletion.size === 0} onClick={() => void confirmBatchDelete()}>Borrar entradas</button>
+				<button className="nw-btn" onClick={cancelBatchDelete}>Cancelar borrado</button>
+			</div>}
 			<div className="nw-codex-list">
 				{catsWithEntries.map((c) => (
 					<CodexCategoryGroup
@@ -333,6 +359,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						tags={tags}
 						onEdit={(entryId) => openEntryModal(plugin, entryId)}
 						onAddInCategory={() => createAndEdit(c.id_categoria)}
+						deleteMode={deleteMode}
+						selectedForDeletion={selectedForDeletion}
+						onToggleDeletion={toggleDeletion}
 					/>
 				))}
 				{!filters.isArchived && noCat.length > 0 && (
@@ -346,6 +375,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						tags={tags}
 						onEdit={(entryId) => openEntryModal(plugin, entryId)}
 						onAddInCategory={() => createAndEdit('')}
+						deleteMode={deleteMode}
+						selectedForDeletion={selectedForDeletion}
+						onToggleDeletion={toggleDeletion}
 					/>
 				)}
 				{filtered.length === 0 && (
@@ -381,7 +413,7 @@ function FilterCategoryItem({ label, color, state, onClick }: { label: string; c
 	);
 }
 
-function CodexCategoryGroup({ catId, catName, catColor, open, onToggle, entries, tags, onEdit, onAddInCategory }: { catId: string; catName: string; catColor: string; open: boolean; onToggle: () => void; entries: any[]; tags: any[]; onEdit: (id: string) => void; onAddInCategory: () => void }) {
+function CodexCategoryGroup({ catId, catName, catColor, open, onToggle, entries, tags, onEdit, onAddInCategory, deleteMode, selectedForDeletion, onToggleDeletion }: { catId: string; catName: string; catColor: string; open: boolean; onToggle: () => void; entries: any[]; tags: any[]; onEdit: (id: string) => void; onAddInCategory: () => void; deleteMode: boolean; selectedForDeletion: Set<string>; onToggleDeletion: (id: string) => void }) {
 	if (entries.length === 0) return null;
 	return (
 		<div className="nw-cat-group" data-cat-id={catId}>
@@ -402,7 +434,7 @@ function CodexCategoryGroup({ catId, catName, catColor, open, onToggle, entries,
 			{open && (
 				<div className="nw-cat-entries">
 					{entries.map((e) => (
-						<CodexEntryRow key={e.id_entrada_codex} entry={e} tags={tags} onClick={() => onEdit(e.id_entrada_codex)} />
+						<CodexEntryRow key={e.id_entrada_codex} entry={e} tags={tags} onClick={() => onEdit(e.id_entrada_codex)} deleteMode={deleteMode} selected={selectedForDeletion.has(e.id_entrada_codex)} onToggleDeletion={() => onToggleDeletion(e.id_entrada_codex)} />
 					))}
 				</div>
 			)}
@@ -410,13 +442,14 @@ function CodexCategoryGroup({ catId, catName, catColor, open, onToggle, entries,
 	);
 }
 
-function CodexEntryRow({ entry, tags, onClick }: { entry: any; tags: any[]; onClick: () => void }) {
+function CodexEntryRow({ entry, tags, onClick, deleteMode, selected, onToggleDeletion }: { entry: any; tags: any[]; onClick: () => void; deleteMode: boolean; selected: boolean; onToggleDeletion: () => void }) {
 	const entryTags = (entry.tags ?? [])
 		.map((id: string) => tags.find((t: any) => t.id_tag === id))
 		.filter(Boolean);
 	const desc = truncate(entry.descripcion, TRUNC);
 	return (
-		<button className={"nw-entry nw-entry-row " + (entry.ai_context_policy === AiContextPolicy.Never ? 'never' : '')} onClick={onClick}>
+		<button className={"nw-entry nw-entry-row " + (entry.ai_context_policy === AiContextPolicy.Never ? 'never' : '')} onClick={deleteMode ? onToggleDeletion : onClick}>
+			{deleteMode && <input className="nw-codex-delete-checkbox" type="checkbox" checked={selected} onChange={onToggleDeletion} onClick={(event) => event.stopPropagation()} aria-label={`Seleccionar ${entry.nombre}`} />}
 			<div className="nw-entry-row-thumb">
 				{entry.thumbnail ? (
 					<img src={entry.thumbnail} alt="" className="nw-entry-thumb-img" />
