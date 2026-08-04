@@ -116,6 +116,8 @@ interface NovelWriterStore extends UIState {
 	renameChat: (id: EntityId, nombre: string) => Promise<void>;
 	deleteChat: (id: EntityId) => Promise<void>;
 	appendMensaje: (role: "user" | "assistant", msg: string, imagenes?: string[]) => Promise<void>;
+	updateMensaje: (idChat: EntityId, idMsg: EntityId, msg: string) => Promise<void>;
+	deleteMensaje: (idChat: EntityId, idMsg: EntityId) => Promise<void>;
 }
 
 export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
@@ -477,5 +479,15 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		const s = get().store;
 		if (!s || !get().activeChatId) return;
 		await s.appendMensaje(get().activeChatId, role, msg, imagenes);
+	},
+	updateMensaje: async (idChat: EntityId, idMsg: EntityId, msg: string) => {
+		const s = get().store;
+		if (!s) return;
+		await s.updateMensaje(idChat, idMsg, msg);
+	},
+	deleteMensaje: async (idChat: EntityId, idMsg: EntityId) => {
+		const s = get().store;
+		if (!s) return;
+		await s.deleteMensaje(idChat, idMsg);
 	},
 }));

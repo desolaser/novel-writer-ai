@@ -117,7 +117,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					))}
 				</div>
 			)}
-			{activeChatId && !showList && <ChatTab plugin={plugin} />}
+			{!showList && <ChatTab plugin={plugin} />}
 		</div>
 	);
 

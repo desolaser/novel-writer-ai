@@ -76,10 +76,26 @@ export async function appendMensaje(app: App, folderPath: string, idChat: Entity
 	return msg;
 }
 
+export async function updateMensaje(app: App, folderPath: string, idChat: EntityId, idMensaje: EntityId, mensaje: string) {
+	const chat = await readChat(app, folderPath, idChat);
+	if (!chat) return;
+	const msg = chat.mensajes.find(m => m.id_mensaje === idMensaje);
+	if (!msg) return;
+	msg.mensaje = mensaje;
+	msg.updated_at = nowISO();
+	chat.updated_at = nowISO();
+	await writeJson(app, chatPath(folderPath, idChat), chat);
+}
+
 export async function deleteMensaje(app: App, folderPath: string, idChat: EntityId, idMensaje: EntityId) {
 	const chat = await readChat(app, folderPath, idChat);
 	if (!chat) return;
 	chat.mensajes = chat.mensajes.filter(m => m.id_mensaje !== idMensaje);
 	chat.updated_at = nowISO();
 	await writeJson(app, chatPath(folderPath, idChat), chat);
+}
+
+export async function writeChat(app: App, folderPath: string, chat: ChatFile) {
+	chat.updated_at = nowISO();
+	await writeJson(app, chatPath(folderPath, chat.id_chat), chat);
 }
