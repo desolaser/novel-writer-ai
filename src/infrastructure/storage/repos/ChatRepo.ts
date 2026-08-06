@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { Chat, Mensaje, EntityId, nowISO, MessageRole } from '../../../domain';
+import { Chat, Mensaje, ChatContextItem, EntityId, nowISO, MessageRole } from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { readJson, writeJson, joinPath, listFiles, deleteFile, ensureFolder } from '../fsHelpers';
 
@@ -11,6 +11,9 @@ function chatPath(fp: string, id: EntityId) {
 
 interface ChatFile extends Chat {
 	mensajes: Mensaje[];
+	contextItems?: ChatContextItem[];
+	characterContext?: ChatContextItem | null;
+	impersonateContext?: ChatContextItem | null;
 }
 
 /** Lista los chats de una novela. NO carga mensajes (metadata only). */
@@ -92,6 +95,23 @@ export async function deleteMensaje(app: App, folderPath: string, idChat: Entity
 	const chat = await readChat(app, folderPath, idChat);
 	if (!chat) return;
 	chat.mensajes = chat.mensajes.filter(m => m.id_mensaje !== idMensaje);
+	chat.updated_at = nowISO();
+	await writeJson(app, chatPath(folderPath, idChat), chat);
+}
+
+export async function saveChatContext(
+	app: App,
+	folderPath: string,
+	idChat: EntityId,
+	contextItems: ChatContextItem[],
+	characterContext: ChatContextItem | null,
+	impersonateContext: ChatContextItem | null,
+) {
+	const chat = await readChat(app, folderPath, idChat);
+	if (!chat) return;
+	chat.contextItems = contextItems.length > 0 ? contextItems : undefined;
+	chat.characterContext = characterContext ?? undefined;
+	chat.impersonateContext = impersonateContext ?? undefined;
 	chat.updated_at = nowISO();
 	await writeJson(app, chatPath(folderPath, idChat), chat);
 }

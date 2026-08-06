@@ -23,3 +23,18 @@ export interface Mensaje {
 	created_at: ISODate;
 	updated_at: ISODate;
 }
+
+/** Tipo de contexto que puede asociarse a un chat. */
+export type ChatContextKind = 'codex' | 'chapter' | 'outline' | 'note' | 'folder' | 'active-note' | 'character';
+
+/** Item de contexto persistido en el chat. */
+export interface ChatContextItem {
+	id: string;
+	kind: ChatContextKind;
+	name: string;
+	path?: string;
+	content: string;
+	thumbnail?: string | null;
+	chapterId?: string;
+	categoryColor?: string;
+}

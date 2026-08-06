@@ -8,6 +8,7 @@ import {
 	Acto,
 	Capitulo,
 	Chat,
+	ChatContextItem,
 	EntityId,
 	OpcionDetalle,
 	TipoDetalle,
@@ -122,6 +123,7 @@ interface NovelWriterStore extends UIState {
 	appendMensaje: (role: "user" | "assistant", msg: string, imagenes?: string[]) => Promise<void>;
 	updateMensaje: (idChat: EntityId, idMsg: EntityId, msg: string) => Promise<void>;
 	deleteMensaje: (idChat: EntityId, idMsg: EntityId) => Promise<void>;
+	saveChatContext: (idChat: EntityId, contextItems: ChatContextItem[], characterContext: ChatContextItem | null, impersonateContext: ChatContextItem | null) => Promise<void>;
 
 	// Custom Prompts
 	getCustomPrompts: () => CustomPrompt[];
@@ -504,6 +506,12 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.deleteMensaje(idChat, idMsg);
+	},
+
+	saveChatContext: async (idChat, contextItems, characterContext, impersonateContext) => {
+		const s = get().store;
+		if (!s) return;
+		await s.saveChatContext(idChat, contextItems, characterContext, impersonateContext);
 	},
 
 	// Custom Prompts

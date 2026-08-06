@@ -86,9 +86,7 @@ export function Sidebar({ plugin }: { plugin: NovelWriterPlugin }) {
 			</div>
 			<div className="nw-tab-content">
 				{activeSidebarTab === "codex" && <CodexPanel plugin={plugin} />}
-				{activeSidebarTab === "config" && (
-					<ConfigPanel plugin={plugin} />
-				)}
+				{activeSidebarTab === "config" && <ConfigPanel plugin={plugin} />}
 				{activeSidebarTab === "chats" && <ChatsPanel plugin={plugin} />}
 			</div>
 		</div>

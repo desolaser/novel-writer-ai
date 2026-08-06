@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNovelWriter } from "../../store/novelWriterStore";
 import type NovelWriterPlugin from "../../../../../main";
 import { ChatTab } from "../chat/ChatTab";
@@ -12,10 +12,8 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		createChat,
 		activeChatId,
 		selectChat,
-		renameChat,
 		deleteChat,
 		store,
-		getDefaultChatPrompt,
 	} = useNovelWriter();
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const [renameV, setRenameV] = useState("");
@@ -33,8 +31,6 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		document.addEventListener('mousedown', onDoc);
 		return () => document.removeEventListener('mousedown', onDoc);
 	}, []);
-
-	const defaultPrompt = getDefaultChatPrompt();
 
 	const doCreate = async () => {
 		const c = await createChat("Chat sin nombre");
@@ -83,10 +79,6 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 			<div className="nw-panel-toolbar nw-panel-toolbar-combined">
 				{!showList ? (
 					<>
-						<button className="nw-btn nw-btn-primary" onClick={doCreate}>
-							<Icon.Plus width={12} height={12} />
-							<span>Chat</span>
-						</button>
 						<button
 							className="nw-btn"
 							onClick={() => setShowList(true)}
@@ -106,6 +98,12 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							<Icon.Plus width={12} height={12} />
 							<span>Chat</span>
 						</button>
+						<button
+							className="nw-btn"
+							onClick={() => { setShowList(false); setDeleteMode(false); setSelectedForDeletion(new Set()); }}
+						>
+							Cerrar lista
+						</button>
 						<div ref={configRef} style={{ position: 'relative' }}>
 							<button className="nw-btn nw-btn-icon" onClick={() => setConfigMenuOpen(!configMenuOpen)} title="Menu de chats">
 								<Icon.MenuThreePoints />
@@ -121,12 +119,6 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 								</div>
 							)}
 						</div>
-						<button
-							className="nw-btn"
-							onClick={() => { setShowList(false); setDeleteMode(false); setSelectedForDeletion(new Set()); }}
-						>
-							Cerrar lista
-						</button>
 					</>
 				)}
 			</div>
@@ -244,7 +236,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					)}
 				</div>
 			)}
-			{!showList && <ChatTab plugin={plugin} />}
+			{!showList && <ChatTab plugin={plugin}  />}
 		</div>
 	);
 

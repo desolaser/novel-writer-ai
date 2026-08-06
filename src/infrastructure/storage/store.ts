@@ -12,7 +12,7 @@ import * as EstRepo from './repos/EstructuraRepo';
 import * as ChatRepo from './repos/ChatRepo';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
-	Acto, Capitulo, Chat, EntityId,
+	Acto, Capitulo, Chat, ChatContextItem, EntityId,
 } from '../../domain';
 
 export type { NovelScanResult };
@@ -133,4 +133,7 @@ export class NovelStore {
 	async appendMensaje(idChat: EntityId, role: 'user' | 'assistant', msg: string, imagenes?: string[]) { return ChatRepo.appendMensaje(this.app, this.activeFolder!, idChat, role, msg, imagenes); }
 	async updateMensaje(idChat: EntityId, idMsg: EntityId, msg: string) { await ChatRepo.updateMensaje(this.app, this.activeFolder!, idChat, idMsg, msg); }
 	async deleteMensaje(idChat: EntityId, idMsg: EntityId) { await ChatRepo.deleteMensaje(this.app, this.activeFolder!, idChat, idMsg); }
+	async saveChatContext(idChat: EntityId, contextItems: ChatContextItem[], characterContext: ChatContextItem | null, impersonateContext: ChatContextItem | null) {
+		await ChatRepo.saveChatContext(this.app, this.activeFolder!, idChat, contextItems, characterContext, impersonateContext);
+	}
 }
