@@ -46,13 +46,14 @@ function MarkdownBlock({ plugin, content }: { plugin: NovelWriterPlugin; content
 	return <div ref={ref} className="nw-markdown-body" />;
 }
 
-/** Prompt builder that injects character persona when active. */
+/** Prompt builder that injects character persona and chat prompt. */
 function buildPrompt(
 	mensajes: any[],
 	contextItems: ContextItem[],
 	newUserMessage: string,
 	characterContext: ContextItem | null,
 	impersonateContext: ContextItem | null,
+	chatPromptText?: string,
 ): string {
 	const groups: Array<[ContextKind, string]> = [
 		['codex', 'Entradas de Codex seleccionadas'], ['chapter', 'Capítulos seleccionados'], ['outline', 'Outlines seleccionados'],
@@ -69,8 +70,11 @@ function buildPrompt(
 		.map(m => ({ role: m.role, content: m.mensaje }));
 
 	let systemPrompt = '';
+	if (chatPromptText) {
+		systemPrompt = `${chatPromptText}\n\n`;
+	}
 	if (characterContext) {
-		systemPrompt = `[MODO ROL: Estás interpretando al personaje "${characterContext.name}". Responde siempre EN PERSONAJE, usando su tono, vocabulario, conocimiento y personalidad. NO salgas del personaje bajo ninguna circunstancia. NO menciones que eres una IA. Eres "${characterContext.name}".]\n\nInformación del personaje:\n${characterContext.content}\n\n`;
+		systemPrompt += `[MODO ROL: Estás interpretando al personaje "${characterContext.name}". Responde siempre EN PERSONAJE, usando su tono, vocabulario, conocimiento y personalidad. NO salgas del personaje bajo ninguna circunstancia. NO menciones que eres una IA. Eres "${characterContext.name}".]\n\nInformación del personaje:\n${characterContext.content}\n\n`;
 	}
 	if (impersonateContext) {
 		systemPrompt += `[MODO IMPERSONAR: El usuario está interpretando al personaje "${impersonateContext.name}". El usuario ES "${impersonateContext.name}". Trátalo como si fuera ese personaje. NO te refieras a él como "usuario" o "tú", llámalo "${impersonateContext.name}".]\n\nInformación del personaje del usuario:\n${impersonateContext.content}\n\n`;
@@ -117,7 +121,7 @@ class ConfirmModal extends Modal {
 }
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { activeChatId, selectChat, appendMensaje, createChat, store, categorias, entradas, capitulos, setEditingEntry, setSidebarTab, setEntryThumbnail, updateMensaje, deleteMensaje } = useNovelWriter();
+	const { activeChatId, selectChat, appendMensaje, createChat, store, categorias, entradas, capitulos, setEditingEntry, setSidebarTab, setEntryThumbnail, updateMensaje, deleteMensaje, getCustomPrompts, getDefaultChatPrompt } = useNovelWriter();
 	const [input, setInput] = useState('');
 	const [mensajes, setMensajes] = useState<any[]>([]);
 	const [busy, setBusy] = useState(false);
@@ -132,7 +136,10 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
 	const [editingMsgText, setEditingMsgText] = useState('');
 	const [imageDropdown, setImageDropdown] = useState<{ index: number; searchQuery: string } | null>(null);
+	const [promptMenuOpen, setPromptMenuOpen] = useState(false);
+	const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const promptRef = useRef<HTMLDivElement | null>(null);
 	const initialActiveNotePath = useRef<string | null>(null);
 
 	const markdownFiles = useMemo(() => plugin.app.vault.getMarkdownFiles(), [plugin, contextOpen]);
@@ -144,8 +151,11 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	}, [activeFile?.path, markdownFiles]);
 
 	useEffect(() => {
-		if (!activeChatId || !store) { setMensajes([]); return; }
-		store.readChat(activeChatId).then(c => setMensajes(c?.mensajes ?? []));
+		if (!activeChatId || !store) { setMensajes([]); setCurrentPromptId(null); return; }
+		store.readChat(activeChatId).then(c => {
+			setMensajes(c?.mensajes ?? []);
+			setCurrentPromptId((c as any)?.id_prompt ?? null);
+		});
 	}, [activeChatId, store]);
 	useEffect(() => { setContextItems(activeChatId ? chatContexts.get(activeChatId) ?? [] : []); }, [activeChatId]);
 	useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [mensajes]);
@@ -303,12 +313,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setBusy(true);
 		try {
 			const settings = plugin.settings.data;
-			const activeModel = getActiveModelConfig(settings);
+			const activeModel = getActiveModelConfig(settings, 'chat');
 			if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
 			const token = settings.apiToken[activeModel.providerId] ?? '';
 			const api = new ApiFactory().createApi(activeModel.providerId, token);
 			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
-			const prompt = buildPrompt(newMsgs, contextItems, lastUserMsg.mensaje, characterContext, impersonateContext);
+			const prompt = buildPrompt(newMsgs, contextItems, lastUserMsg.mensaje, characterContext, impersonateContext, chatPromptText);
 			const result = await api.generateCompletion(prompt, activeModel.modelName, {
 				...activeModel.options,
 				stream: false,
@@ -342,12 +352,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setBusy(true);
 		try {
 			const settings = plugin.settings.data;
-			const activeModel = getActiveModelConfig(settings);
+			const activeModel = getActiveModelConfig(settings, 'chat');
 			if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
 			const token = settings.apiToken[activeModel.providerId] ?? '';
 			const api = new ApiFactory().createApi(activeModel.providerId, token);
 			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
-			const prompt = buildPrompt(mensajes, contextItems, t, characterContext, impersonateContext);
+			const prompt = buildPrompt(mensajes, contextItems, t, characterContext, impersonateContext, chatPromptText);
 			const result = await api.generateCompletion(prompt, activeModel.modelName, {
 				...activeModel.options,
 				stream: false,
@@ -366,6 +376,29 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	};
 
 	const closeImageDropdown = useCallback(() => setImageDropdown(null), []);
+	const closePromptMenu = useCallback(() => setPromptMenuOpen(false), []);
+
+	// Click-outside for prompt menu
+	useEffect(() => {
+		const handler = (e: MouseEvent) => {
+			if (promptRef.current && !promptRef.current.contains(e.target as Node)) {
+				setPromptMenuOpen(false);
+			}
+		};
+		document.addEventListener('mousedown', handler);
+		return () => document.removeEventListener('mousedown', handler);
+	}, []);
+
+	const chatPrompts = getCustomPrompts().filter(p => p.tipo === 'chat');
+	const defaultChatPrompt = getDefaultChatPrompt();
+	const resolvedPromptId = currentPromptId || defaultChatPrompt?.id_prompt || null;
+	const currentPrompt = chatPrompts.find(p => p.id_prompt === resolvedPromptId);
+	const chatPromptText = currentPrompt?.texto;
+
+	const handlePromptSelect = async (promptId: string) => {
+		setCurrentPromptId(promptId);
+		setPromptMenuOpen(false);
+	};
 
 	const saveImageToVault = useCallback(async (dataUrl: string, filename: string) => {
 		const mimeMatch = dataUrl.match(/^data:(image\/\w+);/);
@@ -599,7 +632,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			<div className="nw-context-badges">{contextItems.map(item => <button key={item.id} className={`nw-context-badge nw-context-badge-${item.kind}`} onClick={() => void openContextItem(item)} title={`Abrir ${item.name}`}>
 				{item.kind === 'codex' && item.thumbnail ? <img src={item.thumbnail} alt="" /> : renderIcon(item.kind)}<span>{item.name}</span><span className="nw-context-badge-remove" role="button" aria-label={`Quitar ${item.name}`} onClick={event => { event.stopPropagation(); updateContextItems(items => items.filter(existing => existing.id !== item.id)); }}><Icon.X width={12} height={12} /></span>
 			</button>)}</div>
-			<button className="nw-btn nw-chat-context-trigger" onClick={() => { setContextOpen(open => !open); setContextMenu('root'); setQuery(''); }}><Icon.Plus width={14} height={14} /> Contexto</button>
+			<button className="nw-btn nw-chat-context-trigger" onClick={() => { setContextOpen(open => !open); setContextMenu('root'); setQuery(''); }}><Icon.Plus width={14} height={14} /> @</button>
 			{contextOpen && <div className="nw-context-dropdown">
 				<div className="nw-context-dropdown-list">
 					{contextMenu !== 'root' && <button className="nw-context-row nw-context-back" onClick={() => setContextMenu('root')}><Icon.Back width={14} height={14} /> Volver</button>}
@@ -634,42 +667,67 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			</div>}
 		</div>
 		<div className="nw-chat-input">
-			<textarea className="nw-chat-textarea" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder={impersonateContext ? `Escribe un mensaje como ${impersonateContext.name}...` : characterContext ? `Escribe un mensaje para ${characterContext.name}...` : 'Escribe un mensaje...'} rows={2} />
-			<button className="nw-btn nw-btn-primary" onClick={() => void send()} disabled={busy}><Icon.Send width={14} height={14} style={{marginRight: 4}} />Enviar</button>
+			<textarea 
+				className="nw-chat-textarea" 
+				value={input} 
+				onChange={e => setInput(e.target.value)} 
+				onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { 
+					e.preventDefault(); void send(); 
+				} }} 
+				placeholder={impersonateContext ? `Escribe un mensaje como ${impersonateContext.name}...` : characterContext ? `Escribe un mensaje para ${characterContext.name}...` : 'Escribe un mensaje...'} 
+				rows={4} 
+			/>
 		</div>
 		<div className="nw-chat-footer">
-			<div className="nw-chat-model-selector" key={modelVersion}>
-				<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
-					{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'Sin modelo activo'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</>; })()}
-					<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
-				</span>
-				{modelMenuOpen && <div className="nw-chat-model-dropdown">{plugin.settings.data.modelos.length ? plugin.settings.data.modelos.map(model => <button key={model.id_modelo} className="nw-context-row" onClick={() => {
-					plugin.settings.data.modeloPredeterminadoId = model.id_modelo;
-					void plugin.settings.save(); setModelMenuOpen(false); setModelVersion(version => version + 1);
-				}}>{model.nombre_listado}{model.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</button>) : <span>No hay modelos creados.</span>}</div>}
+			<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+				<div className="nw-chat-model-selector" key={modelVersion}>
+					<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
+						{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'Sin modelo activo'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</>; })()}
+						<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
+					</span>
+					{modelMenuOpen && <div className="nw-chat-model-dropdown">{plugin.settings.data.modelos.length ? plugin.settings.data.modelos.map(model => <button key={model.id_modelo} className="nw-context-row" onClick={() => {
+						plugin.settings.data.modeloPredeterminadoId = model.id_modelo;
+						void plugin.settings.save(); setModelMenuOpen(false); setModelVersion(version => version + 1);
+					}}>{model.nombre_listado}{model.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</button>) : <span>No hay modelos creados.</span>}</div>}
+				</div>
+				<div className="nw-chat-prompt-selector" ref={promptRef}>
+					<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setPromptMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPromptMenuOpen(open => !open); } }}>
+						{currentPrompt?.nombre ?? defaultChatPrompt?.nombre ?? 'Sin prompt'}
+						<Icon.ChevronDown width={14} height={14} className={promptMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
+					</span>
+					{promptMenuOpen && <div className="nw-chat-model-dropdown" style={{ left: 0, right: 'auto' }}>
+						{chatPrompts.length ? chatPrompts.map(p => (
+							<button key={p.id_prompt} className="nw-context-row" onClick={() => handlePromptSelect(p.id_prompt)}>
+								{p.nombre}{p.id_prompt === resolvedPromptId ? <span style={{ marginLeft: 'auto', color: 'var(--text-accent)' }}><Icon.Check width={14} height={14} /></span> : null}
+							</button>
+						)) : <span>No hay prompts de chat.</span>}
+					</div>}
+				</div>
 			</div>
-			{characterContext && (
-				<div className="nw-character-badge">
-					<Icon.Person width={14} height={14} />
-					{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-character-badge-thumb" /> : null}
-					<span className="nw-character-badge-name">{characterContext.name}</span>
-					<span className="nw-character-badge-mode">Modo Roleplay</span>
-					<button className="nw-character-badge-remove" onClick={removeCharacterContext} title="Quitar personaje">
-						<Icon.X width={12} height={12} />
-					</button>
-				</div>
-			)}
-			{impersonateContext && (
-				<div className="nw-character-badge nw-impersonate-badge">
-					<Icon.Person width={14} height={14} />
-					{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-character-badge-thumb" /> : null}
-					<span className="nw-character-badge-name">{impersonateContext.name}</span>
-					<span className="nw-character-badge-mode">Persona</span>
-					<button className="nw-character-badge-remove" onClick={removeImpersonateContext} title="Quitar personaje">
-						<Icon.X width={12} height={12} />
-					</button>
-				</div>
-			)}
+			<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+				{characterContext && (
+					<div className="nw-character-badge">
+						<Icon.Person width={14} height={14} />
+						{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-character-badge-thumb" /> : null}
+						<span className="nw-character-badge-name">{characterContext.name}</span>
+						<span className="nw-character-badge-mode">RP</span>
+						<button className="nw-character-badge-remove" onClick={removeCharacterContext} title="Quitar personaje">
+							<Icon.X width={12} height={12} />
+						</button>
+					</div>
+				)}
+				{impersonateContext && (
+					<div className="nw-character-badge nw-impersonate-badge">
+						<Icon.Person width={14} height={14} />
+						{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-character-badge-thumb" /> : null}
+						<span className="nw-character-badge-name">{impersonateContext.name}</span>
+						<span className="nw-character-badge-mode">Persona</span>
+						<button className="nw-character-badge-remove" onClick={removeImpersonateContext} title="Quitar personaje">
+							<Icon.X width={12} height={12} />
+						</button>
+					</div>
+				)}
+			</div>
 		</div>
 	</div>;
 }

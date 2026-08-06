@@ -3,6 +3,7 @@ import type NovelWriterPlugin from '../main';
 import { ModelRepository } from './infrastructure/settings/model-repository';
 import { getProvider } from './constants/providers';
 import { ModelModal } from './ui/modals/ModelModal';
+import { CustomPromptsModal } from './ui/react/features/chat/CustomPromptsModal';
 
 /** Plugin settings focused on selecting and managing reusable model profiles. */
 export class NovelWriterSettingsTab extends PluginSettingTab {
@@ -103,8 +104,42 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 	private renderGlobalPrompts(host: HTMLElement): void {
 		const settings = this.plugin.settings.data;
 		host.createEl('h3', { text: 'Prompt global' });
-		(['prefix', 'memoryContent', 'authorNote'] as const).forEach(key => {
-			const labels = { prefix: 'Prefix prompt', memoryContent: 'Global Memory Content', authorNote: "Global Author's Note" };
+
+		// Text prompt selector (reemplaza al prefix prompt deprecado)
+		const textPrompts = settings.customPrompts.filter(p => p.tipo === 'text');
+		const defaultTextId = settings.defaultTextPromptId;
+		const selectedTextPrompt = textPrompts.find(p => p.id_prompt === defaultTextId);
+
+		new Setting(host)
+			.setName('Prompt de Texto por defecto')
+			.setDesc('Prompt del sistema usado para la generacion de texto. Reemplaza el antiguo "Prompt Prefix".')
+			.addDropdown(dropdown => {
+				if (textPrompts.length === 0) {
+					dropdown.addOption('', 'No hay prompts de texto');
+					dropdown.setValue('');
+				} else {
+					textPrompts.forEach(p => dropdown.addOption(p.id_prompt, p.nombre));
+					dropdown.setValue(defaultTextId || textPrompts[0]?.id_prompt || '');
+				}
+				dropdown.onChange(async id => {
+					if (!id) return;
+					await this.plugin.settings.setDefaultPrompt('text', id);
+					this.display();
+				});
+			})
+			.addButton(button => button.setIcon('settings').setTooltip('Gestionar prompts').onClick(() => {
+				const modal = new CustomPromptsModal(this.app, this.plugin);
+				modal.onClose = () => { modal.contentEl.empty(); this.display(); };
+				modal.open();
+			}));
+
+		if (selectedTextPrompt) {
+			const preview = host.createDiv('nw-prompt-preview');
+			preview.createEl('p', { text: selectedTextPrompt.texto, cls: 'nw-muted' });
+		}
+
+		(['memoryContent', 'authorNote'] as const).forEach(key => {
+			const labels = { memoryContent: 'Global Memory Content', authorNote: "Global Author's Note" };
 			const section = host.createDiv('options-section'); section.createEl('p', { text: labels[key] });
 			const textarea = section.createEl('textarea'); textarea.rows = 4; textarea.style.width = '100%'; textarea.value = settings[key];
 			textarea.onchange = async () => { settings[key] = textarea.value; await this.plugin.settings.save(); };

@@ -126,7 +126,7 @@ export class NovelStore {
 	// Chats
 	async listChats(): Promise<Chat[]> { return ChatRepo.listChats(this.app, this.activeFolder!); }
 	async readChat(id: EntityId) { return ChatRepo.readChat(this.app, this.activeFolder!, id); }
-	async createChat(nombre: string) { return ChatRepo.createChat(this.app, this.activeFolder!, this.activeId!, nombre); }
+	async createChat(nombre: string, idPrompt?: EntityId) { return ChatRepo.createChat(this.app, this.activeFolder!, this.activeId!, nombre, idPrompt); }
 	async renameChat(id: EntityId, nombre: string) { await ChatRepo.renameChat(this.app, this.activeFolder!, id, nombre); }
 	async archiveChat(id: EntityId, val: boolean) { await ChatRepo.archiveChat(this.app, this.activeFolder!, id, val); }
 	async deleteChat(id: EntityId) { await ChatRepo.deleteChat(this.app, this.activeFolder!, id); }

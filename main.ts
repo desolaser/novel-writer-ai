@@ -251,7 +251,7 @@ export default class NovelWriterPlugin extends Plugin {
 		new Notice(action + '…');
 		const settings = this.settings.data;
 		try {
-			const active = getActiveModelConfig(settings);
+			const active = getActiveModelConfig(settings, 'generate');
 			if (!active.modelName) throw new Error('Configura un modelo en Settings.');
 			const token = settings.apiToken[active.providerId] ?? '';
 			const api = new ApiFactory().createApi(active.providerId, token);
@@ -279,7 +279,7 @@ export default class NovelWriterPlugin extends Plugin {
 		this.operationStatusBarItem.setText(action + '…');
 		new Notice(action + '…');
 		const settings = this.settings.data;
-		const active = getActiveModelConfig(settings);
+		const active = getActiveModelConfig(settings, 'generate');
 		if (!active.modelName) throw new Error('Configura un modelo en Settings.');
 		const api = new ApiFactory().createApi(active.providerId, settings.apiToken[active.providerId] ?? '');
 		return api.generateCompletion(prompt, active.modelName, active.options);

@@ -11,11 +11,13 @@ import {
 	EntityId,
 	OpcionDetalle,
 	TipoDetalle,
+	CustomPrompt,
 } from "../../../domain";
 import {
 	NovelStore,
 	NovelScanResult,
 } from "../../../infrastructure/storage/store";
+import type { SettingsService } from "../../../infrastructure/settings/settings-service";
 
 interface UIState {
 	activeSidebarTab: "codex" | "config" | "chats";
@@ -23,6 +25,7 @@ interface UIState {
 
 interface NovelWriterStore extends UIState {
 	store: NovelStore | null;
+	settings: SettingsService | null;
 	novels: NovelScanResult[];
 	activeNovelId: string | null;
 	categorias: Categoria[];
@@ -38,6 +41,7 @@ interface NovelWriterStore extends UIState {
 	loading: boolean;
 
 	bindStore: (s: NovelStore) => void;
+	bindSettings: (s: SettingsService) => void;
 	refreshNovels: () => Promise<void>;
 	setActiveNovel: (id: string | null) => Promise<void>;
 	updateNovel: (id: string, patch: { nombre: string; autor: string }, thumbnailFile?: ArrayBuffer | null) => Promise<void>;
@@ -118,10 +122,20 @@ interface NovelWriterStore extends UIState {
 	appendMensaje: (role: "user" | "assistant", msg: string, imagenes?: string[]) => Promise<void>;
 	updateMensaje: (idChat: EntityId, idMsg: EntityId, msg: string) => Promise<void>;
 	deleteMensaje: (idChat: EntityId, idMsg: EntityId) => Promise<void>;
+
+	// Custom Prompts
+	getCustomPrompts: () => CustomPrompt[];
+	getDefaultChatPrompt: () => CustomPrompt | undefined;
+	getDefaultTextPrompt: () => CustomPrompt | undefined;
+	createCustomPrompt: (tipo: 'chat' | 'text', nombre: string, texto: string) => Promise<CustomPrompt>;
+	updateCustomPrompt: (id: string, patch: Partial<Pick<CustomPrompt, 'nombre' | 'texto'>>) => Promise<void>;
+	deleteCustomPrompt: (id: string) => Promise<boolean>;
+	setDefaultPrompt: (tipo: 'chat' | 'text', id: string) => Promise<void>;
 }
 
 export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 	store: null,
+	settings: null,
 	novels: [],
 	activeNovelId: null,
 	categorias: [],
@@ -138,6 +152,7 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 	activeSidebarTab: "codex",
 
 	bindStore: (s) => set({ store: s }),
+	bindSettings: (s) => set({ settings: s }),
 	refreshNovels: async () => {
 		const s = get().store;
 		if (!s) return;
@@ -489,5 +504,39 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.deleteMensaje(idChat, idMsg);
+	},
+
+	// Custom Prompts
+	getCustomPrompts: () => {
+		const s = get().settings;
+		return s?.listPrompts() ?? [];
+	},
+	getDefaultChatPrompt: () => {
+		const s = get().settings;
+		return s?.getDefaultPrompt('chat');
+	},
+	getDefaultTextPrompt: () => {
+		const s = get().settings;
+		return s?.getDefaultPrompt('text');
+	},
+	createCustomPrompt: async (tipo, nombre, texto) => {
+		const s = get().settings;
+		if (!s) throw new Error('Settings not bound');
+		return s.createPrompt(tipo, nombre, texto);
+	},
+	updateCustomPrompt: async (id, patch) => {
+		const s = get().settings;
+		if (!s) return;
+		await s.updatePrompt(id, patch);
+	},
+	deleteCustomPrompt: async (id) => {
+		const s = get().settings;
+		if (!s) return false;
+		return s.deletePrompt(id);
+	},
+	setDefaultPrompt: async (tipo, id) => {
+		const s = get().settings;
+		if (!s) return;
+		await s.setDefaultPrompt(tipo, id);
 	},
 }));

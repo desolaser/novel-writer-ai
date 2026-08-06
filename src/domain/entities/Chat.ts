@@ -6,6 +6,8 @@ export interface Chat {
 	nombre: string;
 	id_novela: EntityId;
 	archivado: boolean;
+	/** ID del prompt custom de chat usado en esta conversacion. */
+	id_prompt?: EntityId;
 	created_at: ISODate;
 	updated_at: ISODate;
 }

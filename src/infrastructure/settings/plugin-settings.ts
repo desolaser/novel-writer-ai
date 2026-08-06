@@ -1,5 +1,6 @@
 import { DEFAULT_COLORS } from '../../constants/novel';
 import type { Modelo } from '../../domain/entities/Modelo';
+import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 
 /** Proveedor de IA seleccionado. */
 export type AiProviderId =
@@ -10,6 +11,7 @@ export type AiProviderId =
 export interface AiOptions {
 	maxContext: number;
 	maxOutput: number;
+	maxOutputChat: number;
 	streaming: boolean;
 	temperature: number;
 	topP?: number;
@@ -65,6 +67,12 @@ export interface PluginSettings {
 	uiPrefs: {
 		activeSidebarTab: 'codex' | string;
 	};
+	/** Prompts custom del sistema (chat y texto). */
+	customPrompts: CustomPrompt[];
+	/** ID del prompt de chat por defecto. */
+	defaultChatPromptId: string;
+	/** ID del prompt de texto por defecto. */
+	defaultTextPromptId: string;
 }
 
 /** Paleta de colores predeterminada. */
@@ -72,7 +80,8 @@ export const PALETTE = DEFAULT_COLORS;
 
 export const DEFAULT_AI_OPTIONS: AiOptions = {
 	maxContext: 32764,
-	maxOutput: 512,
+	maxOutput: 250,
+	maxOutputChat: 2048,
 	streaming: false,
 	temperature: 1,
 	topP: 0.01,
@@ -104,4 +113,29 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	uiPrefs: {
 		activeSidebarTab: 'codex',
 	},
+	customPrompts: createDefaultPrompts(),
+	defaultChatPromptId: '',
+	defaultTextPromptId: '',
 };
+
+/** Crea los dos prompts por defecto y retorna el array inicial. */
+export function createDefaultPrompts(): CustomPrompt[] {
+	const now = new Date().toISOString();
+	const chatPrompt: CustomPrompt = {
+		id_prompt: 'default-chat-prompt',
+		tipo: 'chat',
+		nombre: 'Default Chat Prompt',
+		texto: "You're a helpful writer assistant for an author.",
+		created_at: now,
+		updated_at: now,
+	};
+	const textPrompt: CustomPrompt = {
+		id_prompt: 'default-text-prompt',
+		tipo: 'text',
+		nombre: 'Default Text Prompt',
+		texto: 'Continue the text following the narration style of the user.',
+		created_at: now,
+		updated_at: now,
+	};
+	return [chatPrompt, textPrompt];
+}

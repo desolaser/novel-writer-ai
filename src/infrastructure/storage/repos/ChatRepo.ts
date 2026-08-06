@@ -31,7 +31,7 @@ export async function readChat(app: App, folderPath: string, id: EntityId): Prom
 	return await readJson<ChatFile>(app, chatPath(folderPath, id));
 }
 
-export async function createChat(app: App, folderPath: string, idNovela: EntityId, nombre: string): Promise<ChatFile> {
+export async function createChat(app: App, folderPath: string, idNovela: EntityId, nombre: string, idPrompt?: EntityId): Promise<ChatFile> {
 	await ensureFolder(app, joinPath(folderPath, CHATS_DIR));
 	const id = genId();
 	const now = nowISO();
@@ -39,6 +39,7 @@ export async function createChat(app: App, folderPath: string, idNovela: EntityI
 		id_chat: id, nombre, id_novela: idNovela, archivado: false, mensajes: [],
 		created_at: now, updated_at: now,
 	};
+	if (idPrompt) (chat as any).id_prompt = idPrompt;
 	await writeJson(app, chatPath(folderPath, id), chat);
 	return chat;
 }

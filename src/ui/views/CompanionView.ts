@@ -44,6 +44,7 @@ export class CompanionView extends ItemView {
 export async function initializeStore(plugin: NovelWriterPlugin) {
 	const state = useNovelWriter.getState();
 	state.bindStore(plugin.store);
+	state.bindSettings(plugin.settings);
 	await state.refreshNovels();
 	const id = plugin.settings.data.lastActiveNovelId;
 	if (id) await state.setActiveNovel(id);

@@ -8,4 +8,5 @@ export * from './entities/OpcionDetalle';
 export * from './entities/EntradaCodex';
 export * from './entities/Estructura';
 export * from './entities/Chat';
+export * from './entities/CustomPrompt';
 export * from './entities/Junctions';
