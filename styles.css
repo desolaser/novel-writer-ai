@@ -721,7 +721,7 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 /* Standalone Outline ItemView (Acts -> Chapters; manuscript remains native). */
 .nw-outline-view { display: flex; height: 100%; min-width: 0; }
 .nw-outline-tree { width: 280px; min-width: 220px; overflow: auto; padding: 12px; border-right: 1px solid var(--background-modifier-border); }
-.nw-outline-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.nw-outline-title { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .nw-outline-add { margin-bottom: 12px; }
 .nw-outline-add .nw-input { width: 100%; }
 .nw-outline-add { display: flex; gap: 6px; }
@@ -749,7 +749,7 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-inline-editor { display: block; width: calc(100% - 27px); margin: 0 0 8px 27px; min-height: 72px; resize: vertical; box-sizing: border-box; }
 .nw-outline-single-column .nw-btn-icon { opacity: .65; }
 .nw-outline-single-column .nw-btn-icon:hover { opacity: 1; }
-.nw-outline-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.nw-outline-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-start; }
 .nw-draft-length { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; }
 .nw-draft-length input { width: 72px; }
 .nw-btn-experimental { border-color: var(--text-muted); color: var(--text-muted); }
