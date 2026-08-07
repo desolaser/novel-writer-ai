@@ -91,7 +91,10 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		setTimeout(() => {
 			const ents = useNovelWriter.getState().entradas;
 			const ultima = ents[ents.length - 1];
-			if (ultima) setEditingEntry(ultima.id_entrada_codex);
+			if (ultima) { 
+				setEditingEntry(ultima.id_entrada_codex);
+				openEntryModal(plugin, ultima.id_entrada_codex);
+			}
 		}, 100);
 	};
 
