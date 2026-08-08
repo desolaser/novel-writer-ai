@@ -103,6 +103,7 @@ export async function buildScenePrompt(
 	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());
 	if (authorNote) parts.push("Author note: " + authorNote);
+	if (historicalContext) parts.push("Contexto de capítulos anteriores:\n" + historicalContext);
 	if (outline) parts.push("Outline del capítulo: " + outline);
 	if (targetWords) parts.push(storyText ? `Continúa este draft y, cuando te acerques al objetivo, resuelve el conflicto y escribe un cierre natural. No reinicies ni repitas el texto ya escrito.` : `Escribe un capítulo nuevo e independiente de aproximadamente ${targetWords} palabras. Desarrolla el outline actual, alcanza una extensión cercana al objetivo y reserva espacio para cerrar el capítulo. No copies el contexto anterior.`);
 	const defaultTextPromptId = settings.defaultTextPromptId;

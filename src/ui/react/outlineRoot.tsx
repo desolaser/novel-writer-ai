@@ -601,11 +601,10 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	async function writeChapterMemory(chapter: any, memory: string) {
 		const relativePath = await ensureCapituloArchivo(chapter.id_capitulo);
 		if (!relativePath || !store?.activeFolderPath) return;
-		const fullPath = relativePath.startsWith("escritura/")
-			? `${store.activeFolderPath}/${relativePath}`
-			: relativePath;
-		const file = plugin.app.vault.getAbstractFileByPath(fullPath);
-		if (!(file instanceof TFile)) return;
+		// Use frontmatter-based resolution so renamed files are still found
+		const { resolveChapterFile } = await import("../../infrastructure/storage/repos/EstructuraRepo");
+		const file = await resolveChapterFile(plugin.app, store.activeFolderPath, chapter.id_capitulo, relativePath);
+		if (!file) return;
 		const yamlValue = memory.trim()
 			? `memoryContent: |-\n${memory
 					.split("\n")
@@ -673,8 +672,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		)
 			return;
 		setBatchBusy(true);
-		let history = "";
-		const summaries: string[] = [];
+		let draftsGenerated = 0;
 		try {
 			const api = new ApiFactory().createApi(
 				settings.proveedor.id,
@@ -697,19 +695,23 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				);
 				await ensureCapituloArchivo(c.id_capitulo);
 				const existing = await readCapituloTexto(c.id_capitulo);
-				if (existing.trim()) {
-					const previous = `Capítulo ${
-						c.nombre
-					}: ${makeContextExcerpt(existing)}`;
-					if (
-						!history.includes(previous) &&
-						!isCorruptGeneration(existing)
-					) {
-						history += `\n\n${previous}`;
-						summaries.push(previous);
+				if (existing.trim()) continue;
+				// Generate memory from previous chapters for context
+				const chapterMemory = buildChapterMemory(c, chapters);
+				await writeChapterMemory(c, chapterMemory);
+				// Build historical context from previous chapters'
+				// outlines AND actual draft content
+				const prevContextParts: string[] = [];
+				for (let j = 0; j < i; j++) {
+					const prev = chapters[j];
+					const prevText = await readCapituloTexto(prev.id_capitulo);
+					if (prevText.trim() && !isCorruptGeneration(prevText)) {
+						prevContextParts.push(
+							`Capítulo ${prev.nombre}: ${makeContextExcerpt(prevText)}`
+						);
 					}
-					continue;
 				}
+				const historicalContext = prevContextParts.join("\n\n");
 				let text = "";
 				let attempts = 0;
 				while (
@@ -731,7 +733,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 						draftSettings,
 						c.outline ?? "",
 						text,
-						"",
+						historicalContext,
 						targetWords
 					)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${
 						currentWords === 0
@@ -766,15 +768,10 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				}
 				if (text.trim() && !isCorruptGeneration(text)) {
 					await writeCapituloTexto(c.id_capitulo, text);
-					const summary = `Capítulo ${c.nombre}: ${makeContextExcerpt(
-						text
-					)}`;
-					summaries.push(summary);
-					history += `\n\n${summary}`;
+					draftsGenerated++;
 				}
 			}
-			await saveGeneratedContext(settings.memoryContent, summaries);
-			setBatchStatus(`Listo: ${summaries.length} drafts generados.`);
+			setBatchStatus(`Listo: ${draftsGenerated} drafts generados.`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -801,18 +798,20 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		setBatchStatus(`Generando draft: ${chapter.nombre}`);
 		try {
 			const chapters = orderedChapters();
+			// Generate memory from previous chapters for context
+			const chapterMemory = buildChapterMemory(chapter, chapters);
+			await writeChapterMemory(chapter, chapterMemory);
+			// Build historical context from previous chapters' actual content
 			const historyParts: string[] = [];
 			for (const c of chapters) {
 				if (c.id_capitulo === chapter.id_capitulo) break;
-				const text = await readCapituloTexto(c.id_capitulo);
-				if (text.trim())
+				const prevText = await readCapituloTexto(c.id_capitulo);
+				if (prevText.trim() && !isCorruptGeneration(prevText))
 					historyParts.push(
-						`Capítulo ${c.nombre}: ${text
-							.replace(/\s+/g, " ")
-							.slice(0, 700)}`
+						`Capítulo ${c.nombre}: ${makeContextExcerpt(prevText)}`
 					);
 			}
-			const history = historyParts.join("\n\n");
+			const historicalContext = historyParts.join("\n\n");
 			const draftSettings = {
 				...settings,
 				memoryContent: settings.memoryContent
@@ -847,7 +846,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 					draftSettings,
 					chapter.outline ?? "",
 					text,
-					"",
+					historicalContext,
 					targetWords
 				)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${
 					currentWords >= targetWords * 0.8
@@ -877,7 +876,6 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			}
 			await ensureCapituloArchivo(chapter.id_capitulo);
 			await writeCapituloTexto(chapter.id_capitulo, text);
-			await refreshGeneratedContext();
 			setBatchStatus(`Draft listo: ${chapter.nombre}`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));

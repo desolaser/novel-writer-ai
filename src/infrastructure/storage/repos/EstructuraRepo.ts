@@ -2,7 +2,7 @@ import { App } from 'obsidian';
 import { TFile } from 'obsidian';
 import { Acto, Capitulo, EntityId, nowISO } from '../../../domain';
 import { genId } from '../../../utils/ids';
-import { readJson, writeJson, joinPath, ensureFolder, readText, writeText } from '../fsHelpers';
+import { readJson, writeJson, joinPath, ensureFolder, writeText } from '../fsHelpers';
 
 const FILE = 'escritura/estructura.json';
 
@@ -91,22 +91,61 @@ export async function deleteCapitulo(app: App, fp: string, id: EntityId) {
 	await writeFile(app, fp, data);
 }
 
+/** Sanitiza un nombre para usarlo como nombre de archivo. */
+function sanitizeFileName(name: string): string {
+	return name
+		.replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+		.replace(/\s+/g, '_')
+		.replace(/\.+$/, '')
+		.slice(0, 120)
+		|| 'capitulo';
+}
+
 /** Crea el manuscrito del capítulo si aún no existe. */
 export async function ensureCapituloArchivo(app: App, folderPath: string, id: EntityId, targetFolder?: string): Promise<string | null> {
 	const data = await readFile(app, folderPath);
 	const cap = data.capitulos.find(x => x.id_capitulo === id);
 	if (!cap) return null;
 	const acto = data.actos.find(x => x.id_acto === cap.id_acto);
-	let changed = false;
-	if (!cap.archivo) {
-		cap.archivo = targetFolder ? joinPath(targetFolder, `capitulo_${id}.md`) : joinPath('escritura', 'capitulos', `capitulo_${id}.md`);
-		changed = true;
+	const baseFolder = targetFolder || joinPath(folderPath, 'escritura', 'capitulos');
+	await ensureFolder(app, baseFolder);
+
+	// Try to find the existing file — by stored path first, then by frontmatter
+	let file: TFile | null = null;
+	if (cap.archivo) {
+		const existing = app.vault.getAbstractFileByPath(resolveChapterPath(folderPath, cap.archivo));
+		if (existing instanceof TFile) file = existing;
 	}
-	const fullPath = resolveChapterPath(folderPath, cap.archivo);
-	await ensureFolder(app, targetFolder ? targetFolder : joinPath(folderPath, 'escritura', 'capitulos'));
-	if (!(await readText(app, fullPath))) {
+	if (!file) {
+		// Scan all markdown files for the chapter ID in frontmatter
+		for (const f of app.vault.getMarkdownFiles()) {
+			const raw = await app.vault.read(f);
+			if (raw.includes(`novel_writer_chapter_id: "${cap.id_capitulo}"`) || raw.includes(`novel_writer_chapter_id: '${cap.id_capitulo}'`)) {
+				file = f;
+				break;
+			}
+		}
+	}
+
+	let changed = false;
+	if (file) {
+		// File found — update stored path if it changed (e.g., renamed)
+		const newRelative = file.path.startsWith(folderPath + '/')
+			? file.path.slice(folderPath.length + 1)
+			: file.path;
+		if (cap.archivo !== newRelative) {
+			cap.archivo = newRelative;
+			changed = true;
+		}
+	} else {
+		// No file exists — create one with the chapter name
+		const safeName = sanitizeFileName(cap.nombre || id);
+		cap.archivo = targetFolder ? joinPath(targetFolder, `${safeName}.md`) : joinPath('escritura', 'capitulos', `${safeName}.md`);
+		changed = true;
+		const fullPath = resolveChapterPath(folderPath, cap.archivo);
 		await writeText(app, fullPath, `---\nnovel_writer_type: chapter\nnovel_writer_novel_id: "${acto?.id_novela ?? ''}"\nnovel_writer_chapter_id: "${cap.id_capitulo}"\nnovel_writer_status: draft\n---\n\n`);
 	}
+
 	if (changed) await writeFile(app, folderPath, data);
 	return cap.archivo;
 }
@@ -114,9 +153,8 @@ export async function ensureCapituloArchivo(app: App, folderPath: string, id: En
 export async function writeCapituloTexto(app: App, folderPath: string, id: EntityId, content: string): Promise<string | null> {
 	const path = await ensureCapituloArchivo(app, folderPath, id);
 	if (!path) return null;
-	const fullPath = resolveChapterPath(folderPath, path);
-	const file = app.vault.getAbstractFileByPath(fullPath);
-	if (!(file instanceof TFile)) return null;
+	const file = await resolveChapterFile(app, folderPath, id, path);
+	if (!file) return null;
 	// Use vault.process() for atomic read-modify-write to avoid corrupting
 	// the editor state when the chapter file is open in an Obsidian pane.
 	await app.vault.process(file, (raw) => {
@@ -129,7 +167,9 @@ export async function writeCapituloTexto(app: App, folderPath: string, id: Entit
 export async function readCapituloTexto(app: App, folderPath: string, id: EntityId): Promise<string> {
 	const data = await readFile(app, folderPath); const cap = data.capitulos.find(x => x.id_capitulo === id);
 	if (!cap?.archivo) return '';
-	const raw = await readText(app, resolveChapterPath(folderPath, cap.archivo)) ?? '';
+	const file = await resolveChapterFile(app, folderPath, id, cap.archivo);
+	if (!file) return '';
+	const raw = await app.vault.read(file);
 	return raw.replace(/^---[\s\S]*?---\s*/, '').trim();
 }
 
@@ -159,4 +199,20 @@ function resolveChapterPath(folderPath: string, path: string): string {
 	// Legacy/default chapter paths are relative to the novel. User-linked paths
 	// are vault-relative and therefore already include their complete location.
 	return path.startsWith('escritura/') ? joinPath(folderPath, path) : path;
+}
+
+/** Resolves the chapter file, falling back to frontmatter lookup if the stored path is stale. */
+export async function resolveChapterFile(app: App, folderPath: string, chapterId: EntityId, storedPath: string): Promise<TFile | null> {
+	// Try stored path first (fast path)
+	const fullPath = resolveChapterPath(folderPath, storedPath);
+	const file = app.vault.getAbstractFileByPath(fullPath);
+	if (file instanceof TFile) return file;
+	// Fallback: scan all markdown files for the chapter ID in frontmatter
+	for (const f of app.vault.getMarkdownFiles()) {
+		const raw = await app.vault.read(f);
+		if (raw.includes(`novel_writer_chapter_id: "${chapterId}"`) || raw.includes(`novel_writer_chapter_id: '${chapterId}'`)) {
+			return f;
+		}
+	}
+	return null;
 }
