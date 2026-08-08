@@ -24,13 +24,16 @@ export async function getPromptMetaCascading(app: App, settings: PluginSettings,
 export async function writePromptMeta(app: App, settings: PluginSettings, key: 'memoryContent' | 'authorNote', value: string): Promise<void> {
 	const file = app.workspace.getActiveFile();
 	if (!file) { settings[key] = value; return; }
-	const raw = await app.vault.read(file);
-	const match = raw.match(/^---\s*([\s\S]*?)---/);
-	let front: Record<string, any> = {};
-	if (match) { const parsed = yaml.load(match[1]); if (parsed && typeof parsed === 'object') front = parsed as Record<string, any>; }
-	front[key] = value;
-	const block = `---\n${yaml.dump(front)}---`;
-	await app.vault.modify(file, match ? raw.replace(/^---[\s\S]*?---/, block) : `${block}\n\n${raw}`);
+	// Use vault.process() for atomic read-modify-write to avoid corrupting
+	// the editor state when modifying the active file's frontmatter.
+	await app.vault.process(file, (raw) => {
+		const match = raw.match(/^---\s*([\s\S]*?)---/);
+		let front: Record<string, any> = {};
+		if (match) { const parsed = yaml.load(match[1]); if (parsed && typeof parsed === 'object') front = parsed as Record<string, any>; }
+		front[key] = value;
+		const block = `---\n${yaml.dump(front)}---`;
+		return match ? raw.replace(/^---[\s\S]*?---/, block) : `${block}\n\n${raw}`;
+	});
 }
 
 async function readFrontmatterValue(app: App, file: TFile, key: string): Promise<string | null> {

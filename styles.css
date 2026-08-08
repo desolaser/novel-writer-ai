@@ -429,6 +429,61 @@
 /* Codex editor */
 .nw-codex-editor-bar { display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
 
+/* AI Generation section in Codex Editor */
+.nw-ai-gen-section {
+	margin: 0 12px;
+	margin-top: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+.nw-ai-gen-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 8px 12px;
+	border: none !important;
+	background-color: none !important;
+	background: none !important;
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+}
+.nw-ai-gen-header:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.nw-ai-gen-header-text {
+	font-weight: 600;
+}
+.nw-ai-gen-body {
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	background: var(--background-primary);
+}
+.nw-ai-gen-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.nw-ai-gen-actions .nw-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+.nw-ai-gen-spinner {
+	font-size: 12px;
+	color: var(--text-muted);
+	animation: nw-pulse 1.2s ease-in-out infinite;
+}
+@keyframes nw-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
+
 /* Forms */
 .nw-input, .nw-select, .nw-textarea { 
   padding: 6px 8px; 

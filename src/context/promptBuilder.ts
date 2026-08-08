@@ -1,8 +1,9 @@
 import { App } from 'obsidian';
 import * as yaml from 'js-yaml';
-import { EntradaCodex, AiContextPolicy } from '../domain';
+import { EntradaCodex, AiContextPolicy, TipoDetalle } from '../domain';
 import { listEntries } from '../infrastructure/storage/repos/CodexEntryRepo';
 import { listCategorias } from '../infrastructure/storage/repos/CategoriaRepo';
+import { listDetalles, listOpcionesByDetalle } from '../infrastructure/storage/repos/DetalleRepo';
 import { PluginSettings } from '../infrastructure/settings/plugin-settings';
 import { getPromptMetaCascading } from './promptMeta';
 
@@ -29,6 +30,26 @@ export async function buildCodexYaml(
 	const entries = out ?? await listEntries(app, folderPath);
 	const cats = await listCategorias(app, folderPath);
 	const catMap = new Map(cats.map(c => [c.id_categoria, c.nombre]));
+	// Load detail definitions: id → { name, type }
+	const detallesDefs = await listDetalles(app, folderPath);
+	const detalleOptionsMap = new Map();
+	for (const detalle of detallesDefs) {
+		if (detalle.tipo_detalle === TipoDetalle.Dropdown) {
+			const options = await listOpcionesByDetalle(app, folderPath, detalle.id_detalle);
+
+			const optionsMap = new Map();
+			if (options.length > 0) {
+				options.forEach(option => {
+					optionsMap.set(option.id_opcion_detalle, option.nombre);
+				});
+			}
+			detalleOptionsMap.set(detalle.id_detalle, optionsMap);
+		}
+	}
+	const detalleNameMap = new Map(detallesDefs.map(d => [d.id_detalle, d.nombre]));
+	const detalleTypeMap = new Map(detallesDefs.map(d => [d.id_detalle, d.tipo_detalle]));
+	// Build entry name lookup for resolving CodexRef values
+	const entryNameMap = new Map(entries.map(e => [e.id_entrada_codex, e.nombre]));
 	const recentText = (currentText || '').slice(-Math.max(0, searchRange));
 	const items: any[] = [];
 	for (const e of entries) {
@@ -45,7 +66,18 @@ export async function buildCodexYaml(
 		if (e.detalles && e.detalles.length) {
 			const detalles: Record<string, any> = {};
 			for (const d of e.detalles) {
-				if (d.valor != null) detalles[d.id_detalle] = d.valor;
+				if (d.valor != null) {
+					const key = detalleNameMap.get(d.id_detalle) || d.id_detalle;
+					// For CodexRef details, resolve the UUID to the entry name
+					const detailType = detalleTypeMap.get(d.id_detalle);
+					let value =  d.valor;
+					if (detailType === TipoDetalle.CodexRef) {
+						value = entryNameMap.get(d.valor) || d.valor;
+					} else if (detailType === TipoDetalle.Dropdown) {
+						value = detalleOptionsMap.get(d.id_detalle)?.get(d.valor) || d.valor
+					}
+					detalles[key] = value;
+				}
 			}
 			if (Object.keys(detalles).length) item.detalles = detalles;
 		}

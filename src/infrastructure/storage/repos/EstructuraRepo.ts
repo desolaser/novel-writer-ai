@@ -97,23 +97,32 @@ export async function ensureCapituloArchivo(app: App, folderPath: string, id: En
 	const cap = data.capitulos.find(x => x.id_capitulo === id);
 	if (!cap) return null;
 	const acto = data.actos.find(x => x.id_acto === cap.id_acto);
-	if (!cap.archivo) cap.archivo = targetFolder ? joinPath(targetFolder, `capitulo_${id}.md`) : joinPath('escritura', 'capitulos', `capitulo_${id}.md`);
+	let changed = false;
+	if (!cap.archivo) {
+		cap.archivo = targetFolder ? joinPath(targetFolder, `capitulo_${id}.md`) : joinPath('escritura', 'capitulos', `capitulo_${id}.md`);
+		changed = true;
+	}
 	const fullPath = resolveChapterPath(folderPath, cap.archivo);
 	await ensureFolder(app, targetFolder ? targetFolder : joinPath(folderPath, 'escritura', 'capitulos'));
 	if (!(await readText(app, fullPath))) {
 		await writeText(app, fullPath, `---\nnovel_writer_type: chapter\nnovel_writer_novel_id: "${acto?.id_novela ?? ''}"\nnovel_writer_chapter_id: "${cap.id_capitulo}"\nnovel_writer_status: draft\n---\n\n`);
 	}
-	await writeFile(app, folderPath, data);
+	if (changed) await writeFile(app, folderPath, data);
 	return cap.archivo;
 }
 
 export async function writeCapituloTexto(app: App, folderPath: string, id: EntityId, content: string): Promise<string | null> {
 	const path = await ensureCapituloArchivo(app, folderPath, id);
 	if (!path) return null;
-	const raw = await readText(app, resolveChapterPath(folderPath, path)) ?? '';
-	const body = raw.replace(/^---[\s\S]*?---\s*/, '');
-	const front = raw.match(/^---[\s\S]*?---/i)?.[0] ?? '';
-	await writeText(app, resolveChapterPath(folderPath, path), `${front}\n\n${content}`);
+	const fullPath = resolveChapterPath(folderPath, path);
+	const file = app.vault.getAbstractFileByPath(fullPath);
+	if (!(file instanceof TFile)) return null;
+	// Use vault.process() for atomic read-modify-write to avoid corrupting
+	// the editor state when the chapter file is open in an Obsidian pane.
+	await app.vault.process(file, (raw) => {
+		const front = raw.match(/^---[\s\S]*?---/i)?.[0] ?? '';
+		return `${front}\n\n${content}`;
+	});
 	return path;
 }
 

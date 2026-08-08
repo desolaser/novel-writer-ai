@@ -32,6 +32,27 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 	const sel = detalles.find((d: any) => d.id_detalle === selected);
 	const extended = useNovelWriter().detalles;
 
+	// Debounced name input to avoid saving + reloadAll on every keystroke
+	const [nameDraft, setNameDraft] = React.useState(sel?.nombre ?? '');
+	const nameTimerRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+	// Sync local draft when selection changes
+	React.useEffect(() => {
+		setNameDraft(sel?.nombre ?? '');
+	}, [sel?.id_detalle, sel?.nombre]);
+	const persistName = React.useCallback((value: string) => {
+		if (!sel || value === sel.nombre) return;
+		updateDetalle({ ...sel, nombre: value });
+	}, [sel, updateDetalle]);
+	const handleNameChange = React.useCallback((value: string) => {
+		setNameDraft(value);
+		if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
+		nameTimerRef.current = setTimeout(() => persistName(value), 400);
+	}, [persistName]);
+	const handleNameBlur = React.useCallback(() => {
+		if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
+		persistName(nameDraft);
+	}, [nameDraft, persistName]);
+
 	React.useEffect(() => {
 		if (!sel || !store) return;
 		// Cargar categorias asociadas a este detalle
@@ -85,7 +106,7 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 							<h3 style={{ flex: 1, margin: 0 }}>Editar detalle</h3>
 						</div>						
 						<label>Nombre</label>
-						<input className="nw-input" value={sel.nombre} placeholder="Detalle sin nombre" onChange={e => updateDetalle({ ...sel, nombre: e.target.value })} onBlur={() => updateDetalle({ ...sel })} />
+						<input className="nw-input" value={nameDraft} placeholder="Detalle sin nombre" onChange={e => handleNameChange(e.target.value)} onBlur={handleNameBlur} />
 						<div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
 							<div className="nw-tab-bar nw-tab-bar-compact" style={{ flexShrink: 0 }}>
 								<button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>General</button>

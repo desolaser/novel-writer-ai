@@ -606,39 +606,35 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			: relativePath;
 		const file = plugin.app.vault.getAbstractFileByPath(fullPath);
 		if (!(file instanceof TFile)) return;
-		const raw = await plugin.app.vault.read(file);
-		const match = raw.match(/^---\s*[\s\S]*?---/);
 		const yamlValue = memory.trim()
 			? `memoryContent: |-\n${memory
 					.split("\n")
 					.map((line) => `  ${line}`)
 					.join("\n")}`
 			: 'memoryContent: ""';
-		if (!match) {
-			await plugin.app.vault.modify(
-				file,
-				`---\n${yamlValue}\n---\n\n${raw}`
-			);
-			return;
-		}
-		const body = match[0].replace(/^---\s*/, "").replace(/---\s*$/, "");
-		const lines = body.split("\n");
-		const kept: string[] = [];
-		for (let i = 0; i < lines.length; i++) {
-			if (/^\s*memoryContent\s*:/.test(lines[i])) {
-				while (i + 1 < lines.length && /^\s{2,}/.test(lines[i + 1]))
-					i++;
-				continue;
+		// Use vault.process() for atomic read-modify-write to avoid corrupting
+		// the editor state when the chapter file is open in an Obsidian pane.
+		await plugin.app.vault.process(file, (raw) => {
+			const match = raw.match(/^---\s*[\s\S]*?---/);
+			if (!match) {
+				return `---\n${yamlValue}\n---\n\n${raw}`;
 			}
-			kept.push(lines[i]);
-		}
-		const nextFrontmatter = `---\n${kept
-			.join("\n")
-			.replace(/\n+$/, "")}\n${yamlValue}\n---`;
-		await plugin.app.vault.modify(
-			file,
-			raw.replace(match[0], nextFrontmatter)
-		);
+			const body = match[0].replace(/^---\s*/, "").replace(/---\s*$/, "");
+			const lines = body.split("\n");
+			const kept: string[] = [];
+			for (let i = 0; i < lines.length; i++) {
+				if (/^\s*memoryContent\s*:/.test(lines[i])) {
+					while (i + 1 < lines.length && /^\s{2,}/.test(lines[i + 1]))
+						i++;
+					continue;
+				}
+				kept.push(lines[i]);
+			}
+			const nextFrontmatter = `---\n${kept
+				.join("\n")
+				.replace(/\n+$/, "")}\n${yamlValue}\n---`;
+			return raw.replace(match[0], nextFrontmatter);
+		});
 	}
 
 	async function createAllManuscripts(targetFolder: string) {
