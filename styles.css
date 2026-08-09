@@ -301,6 +301,32 @@
 .nw-thumbnail-empty { background: var(--background-modifier-border-hover); display: flex; align-items: center; justify-content: center; color: var(--text-muted); border-radius: 12px; }
 .nw-thumbnail-btn { position: absolute; bottom: -2px; right: -2px; width: 20px; height: 20px; padding: 0; border-radius: 50%; background: var(--background-primary); border: 1px solid var(--background-modifier-border); display: flex; align-items: center; justify-content: center; }
 
+/* Lightbox overlay for full-size thumbnail viewing */
+.nw-lightbox-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99999;
+  background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  animation: nw-fade-in 0.15s ease;
+}
+.nw-lightbox-content {
+  position: relative; max-width: 90vw; max-height: 90vh;
+  display: flex; align-items: center; justify-content: center;
+}
+.nw-lightbox-image {
+  max-width: 90vw; max-height: 90vh;
+  object-fit: contain; border-radius: 8px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+}
+.nw-lightbox-close {
+  position: absolute; top: -40px; right: -40px;
+  background: rgba(255,255,255,0.15); border: none; border-radius: 50%;
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+  color: #fff; cursor: pointer; transition: background 0.15s;
+}
+.nw-lightbox-close:hover { background: rgba(255,255,255,0.3); }
+
+@keyframes nw-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
 .nw-entry-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 4px 12px; }
 .nw-entry-tags-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; width: 90%; }
 .nw-btn-link {

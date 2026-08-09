@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Notice, TFile, TFolder, MarkdownRenderer, FuzzySuggestModal, Modal, Setting } from 'obsidian';
 import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
@@ -151,6 +152,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
 	const [editingMsgText, setEditingMsgText] = useState('');
 	const [imageDropdown, setImageDropdown] = useState<{ index: number; searchQuery: string } | null>(null);
+	const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 	const [promptMenuOpen, setPromptMenuOpen] = useState(false);
 	const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
 	const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -693,7 +695,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					{m.imagenes?.length > 0 && <div className="nw-msg-images">
 						{m.imagenes.map((url: string, index: number) => (
 							<div key={`${url}-${index}`} className="nw-msg-image-wrapper">
-								<img src={url} alt={`Imagen generada ${index + 1}`} onClick={() => window.open(url, '_blank')} />
+								<img src={url} alt={`Imagen generada ${index + 1}`} onClick={() => setLightboxSrc(url)} style={{ cursor: 'pointer' }} />
 								<div className="nw-msg-image-actions">
 									<button className="nw-msg-image-download-btn" title="Opciones de imagen" onClick={() => setImageDropdown(prev => prev?.index === index ? null : { index, searchQuery: '' })}>
 										<Icon.Download width={14} height={14} />
@@ -950,5 +952,16 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			multiple
 			onChange={handleImageUpload}
 		/>
+		{lightboxSrc && createPortal(
+			<div className="nw-lightbox-overlay" onClick={() => setLightboxSrc(null)}>
+				<div className="nw-lightbox-content" onClick={(e) => e.stopPropagation()}>
+					<button className="nw-lightbox-close" onClick={() => setLightboxSrc(null)} title="Cerrar">
+						<Icon.X width={24} height={24} />
+					</button>
+					<img src={lightboxSrc} alt="Imagen a tamaño real" className="nw-lightbox-image" />
+				</div>
+			</div>,
+			document.body
+		)}
 	</div>;
 }
