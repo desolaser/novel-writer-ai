@@ -38,7 +38,8 @@ export class OpenRouterApi extends ApiInterface {
                 description: model.description || '',
                 contextLength: model.context_length || null,
                 pricing: model.pricing ? `$${model.pricing.prompt}/1K prompt, $${model.pricing.completion}/1K completion` : null,
-                supportsImageGeneration: model.architecture?.output_modalities?.includes('image') ?? false
+                supportsImageGeneration: model.architecture?.output_modalities?.includes('image') ?? false,
+                supportsVision: model.architecture?.input_modalities?.includes('image') ?? false
             }));
         } catch (error) {
             console.error('Error en OpenRouterApi.getAvailableModels:', error);
@@ -57,7 +58,17 @@ export class OpenRouterApi extends ApiInterface {
                 stream: false
             };
 
-            const requestOptions = { ...defaultOptions, ...options };
+            const { images: _inputImages, ...restOptions } = options as any;
+            const requestOptions = { ...defaultOptions, ...restOptions };
+
+            // Build messages: if images are provided, use content array format for vision
+            const inputImages: string[] = (Array.isArray(_inputImages) ? _inputImages : []) as string[];
+            const userMessage = inputImages.length > 0
+                ? { role: "user" as const, content: [
+                    { type: "text" as const, text: prompt },
+                    ...inputImages.map(url => ({ type: "image_url" as const, image_url: { url } })),
+                ]}
+                : { role: "user" as const, content: prompt };
 
             console.log({ requestOptions, apiKey: this.apiKey });
 
@@ -69,9 +80,7 @@ export class OpenRouterApi extends ApiInterface {
                 },
                 body: JSON.stringify({
                     model: model,
-                    messages: [
-                        { role: "user", content: prompt }
-                    ],
+                    messages: [userMessage],
                     ...requestOptions
                 })
             });

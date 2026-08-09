@@ -17,6 +17,8 @@ export class ModelModal extends Modal {
 	private loadingModels = false;
 	private modelsError = "";
 	private apiKeyRetryTimer: number | undefined;
+	private searchQuery = "";
+	private sortMode: "alpha" | "price" | "context" = "alpha";
 
 	constructor(
 		private readonly plugin: NovelWriterPlugin,
@@ -44,7 +46,8 @@ export class ModelModal extends Modal {
 					frecuence_penalty: defaults.frequencyPenalty,
 					presence_penalty: defaults.presencePenalty,
 					supports_image_generation: false,
-			  };
+					supports_vision: false,
+					};
 	}
 
 	onOpen(): void {
@@ -105,44 +108,38 @@ export class ModelModal extends Modal {
 				});
 			});
 		const modelsHost = contentEl.createDiv();
-		const modelDescription = this.loadingModels
-			? "Cargando modelos..."
-			: this.modelsError ||
-			  "Modelo disponible en el proveedor seleccionado.";
-		new Setting(modelsHost)
-			.setName("Model")
-			.setDesc(modelDescription)
-			.addDropdown((dropdown) => {
-				if (!this.availableModels.length)
-					dropdown.addOption(
-						"",
-						this.loadingModels
-							? "Cargando..."
-							: "No hay modelos disponibles"
-					);
-				this.availableModels.forEach((model) =>
-					dropdown.addOption(
-						model.id,
-						`${model.supportsImageGeneration ? "🖌 " : ""}${
-							model.pricing
-								? `${model.name || model.id} — ${model.pricing}`
-								: model.name || model.id
-						}`
-					)
-				);
-				dropdown.setValue(this.form.nombre_modelo).onChange((value) => {
-					this.form.nombre_modelo = value;
-					this.form.supports_image_generation =
-						this.availableModels.find((model) => model.id === value)
-							?.supportsImageGeneration ?? false;
+
+		// --- Search bar (built once, outside re-render zone) ---
+		const searchHost = modelsHost.createDiv();
+		new Setting(searchHost)
+			.setName("Buscar modelo")
+			.setDesc("Filtra por nombre o ID del modelo.")
+			.addText((text) => {
+				text.setValue(this.searchQuery).onChange((value) => {
+					this.searchQuery = value;
+					this.renderModelDropdown();
 				});
-			})
-			.addButton((button) =>
-				button
-					.setButtonText("Reintentar")
-					.setDisabled(this.loadingModels)
-					.onClick(() => void this.loadAvailableModels())
-			);
+			});
+
+		// --- Sort selector (built once, outside re-render zone) ---
+		const sortHost = modelsHost.createDiv();
+		new Setting(sortHost)
+			.setName("Ordenar por")
+			.addDropdown((dropdown) => {
+				dropdown.addOption("alpha", "Alfabético");
+				dropdown.addOption("price", "Precio (mejor rendimiento)");
+				dropdown.addOption("context", "Contexto (mayor primero)");
+				dropdown.setValue(this.sortMode).onChange((value) => {
+					this.sortMode = value as "alpha" | "price" | "context";
+					this.renderModelDropdown();
+				});
+			});
+
+		// --- Model dropdown (rebuilt on search/sort changes) ---
+		const modelDropdownHost = modelsHost.createDiv(
+			"nw-model-dropdown-host"
+		);
+		this.renderModelDropdown(modelDropdownHost);
 		contentEl.createEl("h3", { text: "Parameters" });
 		this.numberSetting(contentEl, "Max Context", "max_context");
 		this.numberSetting(contentEl, "Max Output (Generación)", "max_output");
@@ -236,6 +233,138 @@ export class ModelModal extends Modal {
 			this.loadingModels = false;
 			await this.render();
 		}
+	}
+
+	private formatTokensPerDollar(pricing: string | undefined | null): string {
+		if (!pricing) return "";
+		// Pricing format: "$0.00000014/1K prompt, $0.00000028/1K completion"
+		// The /1K label is misleading — the value is the per-TOKEN price.
+		// Real price per 1K tokens = price * 1_000.
+		// K tokens per dollar = 1 / (price * 1_000)
+		const match = pricing.match(/\$([\d.]+)\//);
+		if (!match) return "";
+		const price = parseFloat(match[1]);
+		if (Number.isNaN(price) || price <= 0) return "";
+		return `${Math.round(1 / (price * 1_000))}K/$`;
+	}
+
+	private formatModelOption(model: AvailableModel): string {
+		const icons: string[] = [];
+		if (model.supportsImageGeneration) {
+			icons.push("🖌"); // generates images (output)
+		}
+		if (model.supportsVision) {
+			icons.push("👁"); // accepts images as input (vision)
+		}
+		const parts: string[] = [];
+		if (icons.length) parts.push(icons.join(" "));
+		parts.push(model.name || model.id);
+		parts.push(`${model.contextLength} ctx`);
+		const tpd = this.formatTokensPerDollar(model.pricing);
+		if (tpd) parts.push(tpd);
+		return parts.join(" | ");
+	}
+
+	private renderModelDropdown(host?: HTMLElement): void {
+		const target =
+			host ??
+			(this.contentEl.querySelector(
+				".nw-model-dropdown-host"
+			) as HTMLElement | null);
+		if (!target) return;
+		target.empty();
+
+		const modelDescription = this.loadingModels
+			? "Cargando modelos..."
+			: this.modelsError ||
+			  "Modelo disponible en el proveedor seleccionado.";
+
+		const filtered = this.getFilteredAndSortedModels();
+		new Setting(target)
+			.setName("Model")
+			.setDesc(modelDescription)
+			.addDropdown((dropdown) => {
+				if (!filtered.length)
+					dropdown.addOption(
+						"",
+						this.loadingModels
+							? "Cargando..."
+							: this.searchQuery
+								? "Sin coincidencias"
+								: "No hay modelos disponibles"
+					);
+				filtered.forEach((model) =>
+					dropdown.addOption(
+						model.id,
+						this.formatModelOption(model)
+					)
+				);
+				dropdown.setValue(this.form.nombre_modelo).onChange((value) => {
+					this.form.nombre_modelo = value;
+					const selected = this.availableModels.find((model) => model.id === value);
+					this.form.supports_image_generation =
+						selected?.supportsImageGeneration ?? false;
+					this.form.supports_vision =
+						selected?.supportsVision ?? false;
+				});
+			})
+			.addButton((button) =>
+				button
+					.setButtonText("Reintentar")
+					.setDisabled(this.loadingModels)
+					.onClick(() => void this.loadAvailableModels())
+			);
+	}
+
+	private getFilteredAndSortedModels(): AvailableModel[] {
+		let models = [...this.availableModels];
+
+		// Filter by search query
+		if (this.searchQuery.trim()) {
+			const q = this.searchQuery.trim().toLowerCase();
+			models = models.filter(
+				(m) =>
+					(m.name || m.id).toLowerCase().includes(q) ||
+					m.id.toLowerCase().includes(q)
+			);
+		}
+
+		// Sort
+		switch (this.sortMode) {
+			case "price":
+				models.sort((a, b) => {
+					const aVal = this.parseTokensPerDollarRaw(a.pricing);
+					const bVal = this.parseTokensPerDollarRaw(b.pricing);
+					return bVal - aVal; // descending: best value first
+				});
+				break;
+			case "context":
+				models.sort((a, b) => {
+					const aCtx = a.contextLength ?? 0;
+					const bCtx = b.contextLength ?? 0;
+					return bCtx - aCtx; // descending: largest context first
+				});
+				break;
+			default:
+				models.sort((a, b) =>
+					(a.name || a.id).localeCompare(b.name || b.id)
+				);
+				break;
+		}
+
+		return models;
+	}
+
+	private parseTokensPerDollarRaw(
+		pricing: string | undefined | null
+	): number {
+		if (!pricing) return 0;
+		// Same logic as formatTokensPerDollar: values are per-token prices.
+		const match = pricing.match(/\$([\d.]+)\//);
+		if (!match) return 0;
+		const price = parseFloat(match[1]);
+		if (Number.isNaN(price) || price <= 0) return 0;
+		return 1 / (price * 1_000);
 	}
 
 	onClose(): void {

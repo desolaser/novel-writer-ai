@@ -153,8 +153,11 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [imageDropdown, setImageDropdown] = useState<{ index: number; searchQuery: string } | null>(null);
 	const [promptMenuOpen, setPromptMenuOpen] = useState(false);
 	const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
+	const [uploadedImages, setUploadedImages] = useState<string[]>([]);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const promptRef = useRef<HTMLDivElement | null>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const markdownFiles = useMemo(() => plugin.app.vault.getMarkdownFiles(), [plugin, contextOpen]);
 	const folders = useMemo(() => plugin.app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder), [plugin, contextOpen]);
@@ -375,6 +378,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setMensajes(newMsgs);
 		const lastUserMsg = [...newMsgs].reverse().find(m => m.role === 'user');
 		if (!lastUserMsg) return;
+		const currentUploadedImagesRegen = [...uploadedImages];
+		setUploadedImages([]);
 		setBusy(true);
 		try {
 			const settings = plugin.settings.data;
@@ -388,6 +393,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				...activeModel.options,
 				stream: false,
 				...(activeModel.providerId === 'openrouter' && savedModel?.supports_image_generation ? { modalities: ['image', 'text'] } : {}),
+				...(currentUploadedImagesRegen.length > 0 ? { images: currentUploadedImagesRegen } : {}),
 			});
 			const images = extractImageUrls(result);
 			const reply = result.text ?? (images.length ? '' : '(sin respuesta)');
@@ -420,9 +426,11 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			await saveChatContext(chatId, contextItems, characterContext, impersonateContext);
 			selectChat(chatId);
 		}
+		const currentUploadedImages = [...uploadedImages];
 		setInput('');
-		await appendMensaje('user', t);
-		setMensajes(m => [...m, { id_mensaje: 'tmp_u', role: 'user', mensaje: t, created_at: '' }]);
+		setUploadedImages([]);
+		await appendMensaje('user', t, currentUploadedImages.length > 0 ? currentUploadedImages : undefined);
+		setMensajes(m => [...m, { id_mensaje: 'tmp_u', role: 'user', mensaje: t, imagenes: currentUploadedImages.length > 0 ? currentUploadedImages : undefined, created_at: '' }]);
 		setBusy(true);
 		try {
 			const settings = plugin.settings.data;
@@ -436,6 +444,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				...activeModel.options,
 				stream: false,
 				...(activeModel.providerId === 'openrouter' && savedModel?.supports_image_generation ? { modalities: ['image', 'text'] } : {}),
+				...(currentUploadedImages.length > 0 ? { images: currentUploadedImages } : {}),
 			});
 			const images = extractImageUrls(result);
 			const reply = result.text ?? (images.length ? '' : '(sin respuesta)');
@@ -451,6 +460,36 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const closeImageDropdown = useCallback(() => setImageDropdown(null), []);
 
+	const supportsVision = useMemo(() => {
+		const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId);
+		return model?.supports_vision ?? false;
+	}, [plugin, modelVersion]);
+
+	const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+		const files = e.target.files;
+		if (!files) return;
+		const readers: Promise<string>[] = [];
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			if (!file.type.startsWith('image/')) continue;
+			readers.push(new Promise<string>((resolve) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result as string);
+				reader.readAsDataURL(file);
+			}));
+		}
+		void Promise.all(readers).then(urls => {
+			setUploadedImages(prev => [...prev, ...urls]);
+		});
+		if (fileInputRef.current) fileInputRef.current.value = '';
+	}, []);
+
+	const removeUploadedImage = useCallback((index: number) => {
+		setUploadedImages(prev => prev.filter((_, i) => i !== index));
+	}, []);
+
+	const clearUploadedImages = useCallback(() => setUploadedImages([]), []);
+
 	// Click-outside for prompt menu
 	useEffect(() => {
 		const handler = (e: MouseEvent) => {
@@ -461,6 +500,32 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		document.addEventListener('mousedown', handler);
 		return () => document.removeEventListener('mousedown', handler);
 	}, []);
+
+	// Paste handler for clipboard images (Ctrl+V) — only when textarea is focused
+	useEffect(() => {
+		const handler = (e: ClipboardEvent) => {
+			if (!supportsVision) return;
+			if (document.activeElement !== textareaRef.current) return;
+			const items = e.clipboardData?.items;
+			if (!items) return;
+			for (let i = 0; i < items.length; i++) {
+				const item = items[i];
+				if (item.type.startsWith('image/')) {
+					e.preventDefault();
+					const blob = item.getAsFile();
+					if (!blob) continue;
+					const reader = new FileReader();
+					reader.onload = () => {
+						setUploadedImages(prev => [...prev, reader.result as string]);
+					};
+					reader.readAsDataURL(blob);
+					break;
+				}
+			}
+		};
+		document.addEventListener('paste', handler);
+		return () => document.removeEventListener('paste', handler);
+	}, [supportsVision]);
 
 	const chatPrompts = getCustomPrompts().filter(p => p.tipo === 'chat');
 	const defaultChatPrompt = getDefaultChatPrompt();
@@ -769,6 +834,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			</div>
 			<div className="nw-chat-input">
 				<textarea 
+					ref={textareaRef}
 					className="nw-chat-textarea" 
 					value={input} 
 					onChange={e => setInput(e.target.value)} 
@@ -779,11 +845,23 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					rows={3} 
 				/>
 			</div>
+			{uploadedImages.length > 0 && (
+				<div className="nw-chat-uploaded-images">
+					{uploadedImages.map((url, index) => (
+						<div key={index} className="nw-chat-uploaded-image-wrapper">
+							<img src={url} alt={`Imagen subida ${index + 1}`} className="nw-chat-uploaded-image-thumb" />
+							<button className="nw-chat-uploaded-image-remove" title="Quitar imagen" onClick={() => removeUploadedImage(index)}>
+								<Icon.X width={10} height={10} />
+							</button>
+						</div>
+					))}
+				</div>
+			)}
 			<div className="nw-chat-footer">
 				<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
 					<div className="nw-chat-model-selector" key={modelVersion}>
 						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
-							{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'Sin modelo activo'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}</>; })()}
+							{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'Sin modelo activo'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}{model?.supports_vision && <Icon.Eye width={14} height={14} className="nw-model-image-capability" />}</>; })()}
 							<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
 						</span>
 						{modelMenuOpen && (
@@ -799,6 +877,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 											{model.nombre_listado}									
 											{model.supports_image_generation && (
 												<Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />
+											)}
+											{model.supports_vision && (
+												<Icon.Eye width={14} height={14} className="nw-model-image-capability" />
 											)}
 										</button>
 									)) : (
@@ -850,11 +931,24 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					<button className="nw-btn-link" onClick={doCreate}>
 						<Icon.Plus width={12} height={12} />
 					</button>
+					{supportsVision && (
+						<button className="nw-btn-link" title="Subir imagen" onClick={() => fileInputRef.current?.click()}>
+							<Icon.Upload width={12} height={12} />
+						</button>
+					)}
 					<button className="nw-btn-link" onClick={() => new CustomPromptsModal(plugin.app as any, plugin).open()}>
 						<Icon.Settings width={12} height={12}/>
 					</button>
 				</div>
 			</div>
 		</div>
+		<input
+			type="file"
+			ref={fileInputRef}
+			style={{ display: 'none' }}
+			accept="image/*"
+			multiple
+			onChange={handleImageUpload}
+		/>
 	</div>;
 }

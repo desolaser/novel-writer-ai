@@ -22,6 +22,8 @@ export interface Modelo {
 	presence_penalty?: number;
 	/** Whether this saved model profile can generate images. */
 	supports_image_generation?: boolean;
+	/** Whether this saved model profile can accept images as input (vision). */
+	supports_vision?: boolean;
 	created_at: string;
 	updated_at: string;
 }

@@ -28,10 +28,10 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 		const saved = this.models.list();
 		new Setting(host)
 			.setName('Modelo activo')
-			.setDesc('Este perfil se utiliza para las generaciones y los chats. 🖌 Indica que el modelo puede generar imágenes.')
+			.setDesc('Este perfil se utiliza para las generaciones y los chats. 🖌 = genera imágenes. 👁 = acepta imágenes (visión).')
 			.addDropdown(dropdown => {
 				dropdown.addOption('', saved.length ? 'Selecciona un modelo' : 'No hay modelos creados');
-				saved.forEach(model => dropdown.addOption(model.id_modelo, `${model.supports_image_generation ? '🖌 ' : ''}${model.nombre_listado}`));
+				saved.forEach(model => dropdown.addOption(model.id_modelo, `${model.supports_image_generation ? '🖌 ' : ''}${model.supports_vision ? '👁 ' : ''}${model.nombre_listado}`));
 				dropdown.setValue(this.plugin.settings.data.modeloPredeterminadoId).onChange(async id => {
 					if (!id) return;
 					await this.models.setDefault(id); this.display();
@@ -68,7 +68,7 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 				if (!models.length) listHost.createEl('p', { text: 'No hay modelos guardados.' });
 				models.forEach(model => {
 					const provider = getProvider(model.id_proveedor);
-					new Setting(listHost).setName(`${model.supports_image_generation ? '🖌 ' : ''}${model.nombre_listado}`).setDesc(`${provider?.nombre_display ?? 'Proveedor desconocido'} · ${model.nombre_modelo}`)
+					new Setting(listHost).setName(`${model.supports_image_generation ? '🖌 ' : ''}${model.supports_vision ? '👁 ' : ''}${model.nombre_listado}`).setDesc(`${provider?.nombre_display ?? 'Proveedor desconocido'} · ${model.nombre_modelo}`)
 						.addToggle(toggle => toggle.setTooltip('Modelo por defecto').setValue(this.plugin.settings.data.modeloPredeterminadoId === model.id_modelo).onChange(async value => {
 							if (value) { await this.models.setDefault(model.id_modelo); render(); }
 						}))

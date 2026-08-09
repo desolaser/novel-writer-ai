@@ -713,6 +713,14 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 /* Chat footer: model selector + character badge */
 .nw-chat-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 
+/* Uploaded image previews (vision-capable models) */
+.nw-chat-uploaded-images { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.nw-chat-uploaded-image-wrapper { position: relative; width: 56px; height: 56px; border-radius: 4px; overflow: hidden; border: 1px solid var(--background-modifier-border); }
+.nw-chat-uploaded-image-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nw-chat-uploaded-image-remove { position: absolute; top: 2px; right: 2px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+.nw-chat-uploaded-image-wrapper:hover .nw-chat-uploaded-image-remove { opacity: 1; }
+.nw-chat-uploaded-image-remove:hover { background: rgba(0,0,0,0.85); }
+
 /* Character badge (roleplay mode) */
 .nw-character-badge { display: inline-flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 6px 3px 5px; background: #2d7d46; color: #fff; border-radius: 14px; font-size: 11px; }
 .nw-character-badge-thumb { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
