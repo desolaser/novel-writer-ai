@@ -10,6 +10,7 @@ import { ThumbnailCropModal } from '../codex/ThumbnailCropModal';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 import type { EntradaCodex, ChatContextItem, ChatContextKind } from '../../../../domain';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
+import { estimateTokens } from '../../../../context/promptBuilder';
 
 type ContextKind = ChatContextKind;
 type ContextItem = ChatContextItem;
@@ -36,6 +37,24 @@ function MarkdownBlock({ plugin, content }: { plugin: NovelWriterPlugin; content
 		void MarkdownRenderer.renderMarkdown(content, el, '', plugin);
 	}, [content, plugin]);
 	return <div ref={ref} className="nw-markdown-body" />;
+}
+
+/** Format a date string to YYYY-DD-MM hh:mm:ss */
+function formatTimestamp(dateStr: string | undefined | null): string {
+	if (!dateStr) return '';
+	try {
+		const d = new Date(dateStr);
+		if (isNaN(d.getTime())) return '';
+		const year = d.getFullYear();
+		const day = String(d.getDate()).padStart(2, '0');
+		const month = String(d.getMonth() + 1).padStart(2, '0');
+		const hours = String(d.getHours()).padStart(2, '0');
+		const minutes = String(d.getMinutes()).padStart(2, '0');
+		const seconds = String(d.getSeconds()).padStart(2, '0');
+		return `${year}-${day}-${month} ${hours}:${minutes}:${seconds}`;
+	} catch {
+		return '';
+	}
 }
 
 /** Prompt builder that injects character persona and chat prompt. */
@@ -77,11 +96,13 @@ function buildPrompt(
 	if (impersonateContext) {
 		systemPrompt += `[MODO IMPERSONAR: El usuario está interpretando al personaje "${impersonateContext.name}". El usuario ES "${impersonateContext.name}". Trátalo como si fuera ese personaje. NO te refieras a él como "usuario" o "tú", llámalo "${impersonateContext.name}".]\n\nInformación del personaje del usuario:\n${impersonateContext.content}\n\n`;
 	}
+	const userLabel = impersonateContext ? impersonateContext.name : 'Usuario';
+	const iaLabel = characterContext ? characterContext.name : 'IA';
 
 	const combinedPrompt = [contextPrompt, activeNoteBlock].filter(Boolean).join('\n\n');
 	const contextBlock = combinedPrompt ? `Contexto seleccionado explícitamente por el usuario:\n${combinedPrompt}\n\n` : '';
-	const userLabel = impersonateContext ? impersonateContext.name : 'Usuario';
-	return `${systemPrompt}${contextBlock}${history.map(m => `${m.role === 'user' ? userLabel : 'IA'}: ${m.content}`).join('\n\n')}\n\nIA: `;
+	const historyBlock = history ? `Convesación actual:\n${history.map(m => `${m.role === 'user' ? userLabel : 'IA'}: ${m.content}`).join('\n\n')}\n\n` : '';
+	return `${systemPrompt}${contextBlock}${historyBlock}\n\n${iaLabel}: `;
 }
 
 /** Modal to pick a vault folder. */
@@ -117,6 +138,78 @@ class ConfirmModal extends Modal {
 			.addButton(btn => btn.setButtonText('No').onClick(() => this.close()));
 	}
 	onClose() { this.contentEl.empty(); }
+}
+
+/** Modal to display the full chat context/prompt being sent to the AI. */
+class ChatContextModal extends Modal {
+	private prompt: string;
+	private breakdown: Array<{ label: string; content: string }>;
+
+	constructor(app: any, prompt: string, breakdown: Array<{ label: string; content: string }>) {
+		super(app);
+		this.prompt = prompt;
+		this.breakdown = breakdown;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('options-view-container');
+		this.modalEl.addClass('context-modal-large');
+		contentEl.createEl('h4', { text: 'Contexto del Chat' });
+
+		const pre = contentEl.createEl('pre');
+		pre.style.maxHeight = '40vh';
+		pre.style.overflow = 'auto';
+		pre.style.whiteSpace = 'pre-wrap';
+		pre.style.wordBreak = 'break-word';
+		pre.style.fontSize = '12px';
+		pre.style.padding = '12px';
+		pre.style.background = 'var(--background-secondary)';
+		pre.style.borderRadius = '6px';
+		pre.setText(this.prompt);
+
+		const section = contentEl.createDiv('token-table-section');
+		section.createEl('h5', { text: 'Token Breakdown' });
+		const table = section.createEl('table', { cls: 'token-table' });
+		const head = table.createEl('thead').createEl('tr');
+		head.createEl('th', { text: 'Identifier' });
+		head.createEl('th', { text: 'Tokens', cls: 'token-column' });
+		const body = table.createEl('tbody');
+		const rows = this.breakdown.map(({ label, content }) => [label, content] as [string, string]);
+		rows.forEach(([label, value]) => {
+			const row = body.createEl('tr');
+			row.createEl('td', { text: label });
+			row.createEl('td', { text: String(estimateTokens(value)), cls: 'token-column' });
+		});
+		const total = rows.reduce((sum, [, value]) => sum + estimateTokens(value), 0);
+		const totalRow = body.createEl('tr', { cls: 'total-row' });
+		totalRow.createEl('td', { text: 'Total' });
+		totalRow.createEl('td', { text: String(total), cls: 'token-column' });
+
+		const btnRow = contentEl.createDiv();
+		btnRow.style.display = 'flex';
+		btnRow.style.justifyContent = 'flex-end';
+		btnRow.style.marginTop = '12px';
+		btnRow.style.gap = '8px';
+
+		const copyBtn = btnRow.createEl('button', { text: 'Copy to clipboard' });
+		copyBtn.classList.add('mod-cta');
+		copyBtn.onclick = () => {
+			navigator.clipboard.writeText(this.prompt).then(() => {
+				copyBtn.setText('Copied!');
+				setTimeout(() => copyBtn.setText('Copy to clipboard'), 2000);
+			});
+		};
+
+		const closeBtn = btnRow.createEl('button', { text: 'Close' });
+		closeBtn.onclick = () => this.close();
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
 }
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -156,6 +249,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [promptMenuOpen, setPromptMenuOpen] = useState(false);
 	const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
 	const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+	const [contextModalOpen, setContextModalOpen] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const promptRef = useRef<HTMLDivElement | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -339,6 +433,20 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			new Notice('❌ No se pudo copiar al portapapeles.');
 		}
 	}, []);
+
+	const saveAsNote = useCallback(async (text: string, msgId: string) => {
+		try {
+			const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+			const filename = `AI-Response-${timestamp}.md`;
+			const activeFile = plugin.app.workspace.getActiveFile();
+			const folder = activeFile?.parent?.path ?? '/';
+			const filePath = `${folder}/${filename}`;
+			await plugin.app.vault.create(filePath, text);
+			new Notice(`✅ Respuesta guardada como nota: ${filename}`);
+		} catch (e: any) {
+			new Notice(`❌ Error al guardar nota: ${e?.message ?? String(e)}`);
+		}
+	}, [plugin]);
 
 	const startEditMessage = useCallback((msgId: string, text: string) => {
 		setEditingMsgId(msgId);
@@ -534,6 +642,51 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const resolvedPromptId = currentPromptId || defaultChatPrompt?.id_prompt || null;
 	const currentPrompt = chatPrompts.find(p => p.id_prompt === resolvedPromptId);
 	const chatPromptText = currentPrompt?.texto;
+
+	const openContextModal = useCallback(() => {
+		const prompt = buildPrompt(mensajes, contextItems, '', characterContext, impersonateContext, activeNoteItem, chatPromptText);
+
+		// Compute breakdown parts matching buildPrompt internals
+		const groups: Array<[ContextKind, string]> = [
+			['codex', 'Entradas de Codex seleccionadas'], ['chapter', 'Capítulos seleccionados'], ['outline', 'Outlines seleccionados'],
+			['note', 'Notas seleccionadas'], ['folder', 'Carpetas seleccionadas'],
+		];
+		const contextPrompt = groups.map(([kind, title]) => {
+			const items = contextItems.filter(item => item.kind === kind);
+			if (!items.length) return '';
+			return `${title}:\n${items.map(item => `--- ${item.name}${item.path ? ` (${item.path})` : ''} ---\n${item.content}`).join('\n\n')}`;
+		}).filter(Boolean).join('\n\n');
+
+		const activeNoteBlock = activeNoteItem
+			? `Nota activa seleccionada:\n--- ${activeNoteItem.name}${activeNoteItem.path ? ` (${activeNoteItem.path})` : ''} ---\n${activeNoteItem.content}`
+			: '';
+
+		let systemPrompt = '';
+		if (chatPromptText) {
+			systemPrompt = `${chatPromptText}\n\n`;
+		}
+		if (characterContext) {
+			systemPrompt += `[MODO ROL: Estás interpretando al personaje "${characterContext.name}". Responde siempre EN PERSONAJE, usando su tono, vocabulario, conocimiento y personalidad. NO salgas del personaje bajo ninguna circunstancia. NO menciones que eres una IA. Eres "${characterContext.name}".]\n\nInformación del personaje:\n${characterContext.content}\n\n`;
+		}
+		if (impersonateContext) {
+			systemPrompt += `[MODO IMPERSONAR: El usuario está interpretando al personaje "${impersonateContext.name}". El usuario ES "${impersonateContext.name}". Trátalo como si fuera ese personaje. NO te refieras a él como "usuario" o "tú", llámalo "${impersonateContext.name}".]\n\nInformación del personaje del usuario:\n${impersonateContext.content}\n\n`;
+		}
+
+		const userLabel = impersonateContext ? impersonateContext.name : 'Usuario';
+		const chatHistory = mensajes
+			.filter(m => m.role === 'user' || m.role === 'assistant')
+			.map(m => `${m.role === 'user' ? userLabel : 'IA'}: ${m.mensaje}`)
+			.join('\n\n');
+
+		const breakdown = [
+			{ label: 'System Prompt', content: systemPrompt },
+			{ label: 'Selected Context', content: contextPrompt },
+			{ label: 'Active Note Block', content: activeNoteBlock },
+			{ label: 'Chat History', content: chatHistory },
+		];
+
+		new ChatContextModal(plugin.app, prompt, breakdown).open();
+	}, [mensajes, contextItems, characterContext, impersonateContext, activeNoteItem, chatPromptText, plugin]);
 
 	const handlePromptSelect = async (promptId: string) => {
 		setCurrentPromptId(promptId);
@@ -755,14 +908,22 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								<Icon.Copy width={13} height={13} />
 							</button>
 							{m.role === 'assistant' && (
-								<button className="nw-msg-action-btn" title="Regenerar" onClick={() => void regenerateMessage()}>
-									<Icon.Refresh width={13} height={13} />
-								</button>
+								<>
+									<button className="nw-msg-action-btn" title="Regenerar" onClick={() => void regenerateMessage()}>
+										<Icon.Refresh width={13} height={13} />
+									</button>
+									<button className="nw-msg-action-btn" title="Guardar como nota" onClick={() => void saveAsNote(m.mensaje, m.id_mensaje)}>
+										<Icon.SaveAlt width={13} height={13} />
+									</button>
+								</>
 							)}
 							<button className="nw-msg-action-btn nw-msg-action-delete" title="Eliminar mensaje" onClick={() => void handleDeleteMessage(m.id_mensaje)}>
 								<Icon.X width={13} height={13} />
 							</button>
 						</div>
+					)}
+					{m.created_at && (
+						<div className="nw-msg-timestamp">{formatTimestamp(m.created_at)}</div>
 					)}
 				</div>
 			))}
@@ -930,15 +1091,18 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					)}
 				</div>
 				<div style={{ display: "flex", justifyContent: "flex-end", gap: "4px"}}>
-					<button className="nw-btn-link" onClick={doCreate}>
-						<Icon.Plus width={12} height={12} />
-					</button>
 					{supportsVision && (
 						<button className="nw-btn-link" title="Subir imagen" onClick={() => fileInputRef.current?.click()}>
 							<Icon.Upload width={12} height={12} />
 						</button>
 					)}
-					<button className="nw-btn-link" onClick={() => new CustomPromptsModal(plugin.app as any, plugin).open()}>
+					<button className="nw-btn-link" title="Ver contexto" onClick={openContextModal}>
+						<Icon.Book width={12} height={12} />
+					</button>
+					<button className="nw-btn-link" title="Nuevo chat" onClick={doCreate}>
+						<Icon.Plus width={12} height={12} />
+					</button>
+					<button className="nw-btn-link" title="Configuración de prompts" onClick={() => new CustomPromptsModal(plugin.app as any, plugin).open()}>
 						<Icon.Settings width={12} height={12}/>
 					</button>
 				</div>

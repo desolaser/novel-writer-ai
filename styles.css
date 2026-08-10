@@ -654,9 +654,9 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-codex-batch-actions { display: flex; gap: 6px; padding: 0 8px 8px; }
 .nw-codex-delete-checkbox { flex: 0 0 auto; width: 16px; height: 16px; margin: 0 8px 0 0; accent-color: var(--interactive-accent); }
 .nw-chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.nw-msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; position: relative; }
-.nw-msg-user { align-self: flex-end; background: var(--interactive-accent); color: var(--text-on-accent); }
-.nw-msg-assistant { align-self: flex-start; background: var(--background-secondary); border: 1px solid var(--background-modifier-border); }
+.nw-msg { width: 100%; padding: 8px 12px; border-radius: 8px; position: relative; box-sizing: border-box; }
+.nw-msg-user { background: var(--interactive-accent); color: var(--text-on-accent); }
+.nw-msg-assistant { background: var(--background-secondary); border: 1px solid var(--background-modifier-border); }
 .nw-msg-role { font-size: 10px; opacity: 0.7; margin-bottom: 4px; }
 .nw-msg-role-character { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; opacity: 1; }
 .nw-msg-role-thumb { width: 48px; height: 48px; border-radius: 16px; object-fit: cover; flex: 0 0 auto; }
@@ -685,12 +685,13 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 	border: 1px solid var(--background-modifier-border);
 	padding: 4px;
 }
-.nw-msg-body { word-break: break-word; }
+.nw-msg-body { word-break: break-word; user-select: text; }
 .nw-msg-body p { margin: 0 0 6px; }
 .nw-msg-body p:last-child { margin-bottom: 0; }
 .nw-selector-text { font-size: 10px !important; }
 /* Markdown rendered content inside messages */
-.nw-markdown-body { line-height: 1.5; }
+.nw-markdown-body { line-height: 1.5; user-select: text; }
+.nw-markdown-body * { user-select: text; }
 .nw-markdown-body p { margin: 0 0 6px; }
 .nw-markdown-body p:last-child { margin-bottom: 0; }
 .nw-markdown-body ul, .nw-markdown-body ol { margin: 4px 0; padding-left: 18px; }
@@ -716,6 +717,9 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 /* When editing, the message bubble expands to full width */
 .nw-msg.nw-msg-editing { max-width: 100% !important; align-self: stretch !important; }
 .nw-msg-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* Message timestamp */
+.nw-msg-timestamp { font-size: 10px; opacity: 0.5; margin-top: 4px; user-select: none; }
 
 /* Image action dropdown */
 .nw-msg-image-actions { position: absolute; top: 4px; right: 4px; z-index: 5; }
