@@ -1,11 +1,11 @@
 import { App, Modal } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import React from 'react';
-import { useNovelWriter } from '../../store/novelWriterStore';
-import { DEFAULT_COLORS as PALETTE } from '../../../../constants/novel';
-import { Icon } from '../../components/Icon';
-import { Categoria } from '../../../../domain';
-import type NovelWriterPlugin from '../../../../../main';
+import { useNovelWriter } from '../../../store/novelWriterStore';
+import { DEFAULT_COLORS as PALETTE } from '../../../../../constants/novel';
+import { Icon } from '../../../components/Icon';
+import { Categoria } from '../../../../../domain';
+import type NovelWriterPlugin from '../../../../../../main';
 
 export class CategoriasModal extends Modal {
 	private root: Root | null = null;
@@ -19,15 +19,13 @@ export class CategoriasModal extends Modal {
 	async onClose() { if (this.root) { this.root.unmount(); this.root = null; } }
 }
 
-function CategoriasView({ plugin, close }: { plugin: NovelWriterPlugin; close: () => void }) {
+function CategoriasView() {
 	const store = useNovelWriter();
 	const custom = store.categorias.filter(c => !c.system);
 	const { createCategoria, updateCategoria, deleteCategoria, entradas } = store;
 	const [selected, setSelected] = React.useState<string | null>(custom[0]?.id_categoria ?? null);
 	const [query, setQuery] = React.useState('');
 	const [draft, setDraft] = React.useState<Categoria | null>(null);
-	const [newName, setNewName] = React.useState('');
-	const [adding, setAdding] = React.useState(false);
 
 	React.useEffect(() => { if (selected) { const c = custom.find(x => x.id_categoria === selected); setDraft(c ?? null); } }, [selected, custom.length]);
 

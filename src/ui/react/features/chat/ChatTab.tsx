@@ -5,7 +5,7 @@ import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
 import { ApiFactory } from '../../../../factories/api-factory';
 import { Icon } from '../../components/Icon';
-import { openEntryModal } from '../codex/CodexEntryModal';
+import { openEntryModal } from '../codex/modals/CodexEntryModal';
 import { ThumbnailCropModal } from '../codex/ThumbnailCropModal';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 import type { EntradaCodex, ChatContextItem, ChatContextKind } from '../../../../domain';

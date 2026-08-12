@@ -1,12 +1,12 @@
 import { App, Modal } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import React from 'react';
-import { useNovelWriter } from '../../store/novelWriterStore';
-import { DEFAULT_COLORS as PALETTE } from '../../../../constants/novel';
-import { Icon } from '../../components/Icon';
-import { TipoDetalle, OpcionDetalle, nowISO } from '../../../../domain';
-import { genId } from '../../../../utils/ids';
-import type NovelWriterPlugin from '../../../../../main';
+import { useNovelWriter } from '../../../store/novelWriterStore';
+import { DEFAULT_COLORS as PALETTE } from '../../../../../constants/novel';
+import { Icon } from '../../../components/Icon';
+import { TipoDetalle, OpcionDetalle, nowISO } from '../../../../../domain';
+import { genId } from '../../../../../utils/ids';
+import type NovelWriterPlugin from '../../../../../../main';
 
 export class DetallesModal extends Modal {
 	private root: Root | null = null;
