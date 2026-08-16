@@ -34,6 +34,13 @@ export default class NovelWriterPlugin extends Plugin {
 
 		this.registerView(VIEW_TYPE_COMPANION, (leaf) => new CompanionView(leaf, this));
 		this.registerView(VIEW_TYPE_OUTLINE, (leaf) => new OutlineView(leaf, this));
+		this.registerEvent(this.app.vault.on('rename', (file) => {
+			const folderPath = this.store.activeFolderPath;
+			if (!(file instanceof TFile) || file.extension !== 'md' || !folderPath || !file.path.startsWith(`${folderPath}/`)) return;
+			void import('./src/ui/react/store/novelWriterStore').then(({ useNovelWriter }) =>
+				useNovelWriter.getState().reloadAll()
+			);
+		}));
 		// Restore both working views automatically once Obsidian has finished restoring its layout.
 		// Obsidian may restore persisted ItemViews just after layout-ready. Wait a
 		// moment so we do not create a second Companion before that restoration is visible.

@@ -2,7 +2,7 @@ import { App } from 'obsidian';
 import { TFile } from 'obsidian';
 import { Acto, Capitulo, EntityId, nowISO } from '../../../domain';
 import { genId } from '../../../utils/ids';
-import { readJson, writeJson, joinPath, ensureFolder, writeText } from '../fsHelpers';
+import { basenameNoExt, readJson, writeJson, joinPath, ensureFolder, writeText } from '../fsHelpers';
 
 const FILE = 'escritura/estructura.json';
 
@@ -81,12 +81,31 @@ export async function createCapitulo(app: App, folderPath: string, idActo: Entit
 export async function updateCapitulo(app: App, fp: string, id: EntityId, patch: Partial<Capitulo>) {
 	const data = await readFile(app, fp);
 	const c = data.capitulos.find(x => x.id_capitulo === id);
+	if (c && patch.nombre && patch.nombre !== c.nombre && c.archivo) {
+		const file = await resolveChapterFile(app, fp, id, c.archivo);
+		if (file) {
+			const parent = file.parent?.path ?? '';
+			const targetPath = joinPath(parent, `${sanitizeFileName(patch.nombre)}.md`);
+			if (targetPath !== file.path) {
+				const existing = app.vault.getAbstractFileByPath(targetPath);
+				if (existing && existing !== file)
+					throw new Error(`Ya existe un archivo de capítulo llamado "${patch.nombre}.md".`);
+				await app.vault.rename(file, targetPath);
+			}
+			c.archivo = targetPath.startsWith(fp + '/') ? targetPath.slice(fp.length + 1) : targetPath;
+		}
+	}
 	if (c) Object.assign(c, patch, { updated_at: nowISO() });
 	await writeFile(app, fp, data);
 }
 
 export async function deleteCapitulo(app: App, fp: string, id: EntityId) {
 	const data = await readFile(app, fp);
+	const cap = data.capitulos.find(c => c.id_capitulo === id);
+	if (cap?.archivo) {
+		const file = await resolveChapterFile(app, fp, id, cap.archivo);
+		if (file) await app.vault.trash(file, true);
+	}
 	data.capitulos = data.capitulos.filter(c => c.id_capitulo !== id);
 	await writeFile(app, fp, data);
 }
@@ -95,7 +114,6 @@ export async function deleteCapitulo(app: App, fp: string, id: EntityId) {
 function sanitizeFileName(name: string): string {
 	return name
 		.replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
-		.replace(/\s+/g, '_')
 		.replace(/\.+$/, '')
 		.slice(0, 120)
 		|| 'capitulo';
@@ -191,7 +209,14 @@ export async function reconcileCapituloArchivos(app: App, folderPath: string): P
 		const novel = raw.match(/novel_writer_novel_id:\s*["']?([^\s"']+)/);
 		if (match && novel && data.actos.some(a => a.id_novela === novel[1])) byId.set(match[1], file.path);
 	}
-	let changed = false; for (const cap of data.capitulos) { const path = byId.get(cap.id_capitulo); if (path && cap.archivo !== path) { cap.archivo = path; changed = true; } }
+	let changed = false;
+	for (const cap of data.capitulos) {
+		const path = byId.get(cap.id_capitulo);
+		if (!path) continue;
+		if (cap.archivo !== path) { cap.archivo = path; changed = true; }
+		const fileName = basenameNoExt(path);
+		if (fileName && cap.nombre !== fileName) { cap.nombre = fileName; changed = true; }
+	}
 	if (changed) await writeFile(app, folderPath, data);
 }
 

@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNovelWriter } from "./store/novelWriterStore";
-import { Icon } from "./components/Icon";
-import { FuzzySuggestModal, TFile, TFolder } from "obsidian";
 import type NovelWriterPlugin from "../../../main";
-import { ApiFactory } from "../../factories/api-factory";
-import { buildScenePrompt } from "../../context/promptBuilder";
+import type { Acto, Capitulo } from "../../domain";
+import { useOutlineActions } from "./outline/useOutlineActions";
+import { OutlineHeader } from "./outline/OutlineHeader";
+import { AddActo } from "./outline/AddActo";
+import { ActoSection } from "./outline/ActoSection";
+import { ChapterFileModal } from "./outline/modals";
 
-/** Compact single-column outline: every chapter owns its collapsible outline editor. */
+/** Outline de una columna: orquesta estado de UI y delega en componentes de `./outline`. */
 export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const {
 		actos,
@@ -17,13 +19,11 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		deleteActo,
 		updateCapitulo,
 		deleteCapitulo,
-		ensureCapituloArchivo,
-		writeCapituloTexto,
-		readCapituloTexto,
 		linkCapituloArchivo,
 		store,
 		novels,
 	} = useNovelWriter();
+
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [editingCap, setEditingCap] = useState<string | null>(null);
 	const [editingAct, setEditingAct] = useState<string | null>(null);
@@ -31,18 +31,35 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [addingTo, setAddingTo] = useState<string | null>(null);
 	const [capName, setCapName] = useState("");
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
-	const [batchBusy, setBatchBusy] = useState(false);
-	const [batchStatus, setBatchStatus] = useState("");
 	const [openChapterMenu, setOpenChapterMenu] = useState<string | null>(null);
+	const [reorderingChapter, setReorderingChapter] = useState<string | null>(null);
+	const [draggedChapter, setDraggedChapter] = useState<string | null>(null);
+	const [reorderingAct, setReorderingAct] = useState<string | null>(null);
+	const [draggedAct, setDraggedAct] = useState<string | null>(null);
 	const [targetWords, setTargetWords] = useState(
 		plugin.settings.data.draftWordCount || 2000
 	);
 	const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+	const {
+		batchBusy,
+		batchStatus,
+		generateAllMemory,
+		generateChapterMemory,
+		generateChapterOutline,
+		generateAllOutlines,
+		createAllManuscripts,
+		createChapterManuscript,
+		generateDrafts,
+		generateSingleDraft,
+	} = useOutlineActions(plugin, targetWords);
+
 	useEffect(() => {
 		const next: Record<string, string> = {};
 		capitulos.forEach((c) => (next[c.id_capitulo] = c.outline ?? ""));
 		setDrafts(next);
 	}, [capitulos]);
+
 	useEffect(() => {
 		const openChapter = (event: Event) => {
 			const id = (event as CustomEvent<string>).detail;
@@ -59,28 +76,28 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				0
 			);
 		};
-		window.addEventListener(
-			"novel-writer:open-outline-chapter",
-			openChapter
-		);
+		window.addEventListener("novel-writer:open-outline-chapter", openChapter);
 		return () =>
 			window.removeEventListener(
 				"novel-writer:open-outline-chapter",
 				openChapter
 			);
 	}, []);
+
 	if (novels.length === 0)
 		return (
 			<div className="nw-empty-state">
 				<p>Crea una novela para usar el outline.</p>
 			</div>
 		);
+
 	const toggle = (id: string) =>
 		setExpanded((prev) => {
 			const n = new Set(prev);
 			n.has(id) ? n.delete(id) : n.add(id);
 			return n;
 		});
+
 	const saveOutline = (id: string, value: string) => {
 		setDrafts((d) => ({ ...d, [id]: value }));
 		const old = timers.current[id];
@@ -89,6 +106,14 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			void updateCapitulo(id, { outline: value });
 		}, 600);
 	};
+
+	const addActo = async () => {
+		if (newAct.trim()) {
+			await createActo(newAct.trim());
+			setNewAct("");
+		}
+	};
+
 	const addCap = async (idActo: string) => {
 		if (!capName.trim()) return;
 		const c = await createCapitulo(
@@ -100,937 +125,195 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		setCapName("");
 		setAddingTo(null);
 	};
-	const orderedChapters = () =>
-		actos.flatMap((a) => capitulos.filter((c) => c.id_acto === a.id_acto));
-	const buildChapterMemory = (chapter: any, chapters = orderedChapters()) => {
-		const index = chapters.findIndex(
-			(c) => c.id_capitulo === chapter.id_capitulo
-		);
-		return chapters
-			.slice(0, Math.max(0, index))
-			.filter((c) => c.outline?.trim())
-			.map((c) => `${c.nombre}:\n${c.outline.trim()}`)
-			.join("\n\n===\n\n");
+
+	const closeChapterMenu = () => setOpenChapterMenu(null);
+
+	const commitActName = (acto: Acto, name: string) => {
+		if (name && name !== acto.nombre)
+			void updateActo(acto.id_acto, { nombre: name });
+		setEditingAct(null);
 	};
 
-	return (
-		<div className="nw-outline-view nw-outline-single-column">
-			<div className="nw-outline-title">
-				<strong>Outline</strong>
-				<div className="nw-outline-actions">
-					<label className="nw-draft-length">
-						Palabras{" "}
-						<input
-							type="number"
-							min={100}
-							max={20000}
-							step={100}
-							value={targetWords}
-							onChange={(e) => {
-								const n = Math.max(
-									100,
-									Number(e.target.value) || 2000
-								);
-								setTargetWords(n);
-								plugin.settings.data.draftWordCount = n;
-								void plugin.settings.save();
-							}}
-						/>
-					</label>
-					<button
-						className="nw-btn nw-btn-primary"
-						disabled={batchBusy || capitulos.length === 0}
-						onClick={() => void generateAllMemory()}
-						aria-label="Generar Memoria"
-					>
-						<Icon.Magic />
-					</button>
-					<button
-						className="nw-btn nw-btn-primary"
-						disabled={batchBusy || capitulos.length === 0}
-						onClick={() => void generateAllOutlines()}
-						aria-label="Generar Outlines"
-					>
-						<Icon.Paintbrush />
-					</button>
-					<button
-						className="nw-btn nw-btn-primary"
-						disabled={batchBusy || capitulos.length === 0}
-						onClick={() =>
-							new FolderPickerModal(
-								plugin.app,
-								(folder) =>
-									void createAllManuscripts(folder.path)
-							).open()
-						}
-						aria-label="Crear manuscritos"
-					>
-						<Icon.Save />
-					</button>
-					<button
-						className="nw-btn nw-btn-experimental"
-						title="Función experimental: la longitud final depende del proveedor y del modelo"
-						disabled={batchBusy || capitulos.length === 0}
-						onClick={() => void generateDrafts()}
-					>
-						Generar drafts
-					</button>
-				</div>
-			</div>
-			{batchStatus && (
-				<div className="nw-outline-status">{batchStatus}</div>
-			)}
-			<div className="nw-outline-add">
-				<input
-					className="nw-input"
-					value={newAct}
-					onChange={(e) => setNewAct(e.target.value)}
-					placeholder="Nuevo acto"
-					onKeyDown={(e) => {
-						if (e.key === "Enter")
-							void (async () => {
-								if (newAct.trim()) {
-									await createActo(newAct.trim());
-									setNewAct("");
-								}
-							})();
-					}}
-				/>
-				<button
-					className="nw-btn nw-btn-primary"
-					onClick={async () => {
-						if (newAct.trim()) {
-							await createActo(newAct.trim());
-							setNewAct("");
-						}
-					}}
-				>
-					<Icon.Plus />
-				</button>
-			</div>
-			{actos.map((a) => {
-				const caps = capitulos.filter((c) => c.id_acto === a.id_acto);
-				return (
-					<section className="nw-outline-act" key={a.id_acto}>
-						<div className="nw-outline-act-header">
-							{editingAct === a.id_acto ? (
-								<input
-									className="nw-input nw-inline-rename"
-									autoFocus
-									defaultValue={a.nombre}
-									onBlur={(e) => {
-										const n = e.target.value.trim();
-										if (n && n !== a.nombre)
-											void updateActo(a.id_acto, {
-												nombre: n,
-											});
-										setEditingAct(null);
-									}}
-									onKeyDown={(e) => {
-										if (e.key === "Enter")
-											(
-												e.target as HTMLInputElement
-											).blur();
-										if (e.key === "Escape")
-											setEditingAct(null);
-									}}
-								/>
-							) : (
-								<button
-									className="nw-btn-link nw-outline-act-name"
-									onClick={() => setEditingAct(a.id_acto)}
-									title="Click para renombrar acto"
-								>
-									{a.nombre}
-								</button>
-							)}
-							<span className="nw-node-count">{caps.length}</span>
-							<button
-								className="nw-btn nw-btn-icon nw-btn-danger"
-								onClick={() => {
-									if (confirm(`Borrar acto "${a.nombre}"?`))
-										void deleteActo(a.id_acto);
-								}}
-							>
-								<Icon.Trash width={12} height={12} />
-							</button>
-						</div>
-						{caps.map((c) => (
-							<div
-								className="nw-outline-chapter"
-								key={c.id_capitulo}
-								data-nw-chapter-id={c.id_capitulo}
-							>
-								<div className="nw-outline-chapter-row">
-									<button
-										className="nw-btn-link nw-outline-expand"
-										onClick={() => toggle(c.id_capitulo)}
-									>
-										{expanded.has(c.id_capitulo)
-											? "▾"
-											: "▸"}
-									</button>
-									{editingCap === c.id_capitulo ? (
-										<input
-											className="nw-input nw-inline-rename"
-											autoFocus
-											defaultValue={c.nombre}
-											onBlur={(e) => {
-												const n = e.target.value.trim();
-												if (n && n !== c.nombre)
-													void updateCapitulo(
-														c.id_capitulo,
-														{ nombre: n }
-													);
-												setEditingCap(null);
-											}}
-											onKeyDown={(e) => {
-												if (e.key === "Enter")
-													(
-														e.target as HTMLInputElement
-													).blur();
-												if (e.key === "Escape")
-													setEditingCap(null);
-											}}
-										/>
-									) : (
-										<button
-											className="nw-btn-link nw-outline-chapter-name"
-											onClick={() =>
-												setEditingCap(c.id_capitulo)
-											}
-											title="Click para renombrar"
-										>
-											{c.nombre}
-											{c.outline ? " *" : ""}
-										</button>
-									)}
-									<span className="nw-chapter-file-status">
-										{c.archivo ? "Archivo" : "Sin archivo"}
-									</span>
-									{c.archivo && (
-										<button
-											className="nw-btn nw-btn-icon"
-											title="Abrir manuscrito"
-											aria-label="Abrir manuscrito"
-											onClick={() =>
-												openChapter(c.archivo!)
-											}
-										>
-											<Icon.ExternalLink
-												width={13}
-												height={13}
-											/>
-										</button>
-									)}
-									<button
-										className="nw-btn nw-btn-icon"
-										title="Acciones del capítulo"
-										aria-label="Acciones del capítulo"
-										onClick={() =>
-											setOpenChapterMenu(
-												openChapterMenu ===
-													c.id_capitulo
-													? null
-													: c.id_capitulo
-											)
-										}
-									>
-										⋯
-									</button>
-									{openChapterMenu === c.id_capitulo && (
-										<div className="nw-chapter-actions-menu">
-											<button
-												disabled={
-													batchBusy || !c.archivo
-												}
-												onClick={() => {
-													setOpenChapterMenu(null);
-													void generateChapterOutline(
-														c
-													);
-												}}
-											>
-												Generar Outline
-											</button>
-											<button
-												disabled={batchBusy}
-												onClick={() => {
-													setOpenChapterMenu(null);
-													void generateChapterMemory(
-														c
-													);
-												}}
-											>
-												Generar memoria
-											</button>
-											<button
-												disabled={batchBusy}
-												onClick={() => {
-													setOpenChapterMenu(null);
-													void generateSingleDraft(c);
-												}}
-											>
-												Generar draft
-											</button>
-											<button
-												onClick={() => {
-													setOpenChapterMenu(null);
-													new ChapterFileModal(
-														plugin.app,
-														(file) =>
-															linkCapituloArchivo(
-																c.id_capitulo,
-																file.path
-															)
-													).open();
-												}}
-											>
-												Vincular archivo Markdown
-											</button>
-											<button
-												className="nw-btn-danger"
-												onClick={() => {
-													setOpenChapterMenu(null);
-													if (
-														confirm(
-															`Borrar "${c.nombre}"?`
-														)
-													)
-														void deleteCapitulo(
-															c.id_capitulo
-														);
-												}}
-											>
-												Borrar capítulo
-											</button>
-										</div>
-									)}
-								</div>
-								{expanded.has(c.id_capitulo) && (
-									<textarea
-										className="nw-outline-inline-editor"
-										value={drafts[c.id_capitulo] ?? ""}
-										onChange={(e) =>
-											saveOutline(
-												c.id_capitulo,
-												e.target.value
-											)
-										}
-										placeholder="Resumen de lo que pasará en este capítulo..."
-										rows={6}
-									/>
-								)}
-							</div>
-						))}
-						{addingTo === a.id_acto ? (
-							<div className="nw-cap-add-row">
-								<input
-									className="nw-input"
-									autoFocus
-									value={capName}
-									onChange={(e) => setCapName(e.target.value)}
-									onKeyDown={(e) => {
-										if (e.key === "Enter")
-											void addCap(a.id_acto);
-										if (e.key === "Escape")
-											setAddingTo(null);
-									}}
-								/>
-								<button
-									className="nw-btn nw-btn-primary"
-									onClick={() => void addCap(a.id_acto)}
-								>
-									<Icon.Plus />
-								</button>
-							</div>
-						) : (
-							<button
-								className="nw-cap-add"
-								onClick={() => {
-									setAddingTo(a.id_acto);
-									setCapName("");
-								}}
-							>
-								+ Capítulo
-							</button>
-						)}
-					</section>
-				);
-			})}
-		</div>
-	);
+	const commitCapName = (chapter: Capitulo, name: string) => {
+		if (name && name !== chapter.nombre)
+			void updateCapitulo(chapter.id_capitulo, { nombre: name });
+		setEditingCap(null);
+	};
 
-	async function generateAllMemory() {
-		setBatchBusy(true);
-		setBatchStatus("Generando memoria acumulada...");
-		try {
-			const chapters = orderedChapters();
-			for (let i = 0; i < chapters.length; i++) {
-				const memory = buildChapterMemory(chapters[i], chapters);
-				await writeChapterMemory(chapters[i], memory);
-				setBatchStatus(`Memoria: ${i + 1}/${chapters.length}`);
-			}
-			setBatchStatus(
-				`Memoria generada para ${chapters.length} capítulos.`
-			);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
-		} finally {
-			setBatchBusy(false);
-		}
-	}
+	const deleteAct = (acto: Acto) => {
+		if (confirm(`Borrar acto "${acto.nombre}"?`))
+			void deleteActo(acto.id_acto);
+	};
 
-	async function generateChapterMemory(chapter: any) {
-		setBatchBusy(true);
-		setBatchStatus(`Generando memoria: ${chapter.nombre}`);
-		try {
-			const memory = buildChapterMemory(chapter);
-			await writeChapterMemory(chapter, memory);
-			setBatchStatus(`Memoria actualizada: ${chapter.nombre}`);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
-		} finally {
-			setBatchBusy(false);
-		}
-	}
+	const deleteChapter = (chapter: Capitulo) => {
+		closeChapterMenu();
+		if (confirm(`Borrar "${chapter.nombre}"?`))
+			void deleteCapitulo(chapter.id_capitulo);
+	};
 
-	async function generateChapterOutline(chapter: any) {
-		if (!store || !chapter.archivo) return;
-		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
-			setBatchStatus("Configura un modelo en Settings.");
-			return;
-		}
+	const linkChapterFile = (chapter: Capitulo) => {
+		closeChapterMenu();
+		new ChapterFileModal(plugin.app, (file) =>
+			linkCapituloArchivo(chapter.id_capitulo, file.path)
+		).open();
+	};
 
-		setBatchBusy(true);
-		setBatchStatus(`Generando outline: ${chapter.nombre}`);
-
-		try {
-			const manuscript = await readCapituloTexto(chapter.id_capitulo);
-			if (!manuscript.trim()) {
-				setBatchStatus(
-					`El manuscrito de ${chapter.nombre} está vacío.`
-				);
-				return;
-			}
-			const prompt = `Resume el siguiente capítulo en UN ÚNICO PÁRRAFO breve, de aproximadamente 80 a 120 palabras. Prioriza una respuesta completa y terminada; no la cortes a mitad de una oración. Escribe una síntesis narrativa breve en prosa continua. No uses saltos de línea, viñetas, listas numeradas, guiones, encabezados, etiquetas, formato Markdown ni estructura de presentación. Menciona solo los acontecimientos esenciales en orden, los cambios importantes de los personajes y el estado final de la trama. No inventes información, no escribas el capítulo y devuelve únicamente ese único párrafo, sin introducción ni comentarios adicionales.\n\nTítulo del capítulo: ${chapter.nombre}\n\nTexto del capítulo:\n${manuscript}`;
-			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
-			);
-			const result = await requestDraftCompletion(
-				api,
-				prompt,
-				settings.proveedor.modelo,
-				800,
-				settings.aiOptions.temperature,
-				settings.aiOptions.topP
-			);
-			const outline = (result.text ?? "")
-				.replace(/\s*\n+\s*/g, " ")
-				.replace(/\s{2,}/g, " ")
-				.trim();
-			if (!outline) {
-				setBatchStatus(
-					`La IA no devolvió un outline para ${chapter.nombre}.`
-				);
-				return;
-			}
-			await updateCapitulo(chapter.id_capitulo, { outline });
-			setBatchStatus(`Outline actualizado: ${chapter.nombre}`);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
-		} finally {
-			setBatchBusy(false);
-		}
-	}
-
-	async function generateAllOutlines() {
-		if (!store) return;
-		if (!plugin.settings.data.proveedor.modelo) {
-			setBatchStatus("Configura un modelo en Settings.");
-			return;
-		}
-		setBatchBusy(true);
-		try {
-			const chapters = orderedChapters();
-			for (let i = 0; i < chapters.length; i++) {
-				setBatchStatus(
-					`Generando outline: ${i + 1}/${chapters.length} — ${
-						chapters[i].nombre
-					}`
-				);
-				await generateChapterOutlineForBatch(chapters[i]);
-			}
-			setBatchStatus(
-				`Outlines generados para ${chapters.length} capítulos.`
-			);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
-		} finally {
-			setBatchBusy(false);
-		}
-	}
-
-	async function generateChapterOutlineForBatch(chapter: any) {
-		if (!store || !chapter.archivo) return;
-		const settings = plugin.settings.data;
-		const manuscript = await readCapituloTexto(chapter.id_capitulo);
-		if (!manuscript.trim()) return;
-		const prompt = `Resume el siguiente capítulo en UN ÚNICO PÁRRAFO breve, de aproximadamente 80 a 120 palabras. Prioriza una respuesta completa y terminada; no la cortes a mitad de una oración. Escribe una síntesis narrativa breve en prosa continua. No uses saltos de línea, viñetas, listas numeradas, guiones, encabezados, etiquetas, formato Markdown ni estructura de presentación. Menciona solo los acontecimientos esenciales en orden, los cambios importantes de los personajes y el estado final de la trama. No inventes información, no escribas el capítulo y devuelve únicamente ese único párrafo, sin introducción ni comentarios adicionales.\n\nTítulo del capítulo: ${chapter.nombre}\n\nTexto del capítulo:\n${manuscript}`;
-		const api = new ApiFactory().createApi(
-			settings.proveedor.id,
-			settings.apiToken[settings.proveedor.id] ?? ""
+	const reorderChapters = async (sourceId: string, targetId: string) => {
+		if (reorderingChapter || sourceId === targetId) return;
+		const chapter = capitulos.find((item) => item.id_capitulo === sourceId);
+		const targetChapter = capitulos.find(
+			(item) => item.id_capitulo === targetId
 		);
-		const result = await requestDraftCompletion(
-			api,
-			prompt,
-			settings.proveedor.modelo,
-			800,
-			settings.aiOptions.temperature,
-			settings.aiOptions.topP
+		if (!chapter || !targetChapter || chapter.id_acto !== targetChapter.id_acto)
+			return;
+
+		const chaptersInAct = capitulos
+			.filter((item) => item.id_acto === chapter.id_acto)
+			.sort((first, second) => first.orden - second.orden);
+		const sourceIndex = chaptersInAct.findIndex(
+			(item) => item.id_capitulo === chapter.id_capitulo
 		);
-		const outline = (result.text ?? "")
-			.replace(/\s*\n+\s*/g, " ")
-			.replace(/\s{2,}/g, " ")
-			.trim();
-		if (outline) await updateCapitulo(chapter.id_capitulo, { outline });
-	}
+		const targetIndex = chaptersInAct.findIndex(
+			(item) => item.id_capitulo === targetChapter.id_capitulo
+		);
+		const [movedChapter] = chaptersInAct.splice(sourceIndex, 1);
+		chaptersInAct.splice(targetIndex, 0, movedChapter);
 
-	async function writeChapterMemory(chapter: any, memory: string) {
-		const relativePath = await ensureCapituloArchivo(chapter.id_capitulo);
-		if (!relativePath || !store?.activeFolderPath) return;
-		// Use frontmatter-based resolution so renamed files are still found
-		const { resolveChapterFile } = await import("../../infrastructure/storage/repos/EstructuraRepo");
-		const file = await resolveChapterFile(plugin.app, store.activeFolderPath, chapter.id_capitulo, relativePath);
-		if (!file) return;
-		const yamlValue = memory.trim()
-			? `memoryContent: |-\n${memory
-					.split("\n")
-					.map((line) => `  ${line}`)
-					.join("\n")}`
-			: 'memoryContent: ""';
-		// Use vault.process() for atomic read-modify-write to avoid corrupting
-		// the editor state when the chapter file is open in an Obsidian pane.
-		await plugin.app.vault.process(file, (raw) => {
-			const match = raw.match(/^---\s*[\s\S]*?---/);
-			if (!match) {
-				return `---\n${yamlValue}\n---\n\n${raw}`;
-			}
-			const body = match[0].replace(/^---\s*/, "").replace(/---\s*$/, "");
-			const lines = body.split("\n");
-			const kept: string[] = [];
-			for (let i = 0; i < lines.length; i++) {
-				if (/^\s*memoryContent\s*:/.test(lines[i])) {
-					while (i + 1 < lines.length && /^\s{2,}/.test(lines[i + 1]))
-						i++;
-					continue;
-				}
-				kept.push(lines[i]);
-			}
-			const nextFrontmatter = `---\n${kept
-				.join("\n")
-				.replace(/\n+$/, "")}\n${yamlValue}\n---`;
-			return raw.replace(match[0], nextFrontmatter);
-		});
-	}
-
-	async function createAllManuscripts(targetFolder: string) {
-		if (!store) return;
-		setBatchBusy(true);
-		setBatchStatus("Creando archivos...");
+		closeChapterMenu();
+		setReorderingChapter(chapter.id_capitulo);
 		try {
-			const chapters = orderedChapters();
-			for (let i = 0; i < chapters.length; i++) {
-				if (!chapters[i].archivo)
-					await ensureCapituloArchivo(
-						chapters[i].id_capitulo,
-						targetFolder
-					);
-				setBatchStatus(`Creando archivos: ${i + 1}/${chapters.length}`);
+			for (const [orden, item] of chaptersInAct.entries()) {
+				if (item.orden !== orden)
+					await updateCapitulo(item.id_capitulo, { orden });
 			}
-			setBatchStatus(`Listo: ${chapters.length} manuscritos preparados.`);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
-			setBatchBusy(false);
+			setReorderingChapter(null);
 		}
-	}
+	};
 
-	async function generateDrafts() {
-		if (!store) return;
-		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
-			alert("Configura un modelo en Settings.");
-			return;
-		}
-		if (
-			!confirm(
-				"Se generarán drafts solamente para capítulos sin contenido. ¿Continuar?"
-			)
-		)
-			return;
-		setBatchBusy(true);
-		let draftsGenerated = 0;
+	const reorderActs = async (sourceId: string, targetId: string) => {
+		if (reorderingAct || sourceId === targetId) return;
+		const orderedActs = [...actos].sort(
+			(first, second) => first.orden - second.orden
+		);
+		const sourceIndex = orderedActs.findIndex((item) => item.id_acto === sourceId);
+		const targetIndex = orderedActs.findIndex((item) => item.id_acto === targetId);
+		if (sourceIndex < 0 || targetIndex < 0) return;
+		const [movedAct] = orderedActs.splice(sourceIndex, 1);
+		orderedActs.splice(targetIndex, 0, movedAct);
+
+		setReorderingAct(sourceId);
 		try {
-			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
-			);
-			const chapters = orderedChapters();
-			const draftSettings = {
-				...settings,
-				memoryContent: settings.memoryContent
-					.replace(
-						/\n?\[Novel Writer AI - Generated Story Context\][\s\S]*?\[End Novel Writer AI - Generated Story Context\]\n?/g,
-						""
-					)
-					.trim(),
-			};
-			for (let i = 0; i < chapters.length; i++) {
-				const c = chapters[i];
-				setBatchStatus(
-					`Generando draft: ${i + 1}/${chapters.length} — ${c.nombre}`
-				);
-				await ensureCapituloArchivo(c.id_capitulo);
-				const existing = await readCapituloTexto(c.id_capitulo);
-				if (existing.trim()) continue;
-				// Generate memory from previous chapters for context
-				const chapterMemory = buildChapterMemory(c, chapters);
-				await writeChapterMemory(c, chapterMemory);
-				// Build historical context from previous chapters'
-				// outlines AND actual draft content
-				const prevContextParts: string[] = [];
-				for (let j = 0; j < i; j++) {
-					const prev = chapters[j];
-					const prevText = await readCapituloTexto(prev.id_capitulo);
-					if (prevText.trim() && !isCorruptGeneration(prevText)) {
-						prevContextParts.push(
-							`Capítulo ${prev.nombre}: ${makeContextExcerpt(prevText)}`
-						);
-					}
-				}
-				const historicalContext = prevContextParts.join("\n\n");
-				let text = "";
-				let attempts = 0;
-				while (
-					attempts++ < 12 &&
-					text.trim().split(/\s+/).filter(Boolean).length <
-						targetWords * 0.95
-				) {
-					const currentWords = text
-						.trim()
-						.split(/\s+/)
-						.filter(Boolean).length;
-					const remainingWords = Math.max(
-						100,
-						targetWords - currentWords
-					);
-					const prompt = `${await buildScenePrompt(
-						plugin.app,
-						store.activeFolderPath!,
-						draftSettings,
-						c.outline ?? "",
-						text,
-						historicalContext,
-						targetWords
-					)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${
-						currentWords === 0
-							? "Escribe el capítulo completo."
-							: `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`
-					} ${
-						currentWords >= targetWords * 0.8
-							? "Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción."
-							: "Todavía no cierres prematuramente el capítulo."
-					}`;
-					const requestTokens = Math.max(
-						512,
-						Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)
-					);
-					const result = await requestDraftCompletion(
-						api,
-						prompt,
-						settings.proveedor.modelo,
-						requestTokens,
-						settings.aiOptions.temperature,
-						settings.aiOptions.topP
-					);
-					const addition = result.text ?? "";
-					if (!addition.trim()) break;
-					if (isCorruptGeneration(addition)) {
-						setBatchStatus(
-							`La IA devolvió una respuesta inválida para ${c.nombre}; se detuvo el capítulo.`
-						);
-						break;
-					}
-					text += `${text ? "\n\n" : ""}${addition}`;
-				}
-				if (text.trim() && !isCorruptGeneration(text)) {
-					await writeCapituloTexto(c.id_capitulo, text);
-					draftsGenerated++;
-				}
+			for (const [orden, acto] of orderedActs.entries()) {
+				if (acto.orden !== orden) await updateActo(acto.id_acto, { orden });
 			}
-			setBatchStatus(`Listo: ${draftsGenerated} drafts generados.`);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
-			setBatchBusy(false);
+			setReorderingAct(null);
 		}
-	}
+	};
 
-	async function generateSingleDraft(chapter: any) {
-		if (!store) return;
-		const existing = await readCapituloTexto(chapter.id_capitulo);
-		if (
-			existing.trim() &&
-			!confirm(
-				`El capítulo "${chapter.nombre}" ya tiene contenido. Se borrará y se generará un draft desde cero. ¿Continuar?`
-			)
-		)
-			return;
-		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
-			alert("Configura un modelo en Settings.");
-			return;
-		}
-		setBatchBusy(true);
-		setBatchStatus(`Generando draft: ${chapter.nombre}`);
-		try {
-			const chapters = orderedChapters();
-			// Generate memory from previous chapters for context
-			const chapterMemory = buildChapterMemory(chapter, chapters);
-			await writeChapterMemory(chapter, chapterMemory);
-			// Build historical context from previous chapters' actual content
-			const historyParts: string[] = [];
-			for (const c of chapters) {
-				if (c.id_capitulo === chapter.id_capitulo) break;
-				const prevText = await readCapituloTexto(c.id_capitulo);
-				if (prevText.trim() && !isCorruptGeneration(prevText))
-					historyParts.push(
-						`Capítulo ${c.nombre}: ${makeContextExcerpt(prevText)}`
-					);
-			}
-			const historicalContext = historyParts.join("\n\n");
-			const draftSettings = {
-				...settings,
-				memoryContent: settings.memoryContent
-					.replace(
-						/\n?\[Novel Writer AI - Generated Story Context\][\s\S]*?\[End Novel Writer AI - Generated Story Context\]\n?/g,
-						""
-					)
-					.trim(),
-			};
-			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
-			);
-			let text = "";
-			let attempts = 0;
-			while (
-				attempts++ < 12 &&
-				text.trim().split(/\s+/).filter(Boolean).length <
-					targetWords * 0.95
-			) {
-				const currentWords = text
-					.trim()
-					.split(/\s+/)
-					.filter(Boolean).length;
-				const remainingWords = Math.max(
-					100,
-					targetWords - currentWords
-				);
-				const prompt = `${await buildScenePrompt(
-					plugin.app,
-					store.activeFolderPath!,
-					draftSettings,
-					chapter.outline ?? "",
-					text,
-					historicalContext,
-					targetWords
-				)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${
-					currentWords >= targetWords * 0.8
-						? "Cierra la trama en esta respuesta."
-						: "Continúa desarrollando el capítulo sin reiniciarlo."
-				}`;
-				const result = await requestDraftCompletion(
-					api,
-					prompt,
-					settings.proveedor.modelo,
-					Math.max(
-						512,
-						Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)
-					),
-					settings.aiOptions.temperature,
-					settings.aiOptions.topP
-				);
-				const addition = result.text ?? "";
-				if (!addition.trim()) break;
-				if (isCorruptGeneration(addition)) {
-					setBatchStatus(
-						`La IA devolvió una respuesta inválida para ${chapter.nombre}; se detuvo el capítulo.`
-					);
-					break;
-				}
-				text += `${text ? "\n\n" : ""}${addition}`;
-			}
-			await ensureCapituloArchivo(chapter.id_capitulo);
-			await writeCapituloTexto(chapter.id_capitulo, text);
-			setBatchStatus(`Draft listo: ${chapter.nombre}`);
-		} catch (e: any) {
-			setBatchStatus("Error: " + (e?.message ?? String(e)));
-		} finally {
-			setBatchBusy(false);
-		}
-	}
-
-	async function refreshGeneratedContext() {
-		const summaries: string[] = [];
-		for (const c of orderedChapters()) {
-			const text = await readCapituloTexto(c.id_capitulo);
-			if (text.trim() && !isCorruptGeneration(text))
-				summaries.push(
-					`Capítulo ${c.nombre}: ${makeContextExcerpt(text)}`
-				);
-		}
-		await saveGeneratedContext(
-			plugin.settings.data.memoryContent,
-			summaries
-		);
-	}
-
-	async function saveGeneratedContext(memory: string, summaries: string[]) {
-		if (summaries.length === 0) return;
-		const start = "[Novel Writer AI - Generated Story Context]";
-		const end = "[End Novel Writer AI - Generated Story Context]";
-		const manual = cleanManualMemory(
-			memory
-				.replace(
-					new RegExp(`\\n?${start}[\\s\\S]*?${end}\\n?`, "g"),
-					""
-				)
-				.trim()
-		);
-		plugin.settings.data.memoryContent = `${manual}${
-			manual ? "\n\n" : ""
-		}${start}\n${summaries.join("\n\n")}\n${end}`;
-		await plugin.settings.save();
-	}
-
-	function makeContextExcerpt(text: string): string {
-		const clean = text.replace(/\s+/g, " ").trim();
-		if (clean.length <= 700) return clean;
-		const boundary = clean.slice(0, 700).lastIndexOf(". ");
-		return `${clean
-			.slice(0, boundary > 250 ? boundary + 1 : 700)
-			.trim()} …`;
-	}
-
-	function isCorruptGeneration(text: string): boolean {
-		const compact = text.replace(/\s+/g, " ").trim();
-		if (!compact) return false;
-		const suspiciousToken = compact
-			.split(" ")
-			.some(
-				(token) =>
-					token.length > 140 &&
-					((token.match(/[#:]/g)?.length ?? 0) > 4 ||
-						(token.match(/[\uFFFD]/g)?.length ?? 0) > 0)
-			);
-		const replacementChars = (compact.match(/[\uFFFD]/g) ?? []).length;
-		return (
-			suspiciousToken ||
-			replacementChars > 3 ||
-			/(?:#u-hc|pí\d+Lm|u#u-hc)/i.test(compact)
-		);
-	}
-
-	function cleanManualMemory(memory: string): string {
-		return memory
-			.split(/\n\s*\n/)
-			.filter((paragraph) => !isCorruptGeneration(paragraph))
-			.join("\n\n")
-			.trim();
-	}
-
-	function openChapter(path: string) {
+	const openChapter = (path: string) => {
 		const fullPath = path.startsWith("escritura/")
 			? `${store?.activeFolderPath ?? ""}/${path}`
 			: path;
 		void plugin.app.workspace.openLinkText(fullPath, "", false);
-	}
-}
+	};
 
-class ChapterFileModal extends FuzzySuggestModal<TFile> {
-	constructor(app: any, private onPick: (file: TFile) => void) {
-		super(app);
-	}
-	getItems() {
-		return this.app.vault.getMarkdownFiles();
-	}
-	getItemText(file: TFile) {
-		return file.path;
-	}
-	onChooseItem(file: TFile) {
-		this.onPick(file);
-	}
-}
+	const onTargetWordsChange = (n: number) => {
+		setTargetWords(n);
+		plugin.settings.data.draftWordCount = n;
+		void plugin.settings.save();
+	};
 
-class FolderPickerModal extends FuzzySuggestModal<TFolder> {
-	constructor(app: any, private onPick: (folder: TFolder) => void) {
-		super(app);
-	}
-	getItems() {
-		return this.app.vault
-			.getAllLoadedFiles()
-			.filter((file: any): file is TFolder => file instanceof TFolder);
-	}
-	getItemText(folder: TFolder) {
-		return folder.path || "/";
-	}
-	onChooseItem(folder: TFolder) {
-		this.onPick(folder);
-	}
-}
-
-async function requestDraftCompletion(
-	api: any,
-	prompt: string,
-	model: string,
-	maxTokens: number,
-	temperature: number,
-	topP?: number
-): Promise<{ text?: string }> {
-	try {
-		return await api.generateCompletion(prompt, model, {
-			max_tokens: maxTokens,
-			temperature,
-			top_p: topP,
-			stream: false,
-		});
-	} catch (error: any) {
-		const message = String(error?.message ?? error).toLowerCase();
-		if (
-			!message.includes("internal server") &&
-			!message.includes("max_tokens") &&
-			!message.includes("context")
-		)
-			throw error;
-		// Some providers reject large output budgets even when the model advertises them.
-		// Retry with conservative budgets; the caller can request another continuation.
-		for (const fallback of [2048, 1024, 512]) {
-			if (fallback >= maxTokens) continue;
-			try {
-				return await api.generateCompletion(prompt, model, {
-					max_tokens: fallback,
-					temperature,
-					top_p: topP,
-					stream: false,
-				});
-			} catch {
-				/* try next provider-safe budget */
-			}
-		}
-		throw error;
-	}
+	return (
+		<div className="nw-outline-view nw-outline-single-column">
+			<OutlineHeader
+				targetWords={targetWords}
+				onTargetWordsChange={onTargetWordsChange}
+				batchBusy={batchBusy}
+				chaptersCount={capitulos.length}
+				onGenerateAllMemory={() => void generateAllMemory()}
+				onGenerateAllOutlines={() => void generateAllOutlines()}
+				onCreateAllManuscripts={() => void createAllManuscripts()}
+				onGenerateDrafts={() => void generateDrafts()}
+			/>
+			{batchStatus && (
+				<div className="nw-outline-status">{batchStatus}</div>
+			)}
+			<AddActo value={newAct} onChange={setNewAct} onCreate={() => void addActo()} />
+			{[...actos].sort((first, second) => first.orden - second.orden).map((a) => {
+				const caps = capitulos
+					.filter((c) => c.id_acto === a.id_acto)
+					.sort((first, second) => first.orden - second.orden);
+				return (
+					<ActoSection
+						key={a.id_acto}
+						acto={a}
+						chapters={caps}
+						editingAct={editingAct === a.id_acto}
+						onStartEditingAct={() => setEditingAct(a.id_acto)}
+						onCommitActName={(name) => commitActName(a, name)}
+						onCancelEditingAct={() => setEditingAct(null)}
+						onDeleteAct={() => deleteAct(a)}
+						reorderingAct={Boolean(reorderingAct)}
+						draggedAct={draggedAct}
+						onDragStartAct={() => setDraggedAct(a.id_acto)}
+						onDragEndAct={() => setDraggedAct(null)}
+						onDropAct={() => {
+							if (draggedAct) void reorderActs(draggedAct, a.id_acto);
+							setDraggedAct(null);
+						}}
+						expanded={expanded}
+						editingCap={editingCap}
+						openChapterMenu={openChapterMenu}
+						drafts={drafts}
+						batchBusy={batchBusy}
+						reorderingChapter={reorderingChapter}
+						draggedChapter={draggedChapter}
+						onToggleChapter={toggle}
+						onStartEditingCap={setEditingCap}
+						onCommitCapName={commitCapName}
+						onCancelEditingCap={() => setEditingCap(null)}
+						onToggleChapterMenu={setOpenChapterMenu}
+						onSaveOutline={saveOutline}
+						onOpenManuscript={openChapter}
+						onGenerateChapterOutline={(chapter) => {
+							closeChapterMenu();
+							void generateChapterOutline(chapter);
+						}}
+						onGenerateChapterMemory={(chapter) => {
+							closeChapterMenu();
+							void generateChapterMemory(chapter);
+						}}
+						onGenerateChapterDraft={(chapter) => {
+							closeChapterMenu();
+							void generateSingleDraft(chapter);
+						}}
+						onCreateChapterManuscript={(chapter) => {
+							closeChapterMenu();
+							void createChapterManuscript(chapter);
+						}}
+						onLinkChapterFile={linkChapterFile}
+						onDeleteChapter={deleteChapter}
+						onDragStartChapter={setDraggedChapter}
+						onDragEndChapter={() => setDraggedChapter(null)}
+						onDropChapter={(targetId) => {
+							if (draggedChapter)
+								void reorderChapters(draggedChapter, targetId);
+							setDraggedChapter(null);
+						}}
+						adding={addingTo === a.id_acto}
+						newChapterName={capName}
+						onNewChapterNameChange={setCapName}
+						onStartAddingChapter={() => {
+							setAddingTo(a.id_acto);
+							setCapName("");
+						}}
+						onCancelAddingChapter={() => setAddingTo(null)}
+						onAddChapter={() => void addCap(a.id_acto)}
+					/>
+				);
+			})}
+		</div>
+	);
 }

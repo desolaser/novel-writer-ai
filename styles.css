@@ -832,6 +832,9 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-chapter { margin-left: 12px; }
 .nw-outline-chapter-row { display: flex; align-items: center; gap: 5px; padding: 5px 4px; }
 .nw-outline-chapter-row { position: relative; }
+.nw-outline-chapter-drag-handle { width: 18px; border: 0; background: none; color: var(--text-muted); cursor: grab; padding: 2px; }
+.nw-outline-chapter-drag-handle:active { cursor: grabbing; }
+.nw-outline-chapter.is-dragging { opacity: .45; }
 .nw-chapter-actions-menu { position: absolute; z-index: 20; right: 4px; top: 32px; display: flex; flex-direction: column; min-width: 180px; padding: 4px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 6px; box-shadow: var(--shadow-s); }
 .nw-chapter-actions-menu button { border: 0; background: transparent; color: var(--text-normal); text-align: left; padding: 6px 8px; cursor: pointer; white-space: nowrap; }
 .nw-chapter-actions-menu button:hover { background: var(--background-modifier-hover); }
