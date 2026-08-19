@@ -42,8 +42,8 @@ export function ActoHeader({
 				className="nw-btn-link nw-outline-chapter-drag-handle"
 				draggable={!reordering}
 				disabled={reordering}
-				title="Arrastra para reordenar el acto"
-				aria-label="Arrastra para reordenar el acto"
+				title="Drag to reorder the act"
+				aria-label="Drag to reorder the act"
 				onDragStart={(event) => {
 					event.dataTransfer.effectAllowed = "move";
 					event.dataTransfer.setData("text/plain", acto.id_acto);
@@ -63,7 +63,7 @@ export function ActoHeader({
 				<button
 					className="nw-btn-link nw-outline-act-name"
 					onClick={onStartEditing}
-					title="Click para renombrar acto"
+					title="Click to rename act"
 				>
 					{acto.nombre}
 				</button>

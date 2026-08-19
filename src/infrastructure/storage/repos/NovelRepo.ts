@@ -1,5 +1,5 @@
-import { App, TFolder, TAbstractFile, TFile } from 'obsidian';
-import { Novela, EntityId, ISODate } from '../../../domain';
+import { App, TFolder, TFile } from 'obsidian';
+import { Novela, EntityId } from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { createActo as dbCreateActo, createCapitulo as dbCreateCapitulo } from './EstructuraRepo';
 import { nowISO } from '../../../domain/types';
@@ -8,8 +8,8 @@ import {
 	defaultCategoryColor,
 } from '../../../constants/novel';
 import {
-	readJson, writeJson, ensureFolder, ensureNovelFolders, deleteFile,
-	joinPath, basenameNoExt,
+	readJson, writeJson, ensureNovelFolders, deleteFile,
+	joinPath
 } from '../fsHelpers';
 import { Categoria } from '../../../domain';
 
@@ -127,8 +127,8 @@ export async function createNovel(
 	await writeJson(app, joinPath(finalPath, 'codex', 'categorias.json'), categorias);
 
 	// Estructura default: 1 acto + 1 capitulo
-	const acto = await dbCreateActo(app, finalPath, idNovela, 'Acto 1');
-	const cap = await dbCreateCapitulo(app, finalPath, acto.id_acto, 'Capitulo 1', 0);
+	const acto = await dbCreateActo(app, finalPath, idNovela, 'Act 1');
+	const cap = await dbCreateCapitulo(app, finalPath, acto.id_acto, 'Chapter 1', 0);
 	return { folderPath: finalPath, novela };
 }
 
@@ -138,7 +138,7 @@ function folderTaken(app: App, path: string): boolean {
 }
 
 function sanitizeFolderName(name: string): string {
-	return (name || 'novela').replace(/[\\/:*?"<>|]/g, '_').trim() || 'novela';
+	return (name || 'novel').replace(/[\\/:*?"<>|]/g, '_').trim() || 'novel';
 }
 
 export { sanitizeFolderName };

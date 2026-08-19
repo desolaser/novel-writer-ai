@@ -27,7 +27,7 @@ const CodexNewEntry = ({ createAndEdit } : { createAndEdit: (idCat: string) => P
 			<button
 				className="nw-btn nw-btn-primary nw-btn-add-entry"
 				onClick={() => setOpen(!open)}
-				title="Nueva entrada"
+				title="New entry"
 			>
 				<Icon.Plus width={12} height={12} />
 				<span>New Entry</span>
@@ -57,7 +57,7 @@ const CodexNewEntry = ({ createAndEdit } : { createAndEdit: (idCat: string) => P
 								}}
 							/>
 						</span>
-						<span style={{ flex: 1 }}>Entrada Global (Otros)</span>
+						<span style={{ flex: 1 }}>Global Entry (Others)</span>
 					</div>
 					{categorias.map((c) => (
 						<div

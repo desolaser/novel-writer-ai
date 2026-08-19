@@ -35,7 +35,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	}, []);
 
 	const createAndEdit = async (idCat: string) => {
-		const otros = categorias.find(c => c.nombre === 'Otros');
+		const otros = categorias.find(c => c.nombre === 'Others');
 		const finalCat = idCat || (otros?.id_categoria ?? categorias[0]?.id_categoria);
 		if (!finalCat) return;
 		await createEntry(finalCat, '');
@@ -69,7 +69,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		setConfigMenuOpen(false);
 		setSelectedForDeletion(new Set());
 		setDeleteMode(true);
-		new Notice('Seleccione entradas para borrar');
+		new Notice('Select entries to delete');
 	};
 
 	const cancelBatchDelete = () => { setDeleteMode(false); setSelectedForDeletion(new Set()); };
@@ -82,10 +82,10 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const confirmBatchDelete = async () => {
 		const count = selectedForDeletion.size;
-		if (!count || !confirm(`¿Estás seguro de borrar ${count} entradas?`)) return;
+		if (!count || !confirm(`Are you sure you want to delete ${count} entries?`)) return;
 		for (const id of selectedForDeletion) await deleteEntry(id);
 		cancelBatchDelete();
-		new Notice(`Has borrados ${count} entradas`);
+		new Notice(`Deleted ${count} entries`);
 	};
 
 	const NO_CAT_KEY = '__no_cat__';
@@ -146,7 +146,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	return (
 		<div className="nw-panel">
 			<div className="nw-panel-toolbar nw-panel-toolbar-combined">
-				<input className="nw-input" placeholder="Buscar..." value={query} onChange={(e) => setQuery(e.target.value)} />
+				<input className="nw-input" placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} />
 				<CodexFilters filters={filters} setFilters={setFilters} />
 				<CodexNewEntry createAndEdit={createAndEdit} />				
 				<div ref={configRef} style={{ position: 'relative' }}>
@@ -158,14 +158,14 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							<div className="nw-popover-item" onClick={openAll}><span>Open all</span></div>
 							<div className="nw-popover-item" onClick={collapseAll}><span>Collapse all</span></div>
 							<hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
-							<div className="nw-popover-item" onClick={openModalDetail}><span>Detalles Custom</span></div>
-							<div className="nw-popover-item" onClick={openModalCategories}><span>Categorias</span></div>
-							<div className="nw-popover-item" onClick={startBatchDelete}><span>Borrar Entradas</span></div>
+							<div className="nw-popover-item" onClick={openModalDetail}><span>Custom Details</span></div>
+							<div className="nw-popover-item" onClick={openModalCategories}><span>Categories</span></div>
+							<div className="nw-popover-item" onClick={startBatchDelete}><span>Delete Entries</span></div>
 							<div className="nw-popover-item" onClick={() => { 
 								setConfigMenuOpen(false); 
 								void plugin.importLorebook(); 
-							}}><span>Importar lorebook</span></div>
-							<div className={'nw-popover-item' + (importBusy ? ' is-disabled' : '')} onClick={importBusy ? undefined : openNovelImport}><span>Importar novela</span></div>
+							}}><span>Import lorebook</span></div>
+							<div className={'nw-popover-item' + (importBusy ? ' is-disabled' : '')} onClick={importBusy ? undefined : openNovelImport}><span>Import novel</span></div>
 						</div>
 					)}
 				</div>
@@ -175,12 +175,12 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					className="nw-btn nw-btn-danger" 
 					disabled={selectedForDeletion.size === 0} 
 					onClick={() => void confirmBatchDelete()}>
-					Borrar entradas
+					Delete entries
 				</button>
 				<button 
 					className="nw-btn" 
 					onClick={cancelBatchDelete}>
-					Cancelar borrado
+					Cancel deletion
 				</button>
 			</div>}
 			<div className="nw-codex-list">
@@ -204,7 +204,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 				{!filters.isArchived && noCat.length > 0 && (
 					<CodexCategoryGroup
 						catId={NO_CAT_KEY}
-						catName="Sin categoria"
+						catName="No category"
 						catColor="#888"
 						open={isCatOpen(NO_CAT_KEY)}
 						onToggle={() => toggleCat(NO_CAT_KEY)}
@@ -218,7 +218,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					/>
 				)}
 				{filtered.length === 0 && (
-					<p className="nw-muted" style={{ padding: '12px', fontSize: 12 }}>No hay entradas que coincidan con los filtros.</p>
+					<p className="nw-muted" style={{ padding: '12px', fontSize: 12 }}>No entries match the filters.</p>
 				)}
 			</div>
 		</div>

@@ -23,20 +23,20 @@ export function ChapterActionsMenu({
 	return (
 		<div className="nw-chapter-actions-menu">
 			<button disabled={batchBusy} onClick={onCreateManuscript}>
-				Generar manuscrito
+				Generate manuscript
 			</button>
 			<button disabled={batchBusy || !hasFile} onClick={onGenerateOutline}>
-				Generar Outline
+				Generate Outline
 			</button>
 			<button disabled={batchBusy} onClick={onGenerateMemory}>
-				Generar memoria
+				Generate memory
 			</button>
 			<button disabled={batchBusy} onClick={onGenerateDraft}>
-				Generar draft
+				Generate draft
 			</button>
-			<button onClick={onLinkFile}>Vincular archivo Markdown</button>
+			<button onClick={onLinkFile}>Link Markdown file</button>
 			<button className="nw-btn-danger" onClick={onDelete}>
-				Borrar capítulo
+				Delete chapter
 			</button>
 		</div>
 	);

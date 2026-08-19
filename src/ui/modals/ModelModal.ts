@@ -58,11 +58,11 @@ export class ModelModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.createEl("h2", {
-			text: this.model ? "Editar modelo" : "Crear modelo",
+			text: this.model ? "Edit model" : "Create model",
 		});
 		new Setting(contentEl)
 			.setName("List Name")
-			.setDesc("Nombre visible para identificar este modelo.")
+			.setDesc("Visible name to identify this model.")
 			.addText((text) =>
 				text.setValue(this.form.nombre_listado).onChange((value) => {
 					this.form.nombre_listado = value;
@@ -91,8 +91,8 @@ export class ModelModal extends Modal {
 			.setName("API Key")
 			.setDesc(
 				provider.nombre === "ollama"
-					? "Ollama local no requiere una clave."
-					: "Se guarda de forma segura en la configuración del plugin para este proveedor."
+					? "Local Ollama does not require a key."
+					: "Stored securely in the plugin settings for this provider."
 			)
 			.addText((text) => {
 				text.inputEl.type = "password";
@@ -112,8 +112,8 @@ export class ModelModal extends Modal {
 		// --- Search bar (built once, outside re-render zone) ---
 		const searchHost = modelsHost.createDiv();
 		new Setting(searchHost)
-			.setName("Buscar modelo")
-			.setDesc("Filtra por nombre o ID del modelo.")
+			.setName("Search model")
+			.setDesc("Filter by model name or ID.")
 			.addText((text) => {
 				text.setValue(this.searchQuery).onChange((value) => {
 					this.searchQuery = value;
@@ -124,11 +124,11 @@ export class ModelModal extends Modal {
 		// --- Sort selector (built once, outside re-render zone) ---
 		const sortHost = modelsHost.createDiv();
 		new Setting(sortHost)
-			.setName("Ordenar por")
+			.setName("Sort by")
 			.addDropdown((dropdown) => {
-				dropdown.addOption("alpha", "Alfabético");
-				dropdown.addOption("price", "Precio (mejor rendimiento)");
-				dropdown.addOption("context", "Contexto (mayor primero)");
+				dropdown.addOption("alpha", "Alphabetical");
+				dropdown.addOption("price", "Price (best value)");
+				dropdown.addOption("context", "Context (largest first)");
 				dropdown.setValue(this.sortMode).onChange((value) => {
 					this.sortMode = value as "alpha" | "price" | "context";
 					this.renderModelDropdown();
@@ -142,7 +142,7 @@ export class ModelModal extends Modal {
 		this.renderModelDropdown(modelDropdownHost);
 		contentEl.createEl("h3", { text: "Parameters" });
 		this.numberSetting(contentEl, "Max Context", "max_context");
-		this.numberSetting(contentEl, "Max Output (Generación)", "max_output");
+		this.numberSetting(contentEl, "Max Output (Generation)", "max_output");
 		this.numberSetting(contentEl, "Max Output (Chat)", "max_output_chat");
 		new Setting(contentEl).setName("Stream").addToggle((toggle) =>
 			toggle.setValue(this.form.stream).onChange((value) => {
@@ -175,12 +175,12 @@ export class ModelModal extends Modal {
 				const valid = await api.validateApiKey();
 				new Notice(
 					valid
-						? "Conexión validada correctamente."
-						: "No se pudo validar la conexión."
+						? "Connection validated successfully."
+						: "Could not validate the connection."
 				);
 			} catch (error) {
 				new Notice(
-					`Falló la prueba: ${
+					`Test failed: ${
 						error instanceof Error ? error.message : String(error)
 					}`
 				);
@@ -192,14 +192,14 @@ export class ModelModal extends Modal {
 		});
 		save.onclick = async () => {
 			if (!this.form.nombre_modelo) {
-				new Notice("Selecciona un modelo.");
+				new Notice("Select a model.");
 				return;
 			}
 			if (!this.form.nombre_listado.trim())
 				this.form.nombre_listado = this.form.nombre_modelo;
 			await this.repository.save(this.form);
 			await this.plugin.settings.save();
-			new Notice(this.model ? "Modelo actualizado." : "Modelo creado.");
+			new Notice(this.model ? "Model updated." : "Model created.");
 			this.onSaved();
 			this.close();
 		};
@@ -212,7 +212,7 @@ export class ModelModal extends Modal {
 		if (provider.nombre !== "ollama" && !apiKey.trim()) {
 			this.availableModels = [];
 			this.modelsError =
-				"Ingresa una API Key válida para cargar los modelos.";
+				"Enter a valid API Key to load the models.";
 			await this.render();
 			return;
 		}
@@ -224,11 +224,11 @@ export class ModelModal extends Modal {
 			this.availableModels = await api.getAvailableModels();
 			if (!this.availableModels.length)
 				this.modelsError =
-					"No se encontraron modelos para esta API Key.";
+					"No models found for this API Key.";
 		} catch (_error) {
 			this.availableModels = [];
 			this.modelsError =
-				"No se pudieron cargar los modelos. Verifica que la API Key sea válida.";
+				"Could not load the models. Verify that the API Key is valid.";
 		} finally {
 			this.loadingModels = false;
 			await this.render();
@@ -275,9 +275,9 @@ export class ModelModal extends Modal {
 		target.empty();
 
 		const modelDescription = this.loadingModels
-			? "Cargando modelos..."
+			? "Loading models..."
 			: this.modelsError ||
-			  "Modelo disponible en el proveedor seleccionado.";
+			  "Model available in the selected provider.";
 
 		const filtered = this.getFilteredAndSortedModels();
 		new Setting(target)
@@ -288,10 +288,10 @@ export class ModelModal extends Modal {
 					dropdown.addOption(
 						"",
 						this.loadingModels
-							? "Cargando..."
+							? "Loading..."
 							: this.searchQuery
-								? "Sin coincidencias"
-								: "No hay modelos disponibles"
+								? "No matches"
+								: "No models available"
 					);
 				filtered.forEach((model) =>
 					dropdown.addOption(
@@ -310,7 +310,7 @@ export class ModelModal extends Modal {
 			})
 			.addButton((button) =>
 				button
-					.setButtonText("Reintentar")
+					.setButtonText("Retry")
 					.setDisabled(this.loadingModels)
 					.onClick(() => void this.loadAvailableModels())
 			);

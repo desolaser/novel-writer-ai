@@ -27,7 +27,7 @@ export function buildChapterMemory(
 
 /** Prompt de resumen de un capítulo ya escrito (generación de outline). */
 export function buildOutlinePrompt(chapter: Capitulo, manuscript: string): string {
-	return `Resume el siguiente capítulo en UN ÚNICO PÁRRAFO breve, de aproximadamente 80 a 120 palabras. Prioriza una respuesta completa y terminada; no la cortes a mitad de una oración. Escribe una síntesis narrativa breve en prosa continua. No uses saltos de línea, viñetas, listas numeradas, guiones, encabezados, etiquetas, formato Markdown ni estructura de presentación. Menciona solo los acontecimientos esenciales en orden, los cambios importantes de los personajes y el estado final de la trama. No inventes información, no escribas el capítulo y devuelve únicamente ese único párrafo, sin introducción ni comentarios adicionales.\n\nTítulo del capítulo: ${chapter.nombre}\n\nTexto del capítulo:\n${manuscript}`;
+	return `Summarize the following chapter in ONE SINGLE short PARAGRAPH, about 80 to 120 words. Prioritize a complete and finished response; do not cut it off in the middle of a sentence. Write a brief narrative summary in continuous prose. Do not use line breaks, bullets, numbered lists, dashes, headings, labels, Markdown formatting, or presentation structure. Mention only the essential events in order, the important changes to the characters, and the final state of the plot. Do not invent information, do not write the chapter, and return only that single paragraph, without any introduction or additional comments.\n\nChapter title: ${chapter.nombre}\n\nChapter text:\n${manuscript}`;
 }
 
 /** Limpia y recorta un texto para usarlo como contexto histórico. */

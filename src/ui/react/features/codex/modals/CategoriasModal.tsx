@@ -45,37 +45,37 @@ function CategoriasView() {
 	const doSave = async () => { if (draft) await updateCategoria(draft); };
 	const doDelete = async () => {
 		if (!draft) return;
-		if (count(draft.id_categoria) > 0) { alert('Esta categoria tiene entradas. Muevelas primero.'); return; }
-		if (confirm('Borrar categoria?')) { await deleteCategoria(draft.id_categoria); setSelected(null); setDraft(null); }
+		if (count(draft.id_categoria) > 0) { alert('This category has entries. Move them first.'); return; }
+		if (confirm('Delete category?')) { await deleteCategoria(draft.id_categoria); setSelected(null); setDraft(null); }
 	};
 
 	return (
 		<div className="nw-modal-2col">
 			<div className="nw-modal-left">
-				<h3>Categorias custom</h3>
-				<input className="nw-input" placeholder="Buscar..." value={query} onChange={e => setQuery(e.target.value)} />
-				<button className="nw-btn nw-btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => doCreate()}>+ Nueva categoria</button>
+				<h3>Custom categories</h3>
+				<input className="nw-input" placeholder="Search..." value={query} onChange={e => setQuery(e.target.value)} />
+				<button className="nw-btn nw-btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => doCreate()}>+ New category</button>
 				<div className="nw-modal-list">
 					{filtered.map(c => (
 						<button key={c.id_categoria} className={`nw-list-item ${c.id_categoria === selected ? 'active' : ''}`} onClick={() => setSelected(c.id_categoria)}>
 							<span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: c.color, marginRight: 6 }} />
-							<span style={{ flex: 1 }}>{c.nombre == "" ? "Sin nombre" : c.nombre}</span>
+							<span style={{ flex: 1 }}>{c.nombre == "" ? "Unnamed" : c.nombre}</span>
 							<span className="nw-node-count">{count(c.id_categoria)}</span>
 						</button>
 					))}
-					{filtered.length === 0 && <p className="nw-muted">Sin categorias custom.</p>}
+					{filtered.length === 0 && <p className="nw-muted">No custom categories.</p>}
 				</div>
 			</div>
 			<div className="nw-modal-right">
 				{draft ? (
 					<div className="nw-entry-tab" style={{ gap: 10, height: '100%' }}>
-						<h3 style={{ margin: 0 }}>Editar categoria</h3>
-						<label>Nombre</label>
+						<h3 style={{ margin: 0 }}>Edit category</h3>
+						<label>Name</label>
 						<input 
 							className="nw-input" 
 							value={draft.nombre} 
 							onChange={e => setDraft({ ...draft, nombre: e.target.value })}
-							placeholder='Sin nombre'
+							placeholder='Unnamed'
 						/>
 						<label>Color</label>
 						<div className="nw-color-row">
@@ -85,12 +85,12 @@ function CategoriasView() {
 							<input type="color" value={draft.color} onChange={e => setDraft({ ...draft, color: e.target.value })} style={{ width: 32, height: 24, padding: 0, border: 'none', background: 'none' }} />
 						</div>
 						<div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-							<button className="nw-btn nw-btn-primary" onClick={doSave}>Guardar</button>
-							<button className="nw-btn nw-btn-danger" onClick={doDelete}><Icon.Trash /> Borrar</button>
+							<button className="nw-btn nw-btn-primary" onClick={doSave}>Save</button>
+							<button className="nw-btn nw-btn-danger" onClick={doDelete}><Icon.Trash /> Delete</button>
 						</div>
 					</div>
 				) : (
-					<p className="nw-muted">Selecciona o crea una categoria custom.</p>
+					<p className="nw-muted">Select or create a custom category.</p>
 				)}
 			</div>
 		</div>

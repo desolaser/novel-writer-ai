@@ -38,7 +38,7 @@ const CodexAiGenerator = ({
 
     /** Build a text prompt for the AI to generate/complete codex entry fields. */
     const buildAiPrompt = (mode: 'generate' | 'complete'): string => {
-        const catName = categorias.find((c: any) => c.id_categoria === entry.id_categoria)?.nombre ?? 'Sin categoria';
+        const catName = categorias.find((c: any) => c.id_categoria === entry.id_categoria)?.nombre ?? 'No category';
         const tagNames = (entry.tags ?? []).map((id: string) => tags.find((t: any) => t.id_tag === id)?.nombre ?? '').filter(Boolean).join(', ');
         const entryDetalles = entry.detalles ?? [];
         const filledDetails = entryDetalles.map((ed: any) => {
@@ -120,7 +120,7 @@ const CodexAiGenerator = ({
         try {
             const settings = plugin.settings.data;
             const activeModel = getActiveModelConfig(settings, 'generate');
-            if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
+            if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
             const token = settings.apiToken[activeModel.providerId] ?? '';
             const api = new ApiFactory().createApi(activeModel.providerId, token);
             const prompt = buildAiPrompt(mode);
@@ -138,7 +138,7 @@ const CodexAiGenerator = ({
             const objStart = jsonStr.indexOf('{');
             const objEnd = jsonStr.lastIndexOf('}');
             if (objStart === -1 || objEnd === -1 || objEnd <= objStart) {
-                throw new Error('La IA no devolvió JSON válido.');
+                throw new Error('The AI did not return valid JSON.');
             }
             jsonStr = jsonStr.slice(objStart, objEnd + 1);
             const parsed = JSON.parse(jsonStr);
@@ -191,7 +191,7 @@ const CodexAiGenerator = ({
             // Reload to get fresh data from store
             await refreshEntry(entry.id_entrada_codex);
         } catch (e: any) {
-            alert('Error en generación IA: ' + (e?.message ?? String(e)));
+            alert('AI generation error: ' + (e?.message ?? String(e)));
         } finally {
             setAiGenLoading(false);
         }
@@ -204,7 +204,7 @@ const CodexAiGenerator = ({
 				onClick={() => setAiGenOpen(!aiGenOpen)}
 				type="button"
 			>
-				<span className="nw-ai-gen-header-text">Generación por IA</span>
+				<span className="nw-ai-gen-header-text">AI Generation</span>
 				{aiGenOpen ? (
 					<span
 						style={{
@@ -235,7 +235,7 @@ const CodexAiGenerator = ({
 							rows={3}
 							value={aiGenInput}
 							onChange={(e) => setAiGenInput(e.target.value)}
-							placeholder="Escribe lo que deseas generar"
+							placeholder="Write what you want to generate"
 							disabled={aiGenLoading}
 						/>
 					</div>
@@ -247,7 +247,7 @@ const CodexAiGenerator = ({
 							type="button"
 						>
 							<Icon.Magic width={14} height={14} />
-							Generar
+							Generate
 						</button>
 						<button
 							className="nw-btn"
@@ -255,11 +255,11 @@ const CodexAiGenerator = ({
 							disabled={aiGenLoading || allFieldsFilled}
 							type="button"
 						>
-							Completar
+							Complete
 						</button>
 						{aiGenLoading && (
 							<span className="nw-ai-gen-spinner">
-								Generando...
+								Generating...
 							</span>
 						)}
 					</div>

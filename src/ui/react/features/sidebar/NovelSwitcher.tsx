@@ -29,10 +29,10 @@ export function NovelSwitcher({ plugin, inline = false }: {
 	return (
 		<div className={inline ? "nw-switcher nw-switcher-inline" : "nw-switcher"}
 		>
-			{inline && <h3>Novelas</h3>}
+			{inline && <h3>Novels</h3>}
 			<button className="nw-switcher-btn" onClick={() => setOpen(!open)}>
 				<span className="nw-switcher-name">
-					{active?.novela.nombre ?? "Elegir novela"}
+					{active?.novela.nombre ?? "Choose novel"}
 				</span>
 				{active?.novela.autor && (
 					<span className="nw-switcher-author">
@@ -68,7 +68,7 @@ export function NovelSwitcher({ plugin, inline = false }: {
 						className="nw-switcher-item"
 						onClick={() => handleNewNovel()}
 					>
-						+ Crear nueva novela
+						+ Create new novel
 					</button>
 				</div>
 			)}

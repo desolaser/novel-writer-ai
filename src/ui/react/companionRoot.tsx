@@ -11,8 +11,8 @@ export function CompanionRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	if (novels.length === 0) {
 		return (
 			<div className="nw-empty-state">
-				<h2>No hay novelas</h2>
-				<p>Crea tu primera novela para empezar a escribir.</p>
+				<h2>No novels</h2>
+				<p>Create your first novel to start writing.</p>
 				<button
 					className="nw-btn nw-btn-primary"
 					onClick={() =>
@@ -21,7 +21,7 @@ export function CompanionRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 						)
 					}
 				>
-					+ Crear novela
+					+ Create novel
 				</button>
 			</div>
 		);
@@ -37,7 +37,7 @@ export function CompanionRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				{activeNovelId ? (
 					<Sidebar plugin={plugin} />
 				) : (
-					<p className="nw-muted">Selecciona una novela</p>
+					<p className="nw-muted">Select a novel</p>
 				)}
 			</div>
 		</div>

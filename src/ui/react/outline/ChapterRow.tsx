@@ -69,8 +69,8 @@ export function ChapterRow({
 					className="nw-btn-link nw-outline-chapter-drag-handle"
 					draggable={!reordering}
 					disabled={reordering}
-					title="Arrastra para reordenar el capítulo"
-					aria-label="Arrastra para reordenar el capítulo"
+					title="Drag to reorder the chapter"
+					aria-label="Drag to reorder the chapter"
 					onDragStart={(event) => {
 						event.dataTransfer.effectAllowed = "move";
 						event.dataTransfer.setData("text/plain", chapter.id_capitulo);
@@ -96,20 +96,20 @@ export function ChapterRow({
 					<button
 						className="nw-btn-link nw-outline-chapter-name"
 						onClick={onStartRename}
-						title="Click para renombrar"
+						title="Click to rename"
 					>
 						{chapter.nombre}
 						{chapter.outline ? " *" : ""}
 					</button>
 				)}
 				<span className="nw-chapter-file-status">
-					{chapter.archivo ? "Archivo" : "Sin archivo"}
+					{chapter.archivo ? "File" : "No file"}
 				</span>
 				{chapter.archivo && (
 					<button
 						className="nw-btn nw-btn-icon"
-						title="Abrir manuscrito"
-						aria-label="Abrir manuscrito"
+						title="Open manuscript"
+						aria-label="Open manuscript"
 						onClick={onOpenManuscript}
 					>
 						<Icon.ExternalLink width={13} height={13} />
@@ -117,8 +117,8 @@ export function ChapterRow({
 				)}
 				<button
 					className="nw-btn nw-btn-icon"
-					title="Acciones del capítulo"
-					aria-label="Acciones del capítulo"
+					title="Chapter actions"
+					aria-label="Chapter actions"
 					onClick={onToggleMenu}
 				>
 					⋯
@@ -141,7 +141,7 @@ export function ChapterRow({
 					className="nw-outline-inline-editor"
 					value={draft}
 					onChange={(e) => onSaveOutline(e.target.value)}
-					placeholder="Resumen de lo que pasará en este capítulo..."
+					placeholder="Summary of what will happen in this chapter..."
 					rows={6}
 				/>
 			)}

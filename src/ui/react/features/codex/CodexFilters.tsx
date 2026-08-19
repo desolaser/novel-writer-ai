@@ -88,7 +88,7 @@ const CodexFilters = ({
             <button
                 className={'nw-btn nw-btn-icon nw-filter-btn' + (totalActiveFilters > 0 ? ' is-active' : '')}
                 onClick={() => setOpen(!open)}
-                title="Filtros"
+                title="Filters"
             >
                 <Icon.Filter />
                 {totalActiveFilters > 0 && <span className="nw-filter-badge">{totalActiveFilters}</span>}
@@ -96,11 +96,11 @@ const CodexFilters = ({
             {open && (
                 <div className="nw-dropdown nw-popover nw-filter-menu" style={{ minWidth: 220, ...filterStyle }}>
                     <FilterItem label="Has notes" state={filters.hasNotes} onClick={() => setFilter('hasNotes')} />
-                    <FilterItem label="Has descripcion" state={filters.hasDescription} onClick={() => setFilter('hasDescription')} />
+                    <FilterItem label="Has description" state={filters.hasDescription} onClick={() => setFilter('hasDescription')} />
                     <FilterItem label="Has thumbnail" state={filters.hasThumbnail} onClick={() => setFilter('hasThumbnail')} />
                     <FilterItem label="Has tags" state={filters.hasTags} onClick={() => setFilter('hasTags')} />
                     <FilterItem label="Is global" state={filters.isGlobal} onClick={() => setFilter('isGlobal')} hint="AI policy: Always" />
-                    <FilterItem label="Is being tracked" state={filters.isBeingTracked} onClick={() => setFilter('isBeingTracked')} hint="Tracking por nombre/alias" />
+                    <FilterItem label="Is being tracked" state={filters.isBeingTracked} onClick={() => setFilter('isBeingTracked')} hint="Tracking by name/alias" />
                     <hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
                     <FilterItem
                         label="Is archived"
@@ -116,7 +116,7 @@ const CodexFilters = ({
                     {catOpen && (
                         <div className="nw-filter-submenu">
                             {categorias.length === 0 ? (
-                                <div className="nw-popover-item nw-muted" style={{ padding: '6px 10px' }}>Sin categorias</div>
+                                <div className="nw-popover-item nw-muted" style={{ padding: '6px 10px' }}>No categories</div>
                             ) : categorias.map((c) => {
                                 const st = filters.categoryFilters[c.id_categoria] ?? null;
                                 return (

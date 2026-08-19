@@ -36,7 +36,7 @@ export class ModelRepository {
 	}
 
 	async setDefault(id: string): Promise<void> {
-		if (!this.get(id)) throw new Error('El modelo seleccionado no existe.');
+		if (!this.get(id)) throw new Error('The selected model does not exist.');
 		this.settings.data.modeloPredeterminadoId = id;
 		await this.settings.save();
 	}

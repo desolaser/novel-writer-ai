@@ -36,7 +36,7 @@ export class OpenCodeZenApi extends ApiInterface {
             });
 
             if (response.status !== 200) {
-                throw new Error(`Error al obtener modelos: ${response.status}`);
+                throw new Error(`Error fetching models: ${response.status}`);
             }
 
             const data = response.json;
@@ -113,7 +113,7 @@ export class OpenCodeZenApi extends ApiInterface {
             if (response.status !== 200) {
                 const errorData = response.json;
                 console.log({ error: errorData.error });
-                throw new Error(`Error al generar texto: ${errorData.error?.message || response.status}`);
+                throw new Error(`Error generating text: ${errorData.error?.message || response.status}`);
             }
 
             const data = response.json;

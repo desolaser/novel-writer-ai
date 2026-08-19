@@ -46,7 +46,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	}, [menuOpen]);
 
 	if (!entry || !draft) {
-		return <div className="nw-empty-state"><button className="nw-btn" onClick={() => setEditingEntry(null)}>Volver</button></div>;
+		return <div className="nw-empty-state"><button className="nw-btn" onClick={() => setEditingEntry(null)}>Back</button></div>;
 	}
 
 	const mergeLive = (d: any) => ({ ...d, detalles: entry.detalles ?? d.detalles, referencias_externas: entry.referencias_externas ?? d.referencias_externas, tags: entry.tags ?? d.tags, thumbnail: entry.thumbnail ?? d.thumbnail });
@@ -95,7 +95,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	const onSelectColor = async (color: string | null) => { setMenuOpen(false); await patchAndSave({ color }); };
 	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); setEditingEntry(null); };
 	const onArchive = async () => { setMenuOpen(false); await archiveEntry(entry.id_entrada_codex, !entry.archivado); setEditingEntry(null); };
-	const onDelete = async () => { setMenuOpen(false); if (confirm('Borrar entrada definitivamente?')) { await deleteEntry(entry.id_entrada_codex); setEditingEntry(null); onClose?.(); } };
+	const onDelete = async () => { setMenuOpen(false); if (confirm('Delete entry permanently?')) { await deleteEntry(entry.id_entrada_codex); setEditingEntry(null); onClose?.(); } };
 
 	const otherNovels = ((novels ?? []) as any[]).filter((n: any) => n.novela && n.novela.id_novela !== entry.id_novela);
 
@@ -113,7 +113,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 						value={draft.nombre}
 						onChange={(e) => patch({ nombre: e.target.value })}
 						onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); save(); } }}
-						placeholder="Nombre"
+						placeholder="Name"
 					/>
 					<div className="nw-entry-tags-inline">
 						{(draft.tags ?? []).map((id: string) => {
@@ -152,7 +152,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 						fileInputRef={thumbInputRef}
 					/>
 					<div ref={menuRef} style={{ position: 'relative' }}>
-						<button className="nw-btn nw-btn-icon" onClick={() => setMenuOpen(!menuOpen)} title="Opciones">
+						<button className="nw-btn nw-btn-icon" onClick={() => setMenuOpen(!menuOpen)} title="Options">
 							<Icon.MenuThreePoints />
 						</button>
 						{menuOpen && (
@@ -230,7 +230,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 								))}
 								<div className="nw-ref-add">
 									<input className="nw-input" placeholder="https://..." value={newUrl} onChange={(e) => setNewUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { (async () => { const url = newUrl.trim(); if (!url) return; setNewUrl(''); const ref = await addReferencia(entry.id_entrada_codex, url); if (ref) setDraft({ ...draft, referencias_externas: [...(draft.referencias_externas ?? []), ref] }); else { const fresh = await store.readEntry(entry.id_entrada_codex); if (fresh) setDraft(fresh); } })(); } }} />
-									<button className="nw-btn nw-btn-primary" onClick={async () => { const url = newUrl.trim(); if (!url) return; setNewUrl(''); const ref = await addReferencia(entry.id_entrada_codex, url); if (ref) setDraft({ ...draft, referencias_externas: [...(draft.referencias_externas ?? []), ref] }); else { const fresh = await store.readEntry(entry.id_entrada_codex); if (fresh) setDraft(fresh); } }}>Agregar</button>
+									<button className="nw-btn nw-btn-primary" onClick={async () => { const url = newUrl.trim(); if (!url) return; setNewUrl(''); const ref = await addReferencia(entry.id_entrada_codex, url); if (ref) setDraft({ ...draft, referencias_externas: [...(draft.referencias_externas ?? []), ref] }); else { const fresh = await store.readEntry(entry.id_entrada_codex); if (fresh) setDraft(fresh); } }}>Add</button>
 								</div>
 							</div>
 						</div>
@@ -238,20 +238,20 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 				)}
 				{tab === 'menciones' && (
 					<div className="nw-entry-tab">
-						<p className="nw-muted">Esta entrada aún no ha sido mencionada en ningún capítulo. Las menciones se rastrean al escribir capítulos.</p>
+						<p className="nw-muted">This entry has not been mentioned in any chapter yet. Mentions are tracked while writing chapters.</p>
 					</div>
 				)}
 				{tab === 'tracking' && (
 					<div className="nw-entry-tab">
-						<label className="nw-checkbox"><input type="checkbox" checked={draft.tracking_por_nombre} onChange={(e) => patchAndSave({ tracking_por_nombre: e.target.checked })} /> Obtener esta entrada por nombre/alias</label>
-						<label className="nw-checkbox"><input type="checkbox" checked={draft.case_sensitive} onChange={(e) => patchAndSave({ case_sensitive: e.target.checked })} /> Matching sensible a mayusculas/minusculas</label>
+						<label className="nw-checkbox"><input type="checkbox" checked={draft.tracking_por_nombre} onChange={(e) => patchAndSave({ tracking_por_nombre: e.target.checked })} /> Retrieve this entry by name/alias</label>
+						<label className="nw-checkbox"><input type="checkbox" checked={draft.case_sensitive} onChange={(e) => patchAndSave({ case_sensitive: e.target.checked })} /> Case-sensitive matching</label>
 						<div className="nw-ai-policy">
-							<strong>Contexto de IA:</strong>
+							<strong>AI Context:</strong>
 							{[
-								{ v: AiContextPolicy.Always, l: 'Siempre incluir' },
-								{ v: AiContextPolicy.OnDetect, l: 'Solo si detectado' },
-								{ v: AiContextPolicy.NeverIfDetected, l: 'No incluir si detectado' },
-								{ v: AiContextPolicy.Never, l: 'Nunca incluir' },
+								{ v: AiContextPolicy.Always, l: 'Always include' },
+								{ v: AiContextPolicy.OnDetect, l: 'Only if detected' },
+								{ v: AiContextPolicy.NeverIfDetected, l: 'Do not include if detected' },
+								{ v: AiContextPolicy.Never, l: 'Never include' },
 							].map((o) => (
 								<label key={o.v} className="nw-radio">
 									<input type="radio" name="policy" checked={draft.ai_context_policy === o.v} onChange={() => patchAndSave({ ai_context_policy: o.v })} /> {o.l}
@@ -286,7 +286,7 @@ function CategoriaPicker({ value, categorias, onChange }: { value: string; categ
 		<div ref={wrapRef} style={{ position: 'relative' }}>
 			<button type="button" className="nw-btn nw-categoria-picker" onClick={() => setOpen(!open)}>
 				{sel && <span className="nw-color-dot" style={{ background: sel.color }} />}
-				<span>{sel?.nombre ?? 'Categoria'}</span>
+				<span>{sel?.nombre ?? 'Category'}</span>
 				<Icon.ChevronDown width={12} height={12} />
 			</button>
 			{open && (
@@ -311,18 +311,18 @@ function ThumbnailControl({ thumbnail, onPick, fileInputRef }: { thumbnail: stri
 			{thumbnail ? (
 				<img className="nw-thumbnail-avatar" src={thumbnail} alt="thumbnail" onClick={() => setLightbox(true)} style={{ cursor: 'pointer' }} />
 			) : (
-				<div className="nw-thumbnail-avatar nw-thumbnail-empty" title="Sin thumbnail">
+				<div className="nw-thumbnail-avatar nw-thumbnail-empty" title="No thumbnail">
 					<Icon.Plus width={20} height={20} />
 				</div>
 			)}
 			<input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.currentTarget.value = ''; }} />
-			<button className="nw-btn nw-btn-icon nw-thumbnail-btn" title="Cambiar thumbnail" onClick={() => fileInputRef.current?.click()}>
+			<button className="nw-btn nw-btn-icon nw-thumbnail-btn" title="Change thumbnail" onClick={() => fileInputRef.current?.click()}>
 				<Icon.Edit width={12} height={12} />
 			</button>
 			{lightbox && thumbnail && (
 				<div className="nw-lightbox-overlay" onClick={() => setLightbox(false)}>
 					<div className="nw-lightbox-content" onClick={(e) => e.stopPropagation()}>
-						<button className="nw-lightbox-close" onClick={() => setLightbox(false)} title="Cerrar">
+						<button className="nw-lightbox-close" onClick={() => setLightbox(false)} title="Close">
 							<Icon.X width={24} height={24} />
 						</button>
 						<img src={thumbnail} alt="thumbnail fullsize" className="nw-lightbox-image" />
@@ -357,7 +357,7 @@ function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onClea
 					<button type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => onSelectColor(null)}>
 						<span style={{ width: 14 }} />
 						<span className="nw-color-dot" style={{ background: 'transparent', boxShadow: 'inset 0 0 0 1px var(--background-modifier-border)' }} />
-						<span style={{ flex: 1 }} className="nw-muted">Sin color</span>
+						<span style={{ flex: 1 }} className="nw-muted">No color</span>
 					</button>
 				</div>
 			)}
@@ -365,13 +365,13 @@ function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onClea
 			<div className="nw-popover-section-title">Move to</div>
 			{!moveOpen ? (
 				<button type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setMoveOpen(true)}>
-					<span style={{ flex: 1 }}>Seleccionar novela...</span>
+					<span style={{ flex: 1 }}>Select novel...</span>
 					<Icon.ChevronRight width={12} height={12} />
 				</button>
 			) : (
 				<div>
 					{otherNovels.length === 0 ? (
-						<div className="nw-popover-item nw-muted">No hay otras novelas</div>
+						<div className="nw-popover-item nw-muted">No other novels</div>
 					) : otherNovels.map((n) => (
 						<button key={n.novela.id_novela} type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => onSelectMove(n.novela.id_novela)}>
 							<span style={{ flex: 1 }}>{n.novela.nombre}</span>
@@ -450,8 +450,8 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 
 	return (
 		<div>
-			<div className="nw-field-label-row">Detalles de la entrada</div>
-			{entryDetalles.length === 0 && <p className="nw-muted" style={{ fontSize: 11 }}>No hay detalles. Agrega los disponibles para esta categoria.</p>}
+			<div className="nw-field-label-row">Entry details</div>
+			{entryDetalles.length === 0 && <p className="nw-muted" style={{ fontSize: 11 }}>No details. Add the available ones for this category.</p>}
 			<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 				{entryDetalles.map((ed: any) => {
 					const d = detalles.find((x: any) => x.id_detalle === ed.id_detalle) ?? catDetalles.find((x: any) => x.id_detalle === ed.id_detalle);
@@ -465,15 +465,15 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 								<div className="nw-detail-block-input">
 									<div className="nw-detail-header">
 										<DetailLabelMenu d={d} onRemove={() => doRemove(d.id_detalle)} onEdit={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'general' }).open(); }} />
-										<button type="button" className="nw-btn nw-btn-icon nw-detail-toggle" onClick={() => toggleCollapsed(ed.id_entrada_codex_detalle)} title={isCollapsed ? 'Expandir' : 'Colapsar'}>
+										<button type="button" className="nw-btn nw-btn-icon nw-detail-toggle" onClick={() => toggleCollapsed(ed.id_entrada_codex_detalle)} title={isCollapsed ? 'Expand' : 'Collapse'}>
 											{isCollapsed ? <Icon.ChevronRight width={14} height={14} /> : <Icon.ChevronDown width={14} height={14} />}
 										</button>
 										<span className="nw-detail-type">{tipoLabel(d.tipo_detalle)}</span>
-										{d.incluir_ia && <span className="nw-detail-ia">IA</span>}
+										{d.incluir_ia && <span className="nw-detail-ia">AI</span>}
 									</div>
 									{isText && !isCollapsed && (
 										<div className="nw-detail-body">
-											<textarea className="nw-textarea" rows={4} defaultValue={ed.valor ?? ''} placeholder="Valor..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
+											<textarea className="nw-textarea" rows={4} defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
 										</div>
 									)}
 								</div>		
@@ -482,7 +482,7 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 									<DetailLabelMenu d={d} onRemove={() => doRemove(d.id_detalle)} onEdit={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'general' }).open(); }} />
 									<div className="nw-detail-inline-input-body">
 										{d.tipo_detalle === TipoDetalle.Line && (
-											<input className="nw-input" defaultValue={ed.valor ?? ''} placeholder="Valor..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
+											<input className="nw-input" defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
 										)}
 										{d.tipo_detalle === TipoDetalle.Dropdown && (
 											<DropdownField value={ed.valor ?? null} options={opts} onChange={(v) => doSetValue(d.id_detalle, v)} onManageOptions={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'opciones' }).open(); }} />
@@ -492,7 +492,7 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 										)}
 									</div>
 									<span className="nw-detail-type">{tipoLabel(d.tipo_detalle)}</span>
-									{d.incluir_ia && <span className="nw-detail-ia">IA</span>}
+									{d.incluir_ia && <span className="nw-detail-ia">AI</span>}
 								</div>
 							)}
 						</div>
@@ -500,17 +500,17 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 				})}
 			</div>
 			<div ref={addWrapRef} style={{ position: 'relative', marginTop: 8 }}>
-				<button className="nw-btn nw-btn-primary" onClick={() => setAddOpen(!addOpen)}>+ Agregar Detalle</button>
+				<button className="nw-btn nw-btn-primary" onClick={() => setAddOpen(!addOpen)}>+ Add Detail</button>
 				{addOpen && (
 					<div className="nw-dropdown" style={{ minWidth: 280, ...dropStyle, overflowY: 'auto' }}>
-						<div className="nw-dropdown-item" onClick={() => { setAddOpen(false); new DetallesModal((plugin as any).app, plugin).open(); }}><span>Manejar Detalles</span></div>
+						<div className="nw-dropdown-item" onClick={() => { setAddOpen(false); new DetallesModal((plugin as any).app, plugin).open(); }}><span>Manage Details</span></div>
 						{disponibles.length > 0 && (
-							<div className="nw-dropdown-item" style={{ fontWeight: 600 }} onClick={doAddAll}>+ Agregar detalles faltantes ({disponibles.length})</div>
+							<div className="nw-dropdown-item" style={{ fontWeight: 600 }} onClick={doAddAll}>+ Add missing details ({disponibles.length})</div>
 						)}
 						<hr />
 						{disponibles.length > 0 ? disponibles.map((d: any) => (
-							<button key={d.id_detalle} className="nw-dropdown-item" style={{ display: 'block', width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit' }} onClick={() => doAdd(d.id_detalle)}>{d.nombre || '(sin nombre)'} <span className="nw-muted" style={{ fontSize: 10 }}>({tipoLabel(d.tipo_detalle)})</span></button>
-						)) : <div className="nw-dropdown-item nw-muted">No hay mas detalles disponibles</div>}
+							<button key={d.id_detalle} className="nw-dropdown-item" style={{ display: 'block', width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit' }} onClick={() => doAdd(d.id_detalle)}>{d.nombre || '(unnamed)'} <span className="nw-muted" style={{ fontSize: 10 }}>({tipoLabel(d.tipo_detalle)})</span></button>
+						)) : <div className="nw-dropdown-item nw-muted">No more details available</div>}
 					</div>
 				)}
 			</div>
@@ -537,7 +537,7 @@ function DetailLabelMenu({ d, onRemove, onEdit }: { d: any; onRemove: () => void
 	return (
 		<div ref={wrapRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
 			<button type="button" className="nw-detail-label-btn" onClick={() => setOpen(!open)}>
-				{d.nombre || '(sin nombre)'}
+				{d.nombre || '(unnamed)'}
 			</button>
 			{open && (
 				<div className="nw-dropdown nw-popover" style={{ minWidth: 180, ...style }}>
@@ -582,7 +582,7 @@ function DropdownField({ value, options, onChange, onManageOptions }: { value: s
 						<span style={{ flex: 1 }}>{selected.nombre}</span>
 					</>
 				) : (
-					<span className="nw-muted" style={{ flex: 1 }}>(sin seleccionar)</span>
+					<span className="nw-muted" style={{ flex: 1 }}>(not selected)</span>
 				)}
 				<span style={{ color: 'var(--text-muted)' }}>{open ? '\u25B2' : '\u25BC'}</span>
 			</button>
@@ -590,7 +590,7 @@ function DropdownField({ value, options, onChange, onManageOptions }: { value: s
 				<div className="nw-dropdown nw-popover" style={{ minWidth: 220, ...dropStyle, overflowY: 'auto' }}>
 					<button type="button" className={'nw-popover-item' + (value == null ? ' is-selected' : '')} style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { onChange(null); setOpen(false); }}>
 						<span style={{ width: 14, display: 'inline-flex', justifyContent: 'center' }}>{value == null ? <Icon.Check width={12} height={12} /> : null}</span>
-						<span className="nw-muted">(sin seleccionar)</span>
+						<span className="nw-muted">(not selected)</span>
 					</button>
 					{options.map((o) => (
 						<button key={o.id_opcion_detalle} type="button" className={'nw-popover-item' + (value === o.id_opcion_detalle ? ' is-selected' : '')} style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { onChange(o.id_opcion_detalle); setOpen(false); }}>
@@ -599,7 +599,7 @@ function DropdownField({ value, options, onChange, onManageOptions }: { value: s
 							<span style={{ flex: 1 }}>{o.nombre}</span>
 						</button>
 					))}
-					{options.length === 0 && <div className="nw-dropdown-item nw-muted">No hay opciones. Agrega algunas.</div>}
+					{options.length === 0 && <div className="nw-dropdown-item nw-muted">No options. Add some.</div>}
 					<hr style={{ margin: 0, border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
 					<button type="button" className="nw-popover-item nw-popover-manage" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { setOpen(false); onManageOptions(); }}>
 						<Icon.Settings width={14} height={14} />
@@ -636,10 +636,10 @@ function RefPicker({ value, groups, onChange }: { value: string | null; groups: 
 				{selected ? (
 					<>
 						{selected.thumbnail ? <img className="nw-ref-avatar" src={selected.thumbnail} alt="" /> : <span className="nw-ref-avatar-placeholder"><Icon.Link width={12} height={12} /></span>}
-						<span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.nombre || '(sin nombre)'}</span>
+						<span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.nombre || '(unnamed)'}</span>
 					</>
 				) : (
-					<span className="nw-muted" style={{ flex: 1 }}>(sin seleccionar)</span>
+					<span className="nw-muted" style={{ flex: 1 }}>(not selected)</span>
 				)}
 				<span style={{ color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
 			</button>
@@ -650,7 +650,7 @@ function RefPicker({ value, groups, onChange }: { value: string | null; groups: 
 						<Icon.X width={14} height={14} />
 						<span style={{ flex: 1 }} className="nw-muted">Clear selection</span>
 					</button>
-					{groups.length === 0 && <div className="nw-popover-item nw-muted">No hay entradas disponibles</div>}
+					{groups.length === 0 && <div className="nw-popover-item nw-muted">No entries available</div>}
 					{groups.map((g) => (
 						<div key={g.key}>
 							<div className="nw-popover-group-title">{g.label}</div>
@@ -658,7 +658,7 @@ function RefPicker({ value, groups, onChange }: { value: string | null; groups: 
 								<button key={e.id_entrada_codex} type="button" className={'nw-popover-item' + (value === e.id_entrada_codex ? ' is-selected' : '')} style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { onChange(e.id_entrada_codex); setOpen(false); }}>
 									<span style={{ width: 14, display: 'inline-flex', justifyContent: 'center' }}>{value === e.id_entrada_codex ? <Icon.Check width={12} height={12} /> : null}</span>
 									{e.thumbnail ? <img className="nw-ref-avatar" src={e.thumbnail} alt="" /> : <span className="nw-ref-avatar-placeholder"><Icon.Link width={12} height={12} /></span>}
-									<span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.nombre || '(sin nombre)'}</span>
+									<span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.nombre || '(unnamed)'}</span>
 								</button>
 							))}
 						</div>
@@ -683,7 +683,7 @@ function groupEntriesByCategory(entradas: any[], categorias: any[], excludeId: s
 		if (arr.length > 0) groups.push({ key: c.id_categoria, label: c.nombre, entries: arr });
 	}
 	const sinCat = entradas.filter((e: any) => e && !e.archivado && e.id_entrada_codex !== excludeId && !categorias.find((c: any) => c.id_categoria === e.id_categoria));
-	if (sinCat.length > 0) groups.push({ key: '__sin__', label: 'Sin categoria', entries: sinCat });
+	if (sinCat.length > 0) groups.push({ key: '__sin__', label: 'No category', entries: sinCat });
 	return groups;
 }
 

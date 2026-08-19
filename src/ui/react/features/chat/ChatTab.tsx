@@ -68,8 +68,8 @@ function buildPrompt(
 	chatPromptText?: string,
 ): string {
 	const groups: Array<[ContextKind, string]> = [
-		['codex', 'Entradas de Codex seleccionadas'], ['chapter', 'Capítulos seleccionados'], ['outline', 'Outlines seleccionados'],
-		['note', 'Notas seleccionadas'], ['folder', 'Carpetas seleccionadas'],
+		['codex', 'Selected Codex entries'], ['chapter', 'Selected chapters'], ['outline', 'Selected outlines'],
+		['note', 'Selected notes'], ['folder', 'Selected folders'],
 	];
 	const contextPrompt = groups.map(([kind, title]) => {
 		const items = contextItems.filter(item => item.kind === kind);
@@ -79,7 +79,7 @@ function buildPrompt(
 
 	// Active-note: always the currently open file, included separately
 	const activeNoteBlock = activeNoteItem
-		? `Nota activa seleccionada:\n--- ${activeNoteItem.name}${activeNoteItem.path ? ` (${activeNoteItem.path})` : ''} ---\n${activeNoteItem.content}`
+		? `Active note selected:\n--- ${activeNoteItem.name}${activeNoteItem.path ? ` (${activeNoteItem.path})` : ''} ---\n${activeNoteItem.content}`
 		: '';
 
 	const history = [...mensajes, { role: 'user', mensaje: newUserMessage }]
@@ -91,17 +91,17 @@ function buildPrompt(
 		systemPrompt = `${chatPromptText}\n\n`;
 	}
 	if (characterContext) {
-		systemPrompt += `[MODO ROL: Estás interpretando al personaje "${characterContext.name}". Responde siempre EN PERSONAJE, usando su tono, vocabulario, conocimiento y personalidad. NO salgas del personaje bajo ninguna circunstancia. NO menciones que eres una IA. Eres "${characterContext.name}".]\n\nInformación del personaje:\n${characterContext.content}\n\n`;
+		systemPrompt += `[ROLE MODE: You are roleplaying the character "${characterContext.name}". Always respond IN CHARACTER, using their tone, vocabulary, knowledge and personality. Do NOT break character under any circumstances. Do NOT mention that you are an AI. You are "${characterContext.name}".]\n\nCharacter information:\n${characterContext.content}\n\n`;
 	}
 	if (impersonateContext) {
-		systemPrompt += `[MODO IMPERSONAR: El usuario está interpretando al personaje "${impersonateContext.name}". El usuario ES "${impersonateContext.name}". Trátalo como si fuera ese personaje. NO te refieras a él como "usuario" o "tú", llámalo "${impersonateContext.name}".]\n\nInformación del personaje del usuario:\n${impersonateContext.content}\n\n`;
+		systemPrompt += `[IMPERSONATE MODE: The user is roleplaying the character "${impersonateContext.name}". The user IS "${impersonateContext.name}". Treat them as if they were that character. Do NOT refer to them as "user" or "you"; call them "${impersonateContext.name}".]\n\nUser character information:\n${impersonateContext.content}\n\n`;
 	}
-	const userLabel = impersonateContext ? impersonateContext.name : 'Usuario';
-	const iaLabel = characterContext ? characterContext.name : 'IA';
+	const userLabel = impersonateContext ? impersonateContext.name : 'User';
+	const iaLabel = characterContext ? characterContext.name : 'AI';
 
 	const combinedPrompt = [contextPrompt, activeNoteBlock].filter(Boolean).join('\n\n');
-	const contextBlock = combinedPrompt ? `Contexto seleccionado explícitamente por el usuario:\n${combinedPrompt}\n\n` : '';
-	const historyBlock = history ? `Convesación actual:\n${history.map(m => `${m.role === 'user' ? userLabel : 'IA'}: ${m.content}`).join('\n\n')}\n\n` : '';
+	const contextBlock = combinedPrompt ? `Context explicitly selected by the user:\n${combinedPrompt}\n\n` : '';
+	const historyBlock = history ? `Current conversation:\n${history.map(m => `${m.role === 'user' ? userLabel : 'AI'}: ${m.content}`).join('\n\n')}\n\n` : '';
 	return `${systemPrompt}${contextBlock}${historyBlock}\n\n${iaLabel}: `;
 }
 
@@ -111,7 +111,7 @@ class FolderPickerModal extends FuzzySuggestModal<TFolder> {
 	private itemsCache: TFolder[];
 	constructor(app: any, folders: TFolder[], onPick: (folder: TFolder) => void) {
 		super(app);
-		this.setPlaceholder('Selecciona una carpeta...');
+		this.setPlaceholder('Select a folder...');
 		this.itemsCache = folders;
 		this.onPick = onPick;
 	}
@@ -134,7 +134,7 @@ class ConfirmModal extends Modal {
 		contentEl.empty();
 		contentEl.createEl('p', { text: this.message });
 		new Setting(contentEl)
-			.addButton(btn => btn.setButtonText('Sí').setCta().onClick(() => { this.onConfirm(); this.close(); }))
+			.addButton(btn => btn.setButtonText('Yes').setCta().onClick(() => { this.onConfirm(); this.close(); }))
 			.addButton(btn => btn.setButtonText('No').onClick(() => this.close()));
 	}
 	onClose() { this.contentEl.empty(); }
@@ -156,7 +156,7 @@ class ChatContextModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass('options-view-container');
 		this.modalEl.addClass('context-modal-large');
-		contentEl.createEl('h4', { text: 'Contexto del Chat' });
+		contentEl.createEl('h4', { text: 'Chat Context' });
 
 		const pre = contentEl.createEl('pre');
 		pre.style.maxHeight = '40vh';
@@ -310,7 +310,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			const files = markdownFiles.filter(file => file.path.startsWith(prefix));
 			const contents = await Promise.all(files.map(async file => `--- ${file.path} ---\n${stripFrontmatter(await plugin.app.vault.read(file))}`));
 			addContext({ id: `folder:${folder.path}`, kind: 'folder', name: folder.name, path: folder.path, content: contents.join('\n\n') });
-		} catch (error) { new Notice(`No se pudo leer la carpeta ${folder.path}: ${String(error)}`); }
+		} catch (error) { new Notice(`Could not read folder ${folder.path}: ${String(error)}`); }
 	};
 
 	const addFileContext = async (file: TFile, kind: 'note') => {
@@ -318,7 +318,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			const content = await plugin.app.vault.read(file);
 			addContext({ id: `${kind}:${file.path}`, kind, name: file.basename, path: file.path, content: stripFrontmatter(content) });
 		} catch (error) {
-			new Notice(`No se pudo leer ${file.path}: ${String(error)}`);
+			new Notice(`Could not read ${file.path}: ${String(error)}`);
 		}
 	};
 
@@ -361,7 +361,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			if (!chapter?.archivo) return;
 			const content = await store.readCapituloTexto(chapterId);
 			addContext({ id: `chapter:${chapterId}`, kind: 'chapter', name: chapter.nombre, path: chapter.archivo, chapterId, content: stripFrontmatter(content) });
-		} catch (error) { new Notice(`No se pudo leer el capítulo: ${String(error)}`); }
+		} catch (error) { new Notice(`Could not read the chapter: ${String(error)}`); }
 	};
 
 	const selectOutline = (chapterId: string) => {
@@ -428,9 +428,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const copyToClipboard = useCallback(async (text: string) => {
 		try {
 			await navigator.clipboard.writeText(text);
-			new Notice('✅ Contenido copiado al portapapeles.');
+			new Notice('✅ Content copied to clipboard.');
 		} catch {
-			new Notice('❌ No se pudo copiar al portapapeles.');
+			new Notice('❌ Could not copy to clipboard.');
 		}
 	}, []);
 
@@ -442,9 +442,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			const folder = activeFile?.parent?.path ?? '/';
 			const filePath = `${folder}/${filename}`;
 			await plugin.app.vault.create(filePath, text);
-			new Notice(`✅ Respuesta guardada como nota: ${filename}`);
+			new Notice(`✅ Response saved as note: ${filename}`);
 		} catch (e: any) {
-			new Notice(`❌ Error al guardar nota: ${e?.message ?? String(e)}`);
+			new Notice(`❌ Error saving note: ${e?.message ?? String(e)}`);
 		}
 	}, [plugin]);
 
@@ -494,7 +494,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		try {
 			const settings = plugin.settings.data;
 			const activeModel = getActiveModelConfig(settings, 'chat');
-			if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
+			if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
 			const token = settings.apiToken[activeModel.providerId] ?? '';
 			const api = new ApiFactory().createApi(activeModel.providerId, token);
 			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
@@ -506,7 +506,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				...(currentUploadedImagesRegen.length > 0 ? { images: currentUploadedImagesRegen } : {}),
 			});
 			const images = extractImageUrls(result);
-			const reply = result.text ?? (images.length ? '' : '(sin respuesta)');
+			const reply = result.text ?? (images.length ? '' : '(no response)');
 			await appendMensaje('assistant', reply, images);
 			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: images, created_at: '' }]);
 		} catch (e: any) {
@@ -518,9 +518,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	}, [store, activeChatId, contextItems, characterContext, impersonateContext, activeNoteItem, plugin, appendMensaje, deleteMensaje]);
 
 	const doCreate = async () => {
-		const c = await createChat("Chat sin nombre");
+		const c = await createChat("Unnamed chat");
 		selectChat(c.id_chat);
-		new Notice('Chat nuevo creado');
+		new Notice('New chat created');
 	};
 
 	const send = async () => {
@@ -528,7 +528,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		if (!t) return;
 		let chatId = activeChatId;
 		if (!chatId) {
-			const created = await createChat('Chat sin nombre');
+			const created = await createChat('Unnamed chat');
 			if (!created) return;
 			chatId = created.id_chat;
 			// Persist current context to the new chat before selecting it,
@@ -545,7 +545,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		try {
 			const settings = plugin.settings.data;
 			const activeModel = getActiveModelConfig(settings, 'chat');
-			if (!activeModel.modelName) throw new Error('Configura un modelo activo en Settings.');
+			if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
 			const token = settings.apiToken[activeModel.providerId] ?? '';
 			const api = new ApiFactory().createApi(activeModel.providerId, token);
 			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
@@ -557,7 +557,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				...(currentUploadedImages.length > 0 ? { images: currentUploadedImages } : {}),
 			});
 			const images = extractImageUrls(result);
-			const reply = result.text ?? (images.length ? '' : '(sin respuesta)');
+			const reply = result.text ?? (images.length ? '' : '(no response)');
 			await appendMensaje('assistant', reply, images);
 			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: images, created_at: '' }]);
 		} catch (e: any) {
@@ -648,8 +648,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 
 		// Compute breakdown parts matching buildPrompt internals
 		const groups: Array<[ContextKind, string]> = [
-			['codex', 'Entradas de Codex seleccionadas'], ['chapter', 'Capítulos seleccionados'], ['outline', 'Outlines seleccionados'],
-			['note', 'Notas seleccionadas'], ['folder', 'Carpetas seleccionadas'],
+			['codex', 'Selected Codex entries'], ['chapter', 'Selected chapters'], ['outline', 'Selected outlines'],
+			['note', 'Selected notes'], ['folder', 'Selected folders'],
 		];
 		const contextPrompt = groups.map(([kind, title]) => {
 			const items = contextItems.filter(item => item.kind === kind);
@@ -658,7 +658,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		}).filter(Boolean).join('\n\n');
 
 		const activeNoteBlock = activeNoteItem
-			? `Nota activa seleccionada:\n--- ${activeNoteItem.name}${activeNoteItem.path ? ` (${activeNoteItem.path})` : ''} ---\n${activeNoteItem.content}`
+			? `Active note selected:\n--- ${activeNoteItem.name}${activeNoteItem.path ? ` (${activeNoteItem.path})` : ''} ---\n${activeNoteItem.content}`
 			: '';
 
 		let systemPrompt = '';
@@ -666,16 +666,16 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			systemPrompt = `${chatPromptText}\n\n`;
 		}
 		if (characterContext) {
-			systemPrompt += `[MODO ROL: Estás interpretando al personaje "${characterContext.name}". Responde siempre EN PERSONAJE, usando su tono, vocabulario, conocimiento y personalidad. NO salgas del personaje bajo ninguna circunstancia. NO menciones que eres una IA. Eres "${characterContext.name}".]\n\nInformación del personaje:\n${characterContext.content}\n\n`;
+			systemPrompt += `[ROLE MODE: You are roleplaying the character "${characterContext.name}". Always respond IN CHARACTER, using their tone, vocabulary, knowledge and personality. Do NOT break character under any circumstances. Do NOT mention that you are an AI. You are "${characterContext.name}".]\n\nCharacter information:\n${characterContext.content}\n\n`;
 		}
 		if (impersonateContext) {
-			systemPrompt += `[MODO IMPERSONAR: El usuario está interpretando al personaje "${impersonateContext.name}". El usuario ES "${impersonateContext.name}". Trátalo como si fuera ese personaje. NO te refieras a él como "usuario" o "tú", llámalo "${impersonateContext.name}".]\n\nInformación del personaje del usuario:\n${impersonateContext.content}\n\n`;
+			systemPrompt += `[IMPERSONATE MODE: The user is roleplaying the character "${impersonateContext.name}". The user IS "${impersonateContext.name}". Treat them as if they were that character. Do NOT refer to them as "user" or "you"; call them "${impersonateContext.name}".]\n\nUser character information:\n${impersonateContext.content}\n\n`;
 		}
 
-		const userLabel = impersonateContext ? impersonateContext.name : 'Usuario';
+		const userLabel = impersonateContext ? impersonateContext.name : 'User';
 		const chatHistory = mensajes
 			.filter(m => m.role === 'user' || m.role === 'assistant')
-			.map(m => `${m.role === 'user' ? userLabel : 'IA'}: ${m.mensaje}`)
+			.map(m => `${m.role === 'user' ? userLabel : 'AI'}: ${m.mensaje}`)
 			.join('\n\n');
 
 		const breakdown = [
@@ -704,14 +704,14 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				const filePath = `${folder.path}/${finalName}`;
 				const existing = plugin.app.vault.getAbstractFileByPath(filePath);
 				if (existing) {
-					new Notice(`⚠️ Ya existe un archivo en ${filePath}`);
+					new Notice(`⚠️ A file already exists at ${filePath}`);
 					return;
 				}
 				await plugin.app.vault.createBinary(filePath, buf);
-				new Notice(`✅ Imagen guardada en ${filePath}`);
+				new Notice(`✅ Image saved to ${filePath}`);
 				closeImageDropdown();
 			} catch (e: any) {
-				new Notice(`❌ Error al guardar: ${e?.message ?? String(e)}`);
+				new Notice(`❌ Error saving: ${e?.message ?? String(e)}`);
 			}
 		}).open();
 	}, [plugin, closeImageDropdown]);
@@ -724,20 +724,20 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				// Already square – set directly
 				void (async () => {
 					await setEntryThumbnail(entryId, dataUrl);
-					new Notice(`✅ Imagen agregada como thumbnail de "${entryName}"`);
+					new Notice(`✅ Image added as thumbnail for "${entryName}"`);
 					closeImageDropdown();
 				})();
 			} else {
 				// Not square – show crop modal
 				new ThumbnailCropModal(plugin.app, dataUrl, async (croppedDataUrl) => {
 					await setEntryThumbnail(entryId, croppedDataUrl);
-					new Notice(`✅ Imagen agregada como thumbnail de "${entryName}"`);
+					new Notice(`✅ Image added as thumbnail for "${entryName}"`);
 					closeImageDropdown();
 				}).open();
 			}
 		};
 		img.onerror = () => {
-			new Notice('❌ No se pudo cargar la imagen para recortar.');
+			new Notice('❌ Could not load the image for cropping.');
 		};
 		img.src = dataUrl;
 	}, [plugin, setEntryThumbnail, closeImageDropdown]);
@@ -753,7 +753,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		// Then handle thumbnail
 		const doSet = (url: string) => cropThenSetThumbnail(url, entry.id_entrada_codex, entry.nombre);
 		if (entry.thumbnail) {
-			new ConfirmModal(plugin.app, `¿Está seguro de reemplazar el thumbnail de "${entry.nombre}"?`, () => doSet(dataUrl)).open();
+			new ConfirmModal(plugin.app, `Are you sure you want to replace the thumbnail for "${entry.nombre}"?`, () => doSet(dataUrl)).open();
 		} else {
 			doSet(dataUrl);
 		}
@@ -777,7 +777,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const filteredNotes = (query ? markdownFiles : notes).filter(file => includesQuery(query, file.basename, file.path));
 	const filteredCategories = categorias.map(category => ({ category, entries: entradas.filter(entry => !entry.archivado && entry.id_categoria === category.id_categoria && includesQuery(query, entry.nombre, entry.alias, entry.descripcion)) })).filter(group => group.entries.length);
 
-	const personajeCategory = categorias.find(c => c.nombre.toLocaleLowerCase() === 'personajes');
+	const personajeCategory = categorias.find(c => c.nombre.toLocaleLowerCase() === 'characters');
 	const characterEntries = personajeCategory
 		? entradas.filter(e => !e.archivado && e.id_categoria === personajeCategory.id_categoria && includesQuery(query, e.nombre, e.alias))
 		: [];
@@ -794,8 +794,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		<div className="nw-chat-messages" ref={scrollRef}>
 			{mensajes.length === 0 && !busy && (
 				<div className="nw-chat-empty">
-					<p>Comienza una conversación con la IA.</p>
-					{!activeChatId && <p className="nw-chat-empty-hint">Escribe un mensaje para crear un nuevo chat.</p>}
+					<p>Start a conversation with the AI.</p>
+					{!activeChatId && <p className="nw-chat-empty-hint">Write a message to create a new chat.</p>}
 				</div>
 			)}
 			{mensajes.map(m => (
@@ -807,14 +807,14 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 									{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-msg-role-thumb" /> : <Icon.Person width={20} height={20} />}
 									<span>{impersonateContext.name}</span>
 								</span>
-							) : 'Tu'
+							) : 'You'
 						) : (
 							characterContext ? (
 								<span className="nw-msg-role-character">
 									{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-msg-role-thumb" /> : <Icon.Person width={20} height={20} />}
 									<span>{characterContext.name}</span>
 								</span>
-							) : 'IA'
+							) : 'AI'
 						)}
 					</div>
 					{m.mensaje && (
@@ -835,8 +835,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 									autoFocus
 								/>
 								<div className="nw-msg-edit-actions">
-									<button className="nw-btn nw-btn-primary" onClick={() => void saveEditedMessage(m.id_mensaje)}>Guardar</button>
-									<button className="nw-btn" onClick={cancelEdit}>Cancelar</button>
+									<button className="nw-btn nw-btn-primary" onClick={() => void saveEditedMessage(m.id_mensaje)}>Save</button>
+									<button className="nw-btn" onClick={cancelEdit}>Cancel</button>
 								</div>
 							</div>
 						) : (
@@ -848,24 +848,24 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					{m.imagenes?.length > 0 && <div className="nw-msg-images">
 						{m.imagenes.map((url: string, index: number) => (
 							<div key={`${url}-${index}`} className="nw-msg-image-wrapper">
-								<img src={url} alt={`Imagen generada ${index + 1}`} onClick={() => setLightboxSrc(url)} style={{ cursor: 'pointer' }} />
+								<img src={url} alt={`Generated image ${index + 1}`} onClick={() => setLightboxSrc(url)} style={{ cursor: 'pointer' }} />
 								<div className="nw-msg-image-actions">
-									<button className="nw-msg-image-download-btn" title="Opciones de imagen" onClick={() => setImageDropdown(prev => prev?.index === index ? null : { index, searchQuery: '' })}>
+									<button className="nw-msg-image-download-btn" title="Image options" onClick={() => setImageDropdown(prev => prev?.index === index ? null : { index, searchQuery: '' })}>
 										<Icon.Download width={14} height={14} />
 									</button>
 									{imageDropdown?.index === index && (
 										<div className="nw-image-menu-dropdown">
 											<button className="nw-context-row" onClick={() => downloadImage(url, `imagen-${index + 1}`)}>
-												<Icon.Download width={14} height={14} /> Descargar
+												<Icon.Download width={14} height={14} /> Download
 											</button>
 											<button className="nw-context-row" onClick={() => { void saveImageToVault(url, `imagen-${index + 1}`); }}>
-												<Icon.Save width={14} height={14} /> Guardar en Vault
+												<Icon.Save width={14} height={14} /> Save to Vault
 											</button>
 											<div className="nw-image-menu-codex-section">
-												<div className="nw-image-menu-codex-header">Agregar a entrada de Codex</div>
+												<div className="nw-image-menu-codex-header">Add to Codex entry</div>
 												<input
 													className="nw-input"
-													placeholder="Buscar..."
+													placeholder="Search..."
 													value={imageDropdown.searchQuery}
 													onChange={e => setImageDropdown(prev => prev ? { ...prev, searchQuery: e.target.value } : null)}
 												/>
@@ -890,7 +890,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 															))}
 														</section>
 													))}
-													{imageCodexCategories.length === 0 && <span className="nw-image-menu-empty">No se encontraron entradas.</span>}
+													{imageCodexCategories.length === 0 && <span className="nw-image-menu-empty">No entries found.</span>}
 												</div>
 											</div>
 										</div>
@@ -901,23 +901,23 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					</div>}
 					{m.mensaje && editingMsgId !== m.id_mensaje && (
 						<div className="nw-msg-actions">
-							<button className="nw-msg-action-btn" title="Editar" onClick={() => startEditMessage(m.id_mensaje, m.mensaje)}>
+							<button className="nw-msg-action-btn" title="Edit" onClick={() => startEditMessage(m.id_mensaje, m.mensaje)}>
 								<Icon.Edit width={13} height={13} />
 							</button>
-							<button className="nw-msg-action-btn" title="Copiar al portapapeles" onClick={() => void copyToClipboard(m.mensaje)}>
+							<button className="nw-msg-action-btn" title="Copy to clipboard" onClick={() => void copyToClipboard(m.mensaje)}>
 								<Icon.Copy width={13} height={13} />
 							</button>
 							{m.role === 'assistant' && (
 								<>
-									<button className="nw-msg-action-btn" title="Regenerar" onClick={() => void regenerateMessage()}>
+									<button className="nw-msg-action-btn" title="Regenerate" onClick={() => void regenerateMessage()}>
 										<Icon.Refresh width={13} height={13} />
 									</button>
-									<button className="nw-msg-action-btn" title="Guardar como nota" onClick={() => void saveAsNote(m.mensaje, m.id_mensaje)}>
+									<button className="nw-msg-action-btn" title="Save as note" onClick={() => void saveAsNote(m.mensaje, m.id_mensaje)}>
 										<Icon.SaveAlt width={13} height={13} />
 									</button>
 								</>
 							)}
-							<button className="nw-msg-action-btn nw-msg-action-delete" title="Eliminar mensaje" onClick={() => void handleDeleteMessage(m.id_mensaje)}>
+							<button className="nw-msg-action-btn nw-msg-action-delete" title="Delete message" onClick={() => void handleDeleteMessage(m.id_mensaje)}>
 								<Icon.X width={13} height={13} />
 							</button>
 						</div>
@@ -927,7 +927,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					)}
 				</div>
 			))}
-			{busy && <div className="nw-msg nw-msg-assistant"><em>...escribiendo...</em></div>}
+			{busy && <div className="nw-msg nw-msg-assistant"><em>...typing...</em></div>}
 		</div>
 		<div className='nw-chat-input-container'>
 			<div className="nw-chat-context-bar">
@@ -935,8 +935,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					<button className="nw-btn-link nw-btn-small nw-chat-context-trigger" onClick={() => { setContextOpen(open => !open); setContextMenu('root'); setQuery(''); }}>@</button>
 					<div className="nw-context-badges">			
 						{activeNoteItem && 
-							<button key={activeNoteItem.id} className={`nw-context-badge nw-context-badge-${activeNoteItem.kind}`} onClick={() => void openContextItem(activeNoteItem)} title={`Abrir ${activeNoteItem.name}`}>
-								{renderIcon(activeNoteItem.kind)}<span>{activeNoteItem.name}</span><span className="nw-context-badge-remove" role="button" aria-label={`Quitar ${activeNoteItem.name}`} onClick={event => { event.stopPropagation(); removeActiveNote(); }}><Icon.X width={12} height={12} /></span>
+							<button key={activeNoteItem.id} className={`nw-context-badge nw-context-badge-${activeNoteItem.kind}`} onClick={() => void openContextItem(activeNoteItem)} title={`Open ${activeNoteItem.name}`}>
+								{renderIcon(activeNoteItem.kind)}<span>{activeNoteItem.name}</span><span className="nw-context-badge-remove" role="button" aria-label={`Remove ${activeNoteItem.name}`} onClick={event => { event.stopPropagation(); removeActiveNote(); }}><Icon.X width={12} height={12} /></span>
 							</button>
 						}
 						{contextItems.map(item => 
@@ -944,7 +944,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								key={item.id} 
 								className={`nw-context-badge nw-context-badge-${item.kind}`} 
 								onClick={() => void openContextItem(item)} 
-								title={`Abrir ${item.name}`}
+								title={`Open ${item.name}`}
 							>
 								{item.kind === 'codex' && item.thumbnail
 									? <img src={item.thumbnail} alt="" /> 
@@ -953,7 +953,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								<span 
 									className="nw-context-badge-remove" 
 									role="button" 
-									aria-label={`Quitar ${item.name}`} 
+									aria-label={`Remove ${item.name}`}
 									onClick={event => { event.stopPropagation(); updateContextItems(items => items.filter(existing => existing.id !== item.id)); }}
 								>
 									<Icon.X width={12} height={12} />
@@ -964,8 +964,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				</div>			
 				{contextOpen && <div className="nw-context-dropdown">
 					<div className="nw-context-dropdown-list">
-						{contextMenu !== 'root' && <button className="nw-context-row nw-context-back" onClick={() => setContextMenu('root')}><Icon.Back width={14} height={14} /> Volver</button>}
-						{contextMenu === 'root' && <>{([['codex', 'Codex'], ['chapters', 'Capítulos'], ['outlines', 'Outlines'], ['notes', 'Notas'], ['folders', 'Carpetas'], ['characters', 'Personaje']] as Array<[ContextMenu, string]>).map(([menu, label]) => <button className="nw-context-row" key={menu} onClick={() => setContextMenu(menu)}>{label}<Icon.ChevronRight width={14} height={14} /></button>)}{characterContext && <button className="nw-context-row" onClick={() => setContextMenu('impersonate')}>Impersonar<Icon.ChevronRight width={14} height={14} /></button>}<button className="nw-context-row" disabled={!activeFile} onClick={() => { refreshActiveNote(); setContextOpen(false); setContextMenu('root'); }}>{renderIcon('active-note')} Nota Activa</button></>}
+						{contextMenu !== 'root' && <button className="nw-context-row nw-context-back" onClick={() => setContextMenu('root')}><Icon.Back width={14} height={14} /> Back</button>}
+						{contextMenu === 'root' && <>{([['codex', 'Codex'], ['chapters', 'Chapters'], ['outlines', 'Outlines'], ['notes', 'Notes'], ['folders', 'Folders'], ['characters', 'Character']] as Array<[ContextMenu, string]>).map(([menu, label]) => <button className="nw-context-row" key={menu} onClick={() => setContextMenu(menu)}>{label}<Icon.ChevronRight width={14} height={14} /></button>)}{characterContext && <button className="nw-context-row" onClick={() => setContextMenu('impersonate')}>Impersonate<Icon.ChevronRight width={14} height={14} /></button>}<button className="nw-context-row" disabled={!activeFile} onClick={() => { refreshActiveNote(); setContextOpen(false); setContextMenu('root'); }}>{renderIcon('active-note')} Active Note</button></>}
 						{contextMenu === 'codex' && filteredCategories.map(({ category, entries: categoryEntries }) => <section key={category.id_categoria} className="nw-context-category"><div className="nw-context-category-title">{category.nombre}</div>{categoryEntries.map(entry => <button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => addContext({ id: `codex:${entry.id_entrada_codex}`, kind: 'codex', name: entry.nombre, content: entry.descripcion, thumbnail: entry.thumbnail, categoryColor: entry.color ?? category.color })}><span className="nw-context-category-line" style={{ backgroundColor: entry.color ?? category.color }} />{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}{entry.nombre}</button>)}</section>)}
 						{contextMenu === 'characters' && (
 							<>
@@ -974,7 +974,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 										{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}
 										{entry.nombre}
 									</button>
-								)) : <span className="nw-context-row" style={{color: 'var(--text-muted)', cursor: 'default'}}>No hay personajes disponibles.</span>}
+								)) : <span className="nw-context-row" style={{color: 'var(--text-muted)', cursor: 'default'}}>No characters available.</span>}
 							</>
 						)}
 						{contextMenu === 'impersonate' && (
@@ -984,7 +984,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 										{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}
 										{entry.nombre}
 									</button>
-								)) : <span className="nw-context-row" style={{color: 'var(--text-muted)', cursor: 'default'}}>No hay personajes disponibles.</span>}
+								)) : <span className="nw-context-row" style={{color: 'var(--text-muted)', cursor: 'default'}}>No characters available.</span>}
 							</>
 						)}
 						{contextMenu === 'chapters' && filteredChapters.filter(chapter => !!chapter.archivo).map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => void selectChapter(chapter.id_capitulo)}>{renderIcon('chapter')}{chapter.nombre}</button>)}
@@ -992,7 +992,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 						{contextMenu === 'notes' && filteredNotes.map(file => <button key={file.path} className="nw-context-row nw-context-file" onClick={() => void addFileContext(file, 'note')}>{renderIcon('note')}<span>{file.basename}<small>{file.path}</small></span></button>)}
 						{contextMenu === 'folders' && filteredFolders.map(folder => <button key={folder.path} className="nw-context-row nw-context-file" onClick={() => void addFolderContext(folder)}>{renderIcon('folder')}<span>{folder.name}<small>{folder.path}</small></span></button>)}
 					</div>
-					{contextMenu !== 'root' && <div className="nw-context-search"><input className="nw-input" autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Filtrar..." /></div>}
+					{contextMenu !== 'root' && <div className="nw-context-search"><input className="nw-input" autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter..." /></div>}
 				</div>}
 			</div>
 			<div className="nw-chat-input">
@@ -1004,7 +1004,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { 
 						e.preventDefault(); void send(); 
 					} }} 
-					placeholder={impersonateContext ? `Escribe un mensaje como ${impersonateContext.name}...` : characterContext ? `Escribe un mensaje para ${characterContext.name}...` : 'Escribe un mensaje...'} 
+					placeholder={impersonateContext ? `Write a message as ${impersonateContext.name}...` : characterContext ? `Write a message to ${characterContext.name}...` : 'Write a message...'}
 					rows={3} 
 				/>
 			</div>
@@ -1012,8 +1012,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				<div className="nw-chat-uploaded-images">
 					{uploadedImages.map((url, index) => (
 						<div key={index} className="nw-chat-uploaded-image-wrapper">
-							<img src={url} alt={`Imagen subida ${index + 1}`} className="nw-chat-uploaded-image-thumb" />
-							<button className="nw-chat-uploaded-image-remove" title="Quitar imagen" onClick={() => removeUploadedImage(index)}>
+							<img src={url} alt={`Uploaded image ${index + 1}`} className="nw-chat-uploaded-image-thumb" />
+							<button className="nw-chat-uploaded-image-remove" title="Remove image" onClick={() => removeUploadedImage(index)}>
 								<Icon.X width={10} height={10} />
 							</button>
 						</div>
@@ -1024,7 +1024,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
 					<div className="nw-chat-model-selector" key={modelVersion}>
 						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
-							{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'Sin modelo activo'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}{model?.supports_vision && <Icon.Eye width={14} height={14} className="nw-model-image-capability" />}</>; })()}
+							{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'No active model'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}{model?.supports_vision && <Icon.Eye width={14} height={14} className="nw-model-image-capability" />}</>; })()}
 							<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
 						</span>
 						{modelMenuOpen && (
@@ -1046,7 +1046,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 											)}
 										</button>
 									)) : (
-										<span>No hay modelos creados.</span>
+										<span>No models created.</span>
 									)
 								}
 							</div>
@@ -1054,7 +1054,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					</div>
 					<div className="nw-chat-prompt-selector" ref={promptRef}>
 						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setPromptMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPromptMenuOpen(open => !open); } }}>
-							{currentPrompt?.nombre ?? defaultChatPrompt?.nombre ?? 'Sin prompt'}
+							{currentPrompt?.nombre ?? defaultChatPrompt?.nombre ?? 'No prompt'}
 							<Icon.ChevronDown width={14} height={14} className={promptMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
 						</span>
 						{promptMenuOpen && (
@@ -1063,7 +1063,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 									<button key={p.id_prompt} className="nw-context-row" onClick={() => handlePromptSelect(p.id_prompt)}>
 										{p.nombre}{p.id_prompt === resolvedPromptId ? <span style={{ marginLeft: 'auto', color: 'var(--text-accent)' }}><Icon.Check width={14} height={14} /></span> : null}
 									</button>
-								)) : <span>No hay prompts de chat.</span>}
+								)) : <span>No chat prompts.</span>}
 							</div>
 						)}
 					</div>
@@ -1074,7 +1074,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-character-badge-thumb" /> : null}
 							<span className="nw-character-badge-name">{characterContext.name}</span>
 							<span className="nw-character-badge-mode">Char</span>
-							<button className="nw-character-badge-remove" onClick={removeCharacterContext} title="Quitar personaje">
+							<button className="nw-character-badge-remove" onClick={removeCharacterContext} title="Remove character">
 								<Icon.X width={12} height={12} />
 							</button>
 						</div>
@@ -1084,7 +1084,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-character-badge-thumb" /> : null}
 							<span className="nw-character-badge-name">{impersonateContext.name}</span>
 							<span className="nw-character-badge-mode">User</span>
-							<button className="nw-character-badge-remove" onClick={removeImpersonateContext} title="Quitar personaje">
+							<button className="nw-character-badge-remove" onClick={removeImpersonateContext} title="Remove character">
 								<Icon.X width={12} height={12} />
 							</button>
 						</div>
@@ -1092,17 +1092,17 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				</div>
 				<div style={{ display: "flex", justifyContent: "flex-end", gap: "4px"}}>
 					{supportsVision && (
-						<button className="nw-btn-link" title="Subir imagen" onClick={() => fileInputRef.current?.click()}>
+						<button className="nw-btn-link" title="Upload image" onClick={() => fileInputRef.current?.click()}>
 							<Icon.Upload width={12} height={12} />
 						</button>
 					)}
-					<button className="nw-btn-link" title="Ver contexto" onClick={openContextModal}>
+					<button className="nw-btn-link" title="View context" onClick={openContextModal}>
 						<Icon.Book width={12} height={12} />
 					</button>
-					<button className="nw-btn-link" title="Nuevo chat" onClick={doCreate}>
+					<button className="nw-btn-link" title="New chat" onClick={doCreate}>
 						<Icon.Plus width={12} height={12} />
 					</button>
-					<button className="nw-btn-link" title="Configuración de prompts" onClick={() => new CustomPromptsModal(plugin.app as any, plugin).open()}>
+					<button className="nw-btn-link" title="Prompt settings" onClick={() => new CustomPromptsModal(plugin.app as any, plugin).open()}>
 						<Icon.Settings width={12} height={12}/>
 					</button>
 				</div>
@@ -1119,10 +1119,10 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		{lightboxSrc && createPortal(
 			<div className="nw-lightbox-overlay" onClick={() => setLightboxSrc(null)}>
 				<div className="nw-lightbox-content" onClick={(e) => e.stopPropagation()}>
-					<button className="nw-lightbox-close" onClick={() => setLightboxSrc(null)} title="Cerrar">
+					<button className="nw-lightbox-close" onClick={() => setLightboxSrc(null)} title="Close">
 						<Icon.X width={24} height={24} />
 					</button>
-					<img src={lightboxSrc} alt="Imagen a tamaño real" className="nw-lightbox-image" />
+					<img src={lightboxSrc} alt="Full-size image" className="nw-lightbox-image" />
 				</div>
 			</div>,
 			document.body

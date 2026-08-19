@@ -305,7 +305,7 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 	},
 	findOrCreateTag: async (name) => {
 		const s = get().store;
-		if (!s) throw new Error("store no bindeado");
+		if (!s) throw new Error("store not bound");
 		const t = await s.findOrCreateTag(name);
 		const existing = get().tags.find((x) => x.id_tag === t.id_tag);
 		if (!existing) set({ tags: [...get().tags, t] });

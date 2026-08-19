@@ -38,7 +38,7 @@ export function getActiveModelConfig(
 		};
 	}
 	const provider = getProvider(model.id_proveedor);
-	if (!provider) throw new Error("El proveedor del modelo activo no existe.");
+	if (!provider) throw new Error("The provider of the active model does not exist.");
 	// For chat context, prefer max_output_chat; fall back to max_output if not set.
 	const maxTokens =
 		context === "chat"

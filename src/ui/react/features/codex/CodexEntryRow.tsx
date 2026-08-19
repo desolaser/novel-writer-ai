@@ -46,7 +46,7 @@ function CodexEntryRow({
 					checked={selected}
 					onChange={onToggleDeletion}
 					onClick={(event) => event.stopPropagation()}
-					aria-label={`Seleccionar ${entry.nombre}`}
+					aria-label={`Select ${entry.nombre}`}
 				/>
 			)}
 			<div className="nw-entry-row-thumb">
@@ -67,7 +67,7 @@ function CodexEntryRow({
 					className="nw-entry-name"
 					style={entry.color ? { color: entry.color } : undefined}
 				>
-					{entry.nombre !== "" ? entry.nombre : "Sin nombre"}
+					{entry.nombre !== "" ? entry.nombre : "Unnamed"}
 				</div>
 				{entryTags.length > 0 && (
 					<div className="nw-entry-tags-inline">

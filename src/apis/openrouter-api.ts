@@ -26,7 +26,7 @@ export class OpenRouterApi extends ApiInterface {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(`Error al obtener modelos: ${errorData.error?.message || response.statusText}`);
+                throw new Error(`Error fetching models: ${errorData.error?.message || response.statusText}`);
             }
 
             const data = await response.json();
@@ -88,7 +88,7 @@ export class OpenRouterApi extends ApiInterface {
             if (!response.ok) {
                 const errorData = await response.json();
                 console.log({ error: errorData.error });
-                throw new Error(`Error al generar texto: ${errorData.error?.message || response.statusText}`);
+                throw new Error(`Error generating text: ${errorData.error?.message || response.statusText}`);
             }
 
             // Si es streaming, devolver la respuesta directamente

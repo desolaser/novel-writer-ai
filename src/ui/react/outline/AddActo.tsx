@@ -14,7 +14,7 @@ export function AddActo({ value, onChange, onCreate }: AddActoProps) {
 				className="nw-input"
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
-				placeholder="Nuevo acto"
+				placeholder="New act"
 				onKeyDown={(e) => {
 					if (e.key === "Enter") onCreate();
 				}}

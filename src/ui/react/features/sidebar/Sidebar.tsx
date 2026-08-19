@@ -19,7 +19,7 @@ export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {
 			<button
 				className="nw-icon-btn"
 				onClick={() => setOpen((value) => !value)}
-				aria-label="Gestión de novelas"
+				aria-label="Novel management"
 			>
 				<Icon.Settings />
 			</button>
@@ -31,7 +31,7 @@ export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {
 							openNovelManagementModal(plugin);
 						}}
 					>
-						Ver Novelas
+						View Novels
 					</button>
 					<button
 						disabled={!activeNovelId}
@@ -41,7 +41,7 @@ export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {
 								openNovelEditModal(plugin, activeNovelId);
 						}}
 					>
-						Editar Novela
+						Edit Novel
 					</button>
 					<button
 						disabled={!activeNovelId}
@@ -52,7 +52,7 @@ export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {
 								openNovelDeleteModal(plugin, activeNovelId);
 						}}
 					>
-						Borrar Novela
+						Delete Novel
 					</button>
 				</div>
 			)}

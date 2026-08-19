@@ -56,7 +56,7 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 				new ContextModal(plugin.app, prompt, storyText, codex, resolvedMemory, resolvedAuthor).open();
 			})
 			.catch(e => {
-				new ContextModal(plugin.app, 'Error al construir el contexto: ' + (e?.message ?? String(e))).open();
+				new ContextModal(plugin.app, 'Error building context: ' + (e?.message ?? String(e))).open();
 			})
 			.finally(() => setContextBusy(false));
 	}, [plugin, store?.activeFolderPath]);

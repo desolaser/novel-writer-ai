@@ -115,7 +115,7 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 		<div className="nw-crop-modal">
 			<div className="nw-crop-header">
 				<h3>Crop Thumbnail</h3>
-				<p className="nw-muted" style={{ margin: 0, fontSize: 11 }}>Arrastra para mover. Arrastra la esquina inferior derecha para redimensionar. Enter para confirmar, Esc para cancelar.</p>
+				<p className="nw-muted" style={{ margin: 0, fontSize: 11 }}>Drag to move. Drag the bottom-right corner to resize. Enter to confirm, Esc to cancel.</p>
 			</div>
 			<div className="nw-crop-stage" style={{ width: displaySize ? displaySize.w : MAX_DISPLAY, height: displaySize ? displaySize.h : MAX_DISPLAY }}>
 				{displaySize && (
@@ -144,8 +144,8 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 				)}
 			</div>
 			<div className="nw-crop-actions">
-				<button className="nw-btn" onClick={onCancel}>Cancelar</button>
-				<button className="nw-btn nw-btn-primary" onClick={doConfirm}>Confirmar</button>
+				<button className="nw-btn" onClick={onCancel}>Cancel</button>
+				<button className="nw-btn nw-btn-primary" onClick={doConfirm}>Confirm</button>
 			</div>
 		</div>
 	);

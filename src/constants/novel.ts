@@ -31,22 +31,22 @@ export const DEFAULT_COLORS: string[] = [
 
 /** Categorias por defecto de una novela nueva. Ellas no son borrables. */
 export const DEFAULT_CATEGORIES: { nombre: string; color: string }[] = [
-	{ nombre: 'Personajes', color: '#' },
-	{ nombre: 'Ubicaciones', color: '#' },
-	{ nombre: 'Objetos', color: '#' },
+	{ nombre: 'Characters', color: '#' },
+	{ nombre: 'Locations', color: '#' },
+	{ nombre: 'Objects', color: '#' },
 	{ nombre: 'Lore', color: '#' },
 	{ nombre: 'Subplot', color: '#' },
-	{ nombre: 'Otros', color: '#' },
+	{ nombre: 'Others', color: '#' },
 ];
 
 /** Asignacion de colores predefinidos a las categorias por defecto (indice en DEFAULT_COLORS). */
 export const DEFAULT_CATEGORY_COLORS: Record<string, string> = {
-	Personajes: '0',
-	Ubicaciones: '1',
-	Objetos: '2',
+	Characters: '0',
+	Locations: '1',
+	Objects: '2',
 	Lore: '3',
 	Subplot: '4',
-	Otros: '5',
+	Others: '5',
 };
 
 /** Helper: color real para un nombre de categoria default. */

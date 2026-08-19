@@ -29,7 +29,7 @@ export function OutlineHeader({
 			<strong>Outline</strong>
 			<div className="nw-outline-actions">
 				<label className="nw-draft-length">
-					Palabras{" "}
+					Words{" "}
 					<input
 						type="number"
 						min={100}
@@ -46,7 +46,7 @@ export function OutlineHeader({
 					className="nw-btn nw-btn-primary"
 					disabled={batchBusy || !hasChapters}
 					onClick={onGenerateAllMemory}
-					aria-label="Generar Memoria"
+					aria-label="Generate Memory"
 				>
 					<Icon.Magic />
 				</button>
@@ -54,7 +54,7 @@ export function OutlineHeader({
 					className="nw-btn nw-btn-primary"
 					disabled={batchBusy || !hasChapters}
 					onClick={onGenerateAllOutlines}
-					aria-label="Generar Outlines"
+					aria-label="Generate Outlines"
 				>
 					<Icon.Paintbrush />
 				</button>
@@ -62,17 +62,17 @@ export function OutlineHeader({
 					className="nw-btn nw-btn-primary"
 					disabled={batchBusy || !hasChapters}
 					onClick={onCreateAllManuscripts}
-					aria-label="Crear manuscritos"
+					aria-label="Create manuscripts"
 				>
 					<Icon.Save />
 				</button>
 				<button
 					className="nw-btn nw-btn-experimental"
-					title="Función experimental: la longitud final depende del proveedor y del modelo"
+					title="Experimental feature: final length depends on the provider and model"
 					disabled={batchBusy || !hasChapters}
 					onClick={onGenerateDrafts}
 				>
-					Generar drafts
+					Generate drafts
 				</button>
 			</div>
 		</div>

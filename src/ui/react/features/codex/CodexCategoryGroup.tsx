@@ -55,7 +55,7 @@ function CodexCategoryGroup({
 				<button
 					className="nw-btn nw-btn-icon nw-btn-transparent nw-cat-add"
 					onClick={onAddInCategory}
-					title={"Crear entrada en " + catName}
+					title={"Create entry in " + catName}
 				>
 					<Icon.Plus width={12} height={12} />
 				</button>

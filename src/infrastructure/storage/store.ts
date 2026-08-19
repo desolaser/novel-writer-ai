@@ -34,7 +34,7 @@ export class NovelStore {
 	async setActive(id: EntityId | null): Promise<void> {
 		if (id === null) { this.activeId = null; this.activeFolder = null; return; }
 		const folder = await findNovelFolder(this.app, id);
-		if (!folder) { new Notice('Novela no encontrada.'); return; }
+		if (!folder) { new Notice('Novel not found.'); return; }
 		this.activeId = id; this.activeFolder = folder;
 	}
 
@@ -47,7 +47,7 @@ export class NovelStore {
 
 	async updateNovel(id: EntityId, patch: Pick<Novela, 'nombre' | 'autor'>, thumbnailFile: ArrayBuffer | null = null): Promise<void> {
 		const found = this.scan.find(n => n.novela.id_novela === id);
-		if (!found) throw new Error('Novela no encontrada.');
+		if (!found) throw new Error('Novel not found.');
 		const updated = { ...found.novela, ...patch };
 		if (thumbnailFile) await updateNovelThumbnail(this.app, found.folderPath, updated, thumbnailFile);
 		await writeNovel(this.app, found.folderPath, updated);
@@ -56,7 +56,7 @@ export class NovelStore {
 
 	async deleteNovel(id: EntityId, deleteFolder = false): Promise<void> {
 		const folder = await findNovelFolder(this.app, id);
-		if (!folder) throw new Error('Novela no encontrada.');
+		if (!folder) throw new Error('Novel not found.');
 		await deleteNovelFolder(this.app, folder, deleteFolder);
 		if (this.activeId === id) { this.activeId = null; this.activeFolder = null; }
 		await this.refresh();
@@ -99,7 +99,7 @@ export class NovelStore {
 	async writeEntry(entry: EntradaCodex) { await EntryRepo.writeEntry(this.app, this.activeFolder!, entry); }
 	async deleteEntry(id: EntityId) { await EntryRepo.deleteEntry(this.app, this.activeFolder!, id); }
 	async archiveEntry(id: EntityId, archived: boolean) { const e = await EntryRepo.readEntry(this.app, this.activeFolder!, id); if (!e) return; e.archivado = archived; await EntryRepo.writeEntry(this.app, this.activeFolder!, e); }
-	async moveEntryToNovel(idEntry: EntityId, targetNovelId: EntityId) { const src = this.activeFolder!; const e = await EntryRepo.readEntry(this.app, src, idEntry); if (!e) return; const target = await findNovelFolder(this.app, targetNovelId); if (!target) throw new Error('Novela destino no encontrada'); e.id_novela = targetNovelId; await EntryRepo.writeEntry(this.app, target, e); await EntryRepo.deleteEntry(this.app, src, idEntry); }
+	async moveEntryToNovel(idEntry: EntityId, targetNovelId: EntityId) { const src = this.activeFolder!; const e = await EntryRepo.readEntry(this.app, src, idEntry); if (!e) return; const target = await findNovelFolder(this.app, targetNovelId); if (!target) throw new Error('Target novel not found'); e.id_novela = targetNovelId; await EntryRepo.writeEntry(this.app, target, e); await EntryRepo.deleteEntry(this.app, src, idEntry); }
 	async setEntryThumbnail(idEntry: EntityId, dataUrl: string | null) { const e = await EntryRepo.readEntry(this.app, this.activeFolder!, idEntry); if (!e) return; e.thumbnail = dataUrl; await EntryRepo.writeEntry(this.app, this.activeFolder!, e); }
 	async setEntryTags(idEntry: EntityId, tagIds: EntityId[]) { await EntryRepo.setEntryTags(this.app, this.activeFolder!, idEntry, tagIds); }
 	async addReferencia(idEntry: EntityId, url: string) { return EntryRepo.addReferencia(this.app, this.activeFolder!, idEntry, url); }

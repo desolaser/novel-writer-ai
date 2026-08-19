@@ -69,7 +69,7 @@ export async function deleteChat(app: App, folderPath: string, id: EntityId) {
 
 export async function appendMensaje(app: App, folderPath: string, idChat: EntityId, role: MessageRole, mensaje: string, imagenes?: string[]): Promise<Mensaje> {
 	const chat = await readChat(app, folderPath, idChat);
-	if (!chat) throw new Error('Chat no encontrado');
+	if (!chat) throw new Error('Chat not found');
 	const msg: Mensaje = {
 		id_mensaje: genId(), id_chat: idChat, role, mensaje, ...(imagenes?.length ? { imagenes } : {}),
 		created_at: nowISO(), updated_at: nowISO(),

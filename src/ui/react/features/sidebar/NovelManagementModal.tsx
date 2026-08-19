@@ -101,7 +101,7 @@ function NovelListView({
 	return (
 		<div className="nw-novel-manager">
 			<div className="nw-modal-heading">
-				<h2>Ver novelas</h2>
+				<h2>View novels</h2>
 			</div>
 			<div className="nw-novel-grid">
 				{novels.map((item) => (
@@ -122,7 +122,7 @@ function NovelListView({
 					/>
 				))}
 				{novels.length === 0 && (
-					<p className="nw-muted">No hay novelas.</p>
+					<p className="nw-muted">No novels.</p>
 				)}
 			</div>
 		</div>
@@ -157,14 +157,14 @@ function NovelCard({
 			<button
 				className="nw-novel-thumbnail"
 				onClick={onSelect}
-				aria-label={`Seleccionar ${novela.nombre}`}
+				aria-label={`Select ${novela.nombre}`}
 			>
 				{image ? <img src={image} alt="" /> : <span>📖</span>}
 			</button>
 			<div className="nw-novel-card-info">
 				<strong>{novela.nombre}</strong>
 				<span className="nw-muted">
-					{novela.autor || "Autor desconocido"}
+					{novela.autor || "Unknown author"}
 				</span>
 				<time>{novela.created_at.slice(0, 10)}</time>
 			</div>
@@ -172,14 +172,14 @@ function NovelCard({
 				<button
 					className="nw-icon-btn"
 					onClick={onEdit}
-					aria-label="Editar"
+					aria-label="Edit"
 				>
 					<Icon.Edit />
 				</button>
 				<button
 					className="nw-icon-btn nw-danger-icon"
 					onClick={onDelete}
-					aria-label="Borrar"
+					aria-label="Delete"
 				>
 					<Icon.Trash />
 				</button>
@@ -207,7 +207,7 @@ function NovelEditView({
 	const [thumbnailName, setThumbnailName] = React.useState("");
 	const [busy, setBusy] = React.useState(false);
 
-	if (!item) return <p className="nw-muted">Novela no encontrada.</p>;
+	if (!item) return <p className="nw-muted">Novel not found.</p>;
 
 	const current = item.novela.thumbnail
 		? plugin.app.vault.getAbstractFileByPath(
@@ -237,10 +237,10 @@ function NovelEditView({
 	return (
 		<div className="nw-direct-content">
             <div className="nw-modal-heading">
-                <h3>Editar novela</h3>
+                <h3>Edit novel</h3>
             </div>
             <label>
-                Nombre
+                Name
                 <input
                     className="nw-input"
                     value={name}
@@ -248,7 +248,7 @@ function NovelEditView({
                 />
             </label>
             <label>
-                Autor
+                Author
                 <input
                     className="nw-input"
                     value={author}
@@ -261,7 +261,7 @@ function NovelEditView({
                     <img
                         className="nw-edit-thumbnail"
                         src={currentUrl}
-                        alt="Thumbnail actual"
+                        alt="Current thumbnail"
                     />
                 )}
                 <input
@@ -281,14 +281,14 @@ function NovelEditView({
             </label>
             <div className="nw-modal-actions">
                 <button className="nw-btn" onClick={close}>
-                    Cancelar
+                    Cancel
                 </button>
                 <button
                     className="nw-btn nw-btn-primary"
                     disabled={!name.trim() || busy}
                     onClick={save}
                 >
-                    Guardar
+                    Save
                 </button>
             </div>
 		</div>
@@ -310,7 +310,7 @@ function NovelDeleteView({
 	const deleteNovel = useNovelWriter((s) => s.deleteNovel);
 	const [deleteFolder, setDeleteFolder] = React.useState(false);
 	const [busy, setBusy] = React.useState(false);
-	if (!item) return <p className="nw-muted">Novela no encontrada.</p>;
+	if (!item) return <p className="nw-muted">Novel not found.</p>;
 	const confirmDelete = async () => {
 		setBusy(true);
 		try {
@@ -322,10 +322,10 @@ function NovelDeleteView({
 	};
 	return (
 		<div className="nw-direct-content">
-            <h3>Borrar novela</h3>
+            <h3>Delete novel</h3>
             <p>
-                ¿Estás seguro de borrar “{item.novela.nombre}”? Se eliminará
-                todo su contenido del store.
+                Are you sure you want to delete "{item.novela.nombre}"? All of
+                its content will be removed from the store.
             </p>
             <label className="nw-checkbox">
                 <input
@@ -333,18 +333,18 @@ function NovelDeleteView({
                     checked={deleteFolder}
                     onChange={(e) => setDeleteFolder(e.target.checked)}
                 />{" "}
-                Borrar también la carpeta del vault
+                Also delete the vault folder
             </label>
             <div className="nw-modal-actions">
                 <button className="nw-btn" onClick={close}>
-                    Cancelar
+                    Cancel
                 </button>
                 <button
                     className="nw-btn nw-btn-danger"
                     disabled={busy}
                     onClick={confirmDelete}
                 >
-                    <Icon.Trash /> Borrar
+                    <Icon.Trash /> Delete
                 </button>
             </div>
 		</div>

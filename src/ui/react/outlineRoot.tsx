@@ -87,7 +87,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	if (novels.length === 0)
 		return (
 			<div className="nw-empty-state">
-				<p>Crea una novela para usar el outline.</p>
+				<p>Create a novel to use the outline.</p>
 			</div>
 		);
 
@@ -141,13 +141,13 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	};
 
 	const deleteAct = (acto: Acto) => {
-		if (confirm(`Borrar acto "${acto.nombre}"?`))
+		if (confirm(`Delete act "${acto.nombre}"?`))
 			void deleteActo(acto.id_acto);
 	};
 
 	const deleteChapter = (chapter: Capitulo) => {
 		closeChapterMenu();
-		if (confirm(`Borrar "${chapter.nombre}"?`))
+		if (confirm(`Delete "${chapter.nombre}"?`))
 			void deleteCapitulo(chapter.id_capitulo);
 	};
 

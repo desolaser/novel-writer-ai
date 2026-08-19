@@ -65,7 +65,7 @@ export interface ImportPlan {
 export async function prepareImport(app: App, lorebookFolder: string): Promise<ImportPlan> {
 	const root = app.vault.getAbstractFileByPath(lorebookFolder);
 	if (!(root instanceof TFolder)) {
-		new Notice(`Carpeta de lorebook no encontrada: ${lorebookFolder}`);
+		new Notice(`Lorebook folder not found: ${lorebookFolder}`);
 		return { subfolders: [], rootFiles: [], folder: lorebookFolder };
 	}
 	const subfolders: ImportableSubfolder[] = [];
@@ -125,8 +125,8 @@ export async function runImport(
 		return id;
 	}
 
-	const otrosCat = cats.find(c => c.nombre.toLowerCase() === 'otros');
-	const idOtros = otrosCat?.id_categoria ?? await getOrCreateCategoria('Otros');
+	const otrosCat = cats.find(c => c.nombre.toLowerCase() === 'others');
+	const idOtros = otrosCat?.id_categoria ?? await getOrCreateCategoria('Others');
 
 	async function importFile(file: TFile, idCategoria: EntityId) {
 		const content = await readText(app, file.path) ?? '';

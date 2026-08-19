@@ -110,39 +110,39 @@ export default class NovelWriterPlugin extends Plugin {
 	async createNovel() {
 		const result = await promptNovel(this.app);
 		if (!result) return;
-		if (!result.nombre.trim()) { new Notice('El nombre es obligatorio.'); return; }
+		if (!result.nombre.trim()) { new Notice('The name is required.'); return; }
 		await this.store.create(result.nombre.trim(), result.autor ?? '', '', result.thumbnail ?? null);
 		this.settings.data.lastActiveNovelId = this.store.activeNovelId;
 		await this.settings.save();
-		new Notice(`Novela "${result.nombre}" creada.`);
+		new Notice(`Novel "${result.nombre}" created.`);
 		const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
 		await useNovelWriter.getState().refreshNovels();
 		if (this.store.activeNovelId) await useNovelWriter.getState().setActiveNovel(this.store.activeNovelId);
 	}
 
 	async importLorebook() {
-		new Notice('Iniciando importación del lorebook...');
+		new Notice('Starting lorebook import...');
 		try {
-			if (!this.store.activeNovelId) { new Notice('Importación cancelada: selecciona o crea una novela primero.'); return; }
+			if (!this.store.activeNovelId) { new Notice('Import canceled: select or create a novel first.'); return; }
 			const folderPath = this.store.activeFolderPath;
-			if (!folderPath) { new Notice('Importación cancelada: no hay novela activa.'); return; }
-			new Notice('Selecciona la carpeta del lorebook que quieres importar.');
+			if (!folderPath) { new Notice('Import canceled: no active novel.'); return; }
+			new Notice('Select the lorebook folder you want to import.');
 			const folder = await pickLorebookFolder(this.app);
-			if (!folder) { new Notice('Importación cancelada: no se seleccionó ninguna carpeta.'); return; }
-			new Notice('Procesando carpeta: ' + folder.path);
+			if (!folder) { new Notice('Import canceled: no folder was selected.'); return; }
+			new Notice('Processing folder: ' + folder.path);
 			const plan = await prepareImport(this.app, folder.path);
-			if (plan.subfolders.length === 0 && plan.rootFiles.length === 0) { new Notice('No se encontraron archivos Markdown en ' + folder.path); return; }
-			new Notice(`Encontradas ${plan.rootFiles.length} entradas en la raíz y ${plan.subfolders.length} subcarpetas.`);
+			if (plan.subfolders.length === 0 && plan.rootFiles.length === 0) { new Notice('No Markdown files found in ' + folder.path); return; }
+			new Notice(`Found ${plan.rootFiles.length} entries in the root and ${plan.subfolders.length} subfolders.`);
 			// Import the complete selected folder recursively. The old second modal
 			// made it too easy to confirm an empty selection and import nothing.
 			const selected = plan.subfolders.map(subfolder => subfolder.name);
-			new Notice(`Importando ${plan.rootFiles.length + plan.subfolders.reduce((total, subfolder) => total + subfolder.count, 0)} archivos Markdown...`);
-			new Notice('Importando lorebook...');
+			new Notice(`Importing ${plan.rootFiles.length + plan.subfolders.reduce((total, subfolder) => total + subfolder.count, 0)} Markdown files...`);
+			new Notice('Importing lorebook...');
 			const res = await runImport(this.app, folderPath, this.store.activeNovelId, plan, selected);
-			new Notice(`Importadas ${res.entradas} entradas y ${res.categoriasCreadas} categorías desde ${folder.path}.`);
+			new Notice(`Imported ${res.entradas} entries and ${res.categoriasCreadas} categories from ${folder.path}.`);
 			const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
 			await useNovelWriter.getState().reloadAll();
-		} catch (error: any) { new Notice('Error importando lorebook: ' + (error?.message ?? String(error))); }
+		} catch (error: any) { new Notice('Error importing lorebook: ' + (error?.message ?? String(error))); }
 	}
 
 	private addEditorMenuItems(menu: Menu, editor: Editor) {
@@ -181,17 +181,17 @@ export default class NovelWriterPlugin extends Plugin {
 
 	private async correctEditorText(editor: Editor) {
 		const text = editor.getSelection() || editor.getValue();
-		if (!text.trim()) { new Notice('No hay texto para corregir.'); return; }
+		if (!text.trim()) { new Notice('No text to correct.'); return; }
 		try {
-			const result = await this.complete('Correct all spelling, grammar, punctuation, and orthographic errors in the following text. Preserve its meaning and return only the corrected text.\n\nText:\n' + text, 'Corrigiendo texto');
+			const result = await this.complete('Correct all spelling, grammar, punctuation, and orthographic errors in the following text. Preserve its meaning and return only the corrected text.\n\nText:\n' + text, 'Correcting text');
 			if (result) editor.getSelection() ? editor.replaceSelection(result) : editor.setValue(result);
-		} catch (error: any) { new Notice('Error IA: ' + (error?.message ?? String(error))); }
+		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
 	}
 
 	private async generateEditorText(editor?: Editor) {
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const target = editor ?? activeView?.editor;
-		if (!target) { new Notice('Abre una nota para generar texto.'); return; }
+		if (!target) { new Notice('Open a note to generate text.'); return; }
 		const cursor = target.getCursor();
 		const beforeCursor = target.getRange({ line: 0, ch: 0 }, cursor);
 		// Frontmatter is metadata, never story context. Keep it in the note but
@@ -202,7 +202,7 @@ export default class NovelWriterPlugin extends Plugin {
 		try {
 			const settings = this.settings.data;
 			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, '', storyBeforeCursor);
-			const result = await this.requestCompletion(prompt, 'Generando texto');
+			const result = await this.requestCompletion(prompt, 'Generating text');
 			let generated = '';
 			if (result.text) {
 				generated = result.text;
@@ -217,13 +217,13 @@ export default class NovelWriterPlugin extends Plugin {
 					target.setCursor(target.offsetToPos(beforeCursor.length + generated.length));
 				}
 			}
-		} catch (error: any) { new Notice('Error IA: ' + (error?.message ?? String(error))); }
+		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
 		finally { this.operationStatusBarItem?.remove(); this.operationStatusBarItem = null; }
 	}
 
 	private async transformSelection(editor: Editor, instruction: string) {
 		const selected = editor.getSelection();
-		if (!selected.trim()) { new Notice('Selecciona texto primero.'); return; }
+		if (!selected.trim()) { new Notice('Select text first.'); return; }
 		try {
 			let replaced = false;
 			let insertionOffset = editor.posToOffset(editor.getCursor('from'));
@@ -238,17 +238,17 @@ export default class NovelWriterPlugin extends Plugin {
 					insertionOffset += chunk.length;
 				}
 			});
-		} catch (error: any) { new Notice('Error IA: ' + (error?.message ?? String(error))); }
+		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
 	}
 
 	private operationLabel(instruction: string): string {
-		if (/summarize/i.test(instruction)) return 'Resumiendo selección';
-		if (/expand/i.test(instruction)) return 'Expandiendo selección';
-		if (/shorten/i.test(instruction)) return 'Acortando selección';
-		if (/rephrase/i.test(instruction)) return 'Reescribiendo selección';
-		if (/Spanish/i.test(instruction)) return 'Traduciendo a español';
-		if (/English/i.test(instruction)) return 'Traduciendo a inglés';
-		return 'Procesando selección';
+		if (/summarize/i.test(instruction)) return 'Summarizing selection';
+		if (/expand/i.test(instruction)) return 'Expanding selection';
+		if (/shorten/i.test(instruction)) return 'Shortening selection';
+		if (/rephrase/i.test(instruction)) return 'Rewriting selection';
+		if (/Spanish/i.test(instruction)) return 'Translating to Spanish';
+		if (/English/i.test(instruction)) return 'Translating to English';
+		return 'Processing selection';
 	}
 
 	private async complete(prompt: string, action: string, onChunk?: (chunk: string) => void): Promise<string> {
@@ -259,7 +259,7 @@ export default class NovelWriterPlugin extends Plugin {
 		const settings = this.settings.data;
 		try {
 			const active = getActiveModelConfig(settings, 'generate');
-			if (!active.modelName) throw new Error('Configura un modelo en Settings.');
+			if (!active.modelName) throw new Error('Configure a model in Settings.');
 			const token = settings.apiToken[active.providerId] ?? '';
 			const api = new ApiFactory().createApi(active.providerId, token);
 			const result = await api.generateCompletion(prompt, active.modelName, active.options);
@@ -287,7 +287,7 @@ export default class NovelWriterPlugin extends Plugin {
 		new Notice(action + '…');
 		const settings = this.settings.data;
 		const active = getActiveModelConfig(settings, 'generate');
-		if (!active.modelName) throw new Error('Configura un modelo en Settings.');
+		if (!active.modelName) throw new Error('Configure a model in Settings.');
 		const api = new ApiFactory().createApi(active.providerId, settings.apiToken[active.providerId] ?? '');
 		return api.generateCompletion(prompt, active.modelName, active.options);
 	}
@@ -317,9 +317,9 @@ async function pickLorebookFolder(app: App): Promise<TFolder | null> {
 	return new Promise(resolve => {
 		let done = false;
 		const modal = new Modal(app);
-		modal.titleEl.setText('Seleccionar carpeta de lorebook');
+		modal.titleEl.setText('Select lorebook folder');
 		const folders = app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder).sort((a, b) => a.path.localeCompare(b.path));
-		const search = modal.contentEl.createEl('input', { type: 'search', placeholder: 'Buscar carpeta...' });
+		const search = modal.contentEl.createEl('input', { type: 'search', placeholder: 'Search folder...' });
 		search.style.width = '100%';
 		const list = modal.contentEl.createDiv();
 		list.style.maxHeight = '50vh'; list.style.overflowY = 'auto'; list.style.marginTop = '8px';
@@ -327,7 +327,7 @@ async function pickLorebookFolder(app: App): Promise<TFolder | null> {
 			list.empty();
 			const query = search.value.trim().toLowerCase();
 			const visible = folders.filter(folder => !query || folder.path.toLowerCase().includes(query));
-			if (!visible.length) { list.createEl('p', { text: 'No se encontraron carpetas.' }); return; }
+			if (!visible.length) { list.createEl('p', { text: 'No folders found.' }); return; }
 			for (const folder of visible) {
 				const button = list.createEl('button', { text: folder.path || '/', cls: 'mod-list-item' });
 				button.style.display = 'block'; button.style.width = '100%'; button.style.textAlign = 'left'; button.style.marginTop = '4px';
@@ -345,7 +345,7 @@ async function pickLorebookFolder(app: App): Promise<TFolder | null> {
 async function promptNovel(app: App): Promise<{ nombre: string; autor: string; thumbnail: ArrayBuffer | null } | null> {
 	return new Promise((resolve) => {
 		const modal = new Modal(app);
-		modal.titleEl.setText('Nueva novela');
+		modal.titleEl.setText('New novel');
 		modal.modalEl.style.width = '480px';
 
 		const wrap = modal.contentEl;
@@ -357,8 +357,8 @@ async function promptNovel(app: App): Promise<{ nombre: string; autor: string; t
 		let autor = '';
 		let thumb: ArrayBuffer | null = null;
 
-		new Setting(wrap).setName('Nombre*').addText(t => t.onChange(v => nombre = v).setPlaceholder('Nombre de la novela'));
-		new Setting(wrap).setName('Autor').addText(t => t.onChange(v => autor = v).setPlaceholder('Autor (opcional)'));
+		new Setting(wrap).setName('Name*').addText(t => t.onChange(v => nombre = v).setPlaceholder('Novel name'));
+		new Setting(wrap).setName('Author').addText(t => t.onChange(v => autor = v).setPlaceholder('Author (optional)'));
 		const thumbSetting = new Setting(wrap).setName('Thumbnail');
 		const preview = thumbSetting.controlEl.createEl('img');
 		preview.style.maxWidth = '60px';
@@ -391,8 +391,8 @@ async function promptNovel(app: App): Promise<{ nombre: string; autor: string; t
 		btnRow.style.display = 'flex';
 		btnRow.style.justifyContent = 'flex-end';
 		btnRow.style.gap = '8px';
-		const cancel = btnRow.createEl('button', { text: 'Cancelar' });
-		const ok = btnRow.createEl('button', { text: 'Crear' });
+		const cancel = btnRow.createEl('button', { text: 'Cancel' });
+		const ok = btnRow.createEl('button', { text: 'Create' });
 		ok.classList.add('mod-cta');
 
 		let resolved = false;
@@ -407,7 +407,7 @@ async function promptNovel(app: App): Promise<{ nombre: string; autor: string; t
 async function pickSubfolders(app: App, plan: { subfolders: { name: string; path: string; count: number }[]; rootFiles: any[] }): Promise<string[] | null> {
 	return new Promise((resolve) => {
 		const modal = new Modal(app);
-		modal.titleEl.setText('Importar lorebook legacy');
+		modal.titleEl.setText('Import legacy lorebook');
 		modal.modalEl.style.width = '420px';
 		const wrap = modal.contentEl;
 		const checked = new Set<string>();
@@ -420,11 +420,11 @@ async function pickSubfolders(app: App, plan: { subfolders: { name: string; path
 			checked.add(s.name);
 			row.createEl('span', { text: `${s.name} (${s.count} .md)` });
 		});
-		wrap.createEl('p', { text: `Ademas se importaran ${plan.rootFiles.length} archivos sueltos en la raiz como "Otros".`, cls: 'setting-item-description' });
+		wrap.createEl('p', { text: `Additionally, ${plan.rootFiles.length} loose files in the root will be imported as "Others".`, cls: 'setting-item-description' });
 		const btnRow = wrap.createDiv();
 		btnRow.style.display = 'flex'; btnRow.style.justifyContent = 'flex-end'; btnRow.style.gap = '8px'; btnRow.style.marginTop = '8px';
-		btnRow.createEl('button', { text: 'Cancelar' }).onclick = () => { resolve(null); modal.close(); };
-		const ok = btnRow.createEl('button', { text: 'Importar', cls: 'mod-cta' });
+		btnRow.createEl('button', { text: 'Cancel' }).onclick = () => { resolve(null); modal.close(); };
+		const ok = btnRow.createEl('button', { text: 'Import', cls: 'mod-cta' });
 		let done = false;
 		ok.onclick = () => { done = true; resolve(Array.from(checked)); modal.close(); };
 		modal.onClose = () => { if (!done) resolve(null); };

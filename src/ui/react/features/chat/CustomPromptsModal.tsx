@@ -27,7 +27,7 @@ export class CustomPromptsModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass('nw-custom-prompts-modal');
 
-		contentEl.createEl('h2', { text: 'Prompts Custom' });
+		contentEl.createEl('h2', { text: 'Custom Prompts' });
 
 		const tabBar = contentEl.createDiv('nw-prompts-tabs');
 		const chatTab = tabBar.createEl('button', { text: 'Chat Prompts', cls: 'nw-prompts-tab active' });
@@ -59,7 +59,7 @@ export class CustomPromptsModal extends Modal {
 			const defaultId = tipo === 'chat' ? settings.data.defaultChatPromptId : settings.data.defaultTextPromptId;
 
 			if (prompts.length === 0) {
-				listContainer.createEl('p', { text: 'No hay prompts de este tipo.', cls: 'nw-muted' });
+				listContainer.createEl('p', { text: 'No prompts of this type.', cls: 'nw-muted' });
 			}
 
 			for (const prompt of prompts) {
@@ -83,19 +83,19 @@ export class CustomPromptsModal extends Modal {
 					};
 				}
 
-				const editBtn = actions.createEl('button', { text: 'Editar', cls: 'nw-btn' });
+				const editBtn = actions.createEl('button', { text: 'Edit', cls: 'nw-btn' });
 				editBtn.onclick = () => showEditForm(prompt);
 
-				const deleteBtn = actions.createEl('button', { text: 'Borrar', cls: 'nw-btn nw-btn-danger' });
+				const deleteBtn = actions.createEl('button', { text: 'Delete', cls: 'nw-btn nw-btn-danger' });
 				const sameTypeCount = settings.data.customPrompts.filter(p => p.tipo === tipo).length;
 				deleteBtn.disabled = sameTypeCount <= 1;
 				deleteBtn.onclick = async () => {
-					if (!confirm(`Borrar el prompt "${prompt.nombre}"?`)) return;
+					if (!confirm(`Delete the prompt "${prompt.nombre}"?`)) return;
 					const success = await store.deleteCustomPrompt(prompt.id_prompt);
 					if (!success) {
-						new Notice('No se puede borrar el ultimo prompt de este tipo.');
+						new Notice('Cannot delete the last prompt of this type.');
 					} else {
-						new Notice('Prompt borrado.');
+						new Notice('Prompt deleted.');
 						renderList(tipo);
 					}
 				};
@@ -103,7 +103,7 @@ export class CustomPromptsModal extends Modal {
 
 			const addSection = listContainer.createDiv('nw-prompt-add-section');
 			addSection.createEl('button', {
-				text: `+ Nuevo ${tipo === 'chat' ? 'Chat' : 'Text'} Prompt`,
+				text: `+ New ${tipo === 'chat' ? 'Chat' : 'Text'} Prompt`,
 				cls: 'nw-btn nw-btn-primary',
 			}).onclick = () => showCreateForm(tipo);
 		};
@@ -112,13 +112,13 @@ export class CustomPromptsModal extends Modal {
 			listContainer.empty();
 			const form = listContainer.createDiv('nw-prompt-form');
 
-			form.createEl('h3', { text: `Nuevo ${tipo === 'chat' ? 'Chat' : 'Text'} Prompt` });
+			form.createEl('h3', { text: `New ${tipo === 'chat' ? 'Chat' : 'Text'} Prompt` });
 
-			form.createEl('label', { text: 'Nombre' });
+			form.createEl('label', { text: 'Name' });
 			const nameInput = makeInput(form);
 			nameInput.style.marginBottom = '8px';
 
-			form.createEl('label', { text: 'Texto del prompt' });
+			form.createEl('label', { text: 'Prompt text' });
 			const textInput = makeTextarea(form);
 			textInput.style.marginBottom = '12px';
 
@@ -126,20 +126,20 @@ export class CustomPromptsModal extends Modal {
 			btnRow.style.display = 'flex';
 			btnRow.style.gap = '8px';
 
-			const saveBtn = btnRow.createEl('button', { text: 'Guardar', cls: 'nw-btn nw-btn-primary' });
+			const saveBtn = btnRow.createEl('button', { text: 'Save', cls: 'nw-btn nw-btn-primary' });
 			saveBtn.onclick = async () => {
 				const name = nameInput.value.trim();
 				const text = textInput.value.trim();
 				if (!name || !text) {
-					new Notice('Nombre y texto son obligatorios.');
+					new Notice('Name and text are required.');
 					return;
 				}
 				await store.createCustomPrompt(tipo, name, text);
-				new Notice('Prompt creado.');
+				new Notice('Prompt created.');
 				renderList(tipo);
 			};
 
-			const cancelBtn = btnRow.createEl('button', { text: 'Cancelar', cls: 'nw-btn' });
+			const cancelBtn = btnRow.createEl('button', { text: 'Cancel', cls: 'nw-btn' });
 			cancelBtn.onclick = () => renderList(tipo);
 		};
 
@@ -147,14 +147,14 @@ export class CustomPromptsModal extends Modal {
 			listContainer.empty();
 			const form = listContainer.createDiv('nw-prompt-form');
 
-			form.createEl('h3', { text: 'Editar Prompt' });
+			form.createEl('h3', { text: 'Edit Prompt' });
 
-			form.createEl('label', { text: 'Nombre' });
+			form.createEl('label', { text: 'Name' });
 			const nameInput = makeInput(form);
 			nameInput.value = prompt.nombre;
 			nameInput.style.marginBottom = '8px';
 
-			form.createEl('label', { text: 'Texto del prompt' });
+			form.createEl('label', { text: 'Prompt text' });
 			const textInput = makeTextarea(form);
 			textInput.value = prompt.texto;
 			textInput.style.marginBottom = '12px';
@@ -163,20 +163,20 @@ export class CustomPromptsModal extends Modal {
 			btnRow.style.display = 'flex';
 			btnRow.style.gap = '8px';
 
-			const saveBtn = btnRow.createEl('button', { text: 'Guardar', cls: 'nw-btn nw-btn-primary' });
+			const saveBtn = btnRow.createEl('button', { text: 'Save', cls: 'nw-btn nw-btn-primary' });
 			saveBtn.onclick = async () => {
 				const name = nameInput.value.trim();
 				const text = textInput.value.trim();
 				if (!name || !text) {
-					new Notice('Nombre y texto son obligatorios.');
+					new Notice('Name and text are required.');
 					return;
 				}
 				await store.updateCustomPrompt(prompt.id_prompt, { nombre: name, texto: text });
-				new Notice('Prompt actualizado.');
+				new Notice('Prompt updated.');
 				renderList(prompt.tipo);
 			};
 
-			const cancelBtn = btnRow.createEl('button', { text: 'Cancelar', cls: 'nw-btn' });
+			const cancelBtn = btnRow.createEl('button', { text: 'Cancel', cls: 'nw-btn' });
 			cancelBtn.onclick = () => renderList(prompt.tipo);
 		};
 

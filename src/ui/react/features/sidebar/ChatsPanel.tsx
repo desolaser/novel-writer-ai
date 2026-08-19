@@ -33,7 +33,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	}, []);
 
 	const doCreate = async () => {
-		const c = await createChat("Chat sin nombre");
+		const c = await createChat("Unnamed chat");
 		selectChat(c.id_chat);
 		setShowList(false);
 	};
@@ -47,7 +47,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		setConfigMenuOpen(false);
 		setSelectedForDeletion(new Set());
 		setDeleteMode(true);
-		new Notice('Seleccione chats para borrar');
+		new Notice('Select chats to delete');
 	};
 
 	const cancelBatchDelete = () => { setDeleteMode(false); setSelectedForDeletion(new Set()); };
@@ -60,12 +60,12 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const confirmBatchDelete = async () => {
 		const count = selectedForDeletion.size;
-		if (!count || !confirm(`Estas seguro de borrar ${count} chats?`)) return;
+		if (!count || !confirm(`Are you sure you want to delete ${count} chats?`)) return;
 		for (const id of selectedForDeletion) {
 			await deleteChat(id);
 		}
 		cancelBatchDelete();
-		new Notice(`Has borrado ${count} chats`);
+		new Notice(`Deleted ${count} chats`);
 	};
 
 	const filteredChats = chats.filter(c => {
@@ -83,18 +83,18 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							className="nw-btn"
 							onClick={() => setShowList(true)}
 						>
-							Ver chats
+							View chats
 						</button>
 					</>
 				) : (
 					<>
 						<input
 							className="nw-input"
-							placeholder="Buscar chats..."
+							placeholder="Search chats..."
 							value={query}
 							onChange={(e) => setQuery(e.target.value)}
 						/>
-						<button className="nw-btn nw-btn-primary nw-btn-add-entry" onClick={doCreate} title="Nuevo chat">
+						<button className="nw-btn nw-btn-primary nw-btn-add-entry" onClick={doCreate} title="New chat">
 							<Icon.Plus width={12} height={12} />
 							<span>Chat</span>
 						</button>
@@ -102,19 +102,19 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							className="nw-btn"
 							onClick={() => { setShowList(false); setDeleteMode(false); setSelectedForDeletion(new Set()); }}
 						>
-							Cerrar lista
+							Close list
 						</button>
 						<div ref={configRef} style={{ position: 'relative' }}>
-							<button className="nw-btn nw-btn-icon" onClick={() => setConfigMenuOpen(!configMenuOpen)} title="Menu de chats">
+							<button className="nw-btn nw-btn-icon" onClick={() => setConfigMenuOpen(!configMenuOpen)} title="Chats menu">
 								<Icon.MenuThreePoints />
 							</button>
 							{configMenuOpen && (
 								<div className="nw-dropdown nw-popover" style={{ minWidth: 200, right: 0, left: 'auto' }}>
 									<div className="nw-popover-item" onClick={openPromptsModal}>
-										<span>Prompts Custom</span>
+										<span>Custom Prompts</span>
 									</div>
 									<div className="nw-popover-item" onClick={startBatchDelete}>
-										<span>Borrar chats</span>
+										<span>Delete chats</span>
 									</div>
 								</div>
 							)}
@@ -125,9 +125,9 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 			{deleteMode && (
 				<div className="nw-codex-batch-actions">
 					<button className="nw-btn nw-btn-danger" disabled={selectedForDeletion.size === 0} onClick={() => void confirmBatchDelete()}>
-						Borrar chats
+						Delete chats
 					</button>
-					<button className="nw-btn" onClick={cancelBatchDelete}>Cancelar borrado</button>
+					<button className="nw-btn" onClick={cancelBatchDelete}>Cancel deletion</button>
 				</div>
 			)}
 			{showList && (
@@ -202,7 +202,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 								<>
 									<button
 										className="nw-btn nw-btn-icon"
-										title="Renombrar"
+										title="Rename"
 										onClick={() => {
 											setRenaming(c.id_chat);
 											setRenameV(c.nombre);
@@ -212,10 +212,10 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 									</button>
 									<button
 										className="nw-btn nw-btn-icon nw-btn-danger"
-										title="Eliminar"
+										title="Delete"
 										onClick={async () => {
 											if (
-												confirm(`Eliminar chat "${c.nombre}"?`)
+												confirm(`Delete chat "${c.nombre}"?`)
 											) {
 												await deleteChat(c.id_chat);
 												if (activeChatId === c.id_chat)
@@ -231,7 +231,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					))}
 					{filteredChats.length === 0 && (
 						<p className="nw-muted" style={{ padding: '12px', fontSize: 12 }}>
-							{query ? 'No hay chats que coincidan con la busqueda.' : 'No hay chats.'}
+							{query ? 'No chats match your search.' : 'No chats.'}
 						</p>
 					)}
 				</div>

@@ -40,7 +40,7 @@ export async function deleteCategoria(app: App, folderPath: string, id: EntityId
 	const cats = await repo.readAll(app, folderPath);
 	const cat = cats.find(c => c.id_categoria === id);
 	// no se puede borrar una categoria system
-	if (cat?.system) throw new Error('Las categorias por defecto no se pueden eliminar.');
+	if (cat?.system) throw new Error('Default categories cannot be deleted.');
 	await repo.remove(app, folderPath, id);
 }
 
@@ -68,7 +68,7 @@ export async function ensureDefaultCategorias(app: App, folderPath: string, idNo
 
 function getDefaultCategoriaDefs() {
 	return [
-		{ nombre: 'Personajes' }, { nombre: 'Ubicaciones' }, { nombre: 'Objetos' },
-		{ nombre: 'Lore' }, { nombre: 'Subplot' }, { nombre: 'Otros' },
+		{ nombre: 'Characters' }, { nombre: 'Locations' }, { nombre: 'Objects' },
+		{ nombre: 'Lore' }, { nombre: 'Subplot' }, { nombre: 'Others' },
 	];
 }

@@ -19,8 +19,8 @@ export default class NovelFolderPickerModal extends Modal {
 	}
 
 	onOpen() {
-		this.titleEl.setText('Importar novela');
-		this.contentEl.createEl('p', { text: 'Selecciona la carpeta que contiene los capítulos de la novela.' });
+		this.titleEl.setText('Import novel');
+		this.contentEl.createEl('p', { text: "Select the folder that contains the novel's chapters." });
 
 		const folders = this.app.vault.getAllLoadedFiles()
 			.filter((file: any): file is TFolder => file instanceof TFolder)
@@ -28,7 +28,7 @@ export default class NovelFolderPickerModal extends Modal {
 
 		const list = this.contentEl.createDiv({ cls: 'nw-import-folder-list' });
 
-		if (folders.length === 0) list.createEl('p', { text: 'No hay carpetas disponibles.' });
+		if (folders.length === 0) list.createEl('p', { text: 'No folders available.' });
 
 		for (const folder of folders) {
 			const button = list.createEl('button', { text: folder.path || '/', cls: 'nw-btn nw-btn-block' });
@@ -84,7 +84,7 @@ export default class NovelFolderPickerModal extends Modal {
 		const novelId = currentStore?.activeNovelId;
 
 		if (!currentStore || !novelId || !currentStore.activeFolderPath) {
-			new Notice('Selecciona una novela activa antes de importar.');
+			new Notice('Select an active novel before importing.');
 			return;
 		}
 
@@ -95,13 +95,13 @@ export default class NovelFolderPickerModal extends Modal {
 				.sort(this.compareNovelFiles);
 
 			if (files.length === 0) { 
-				new Notice('No se encontraron archivos Markdown en la carpeta seleccionada.'); 
+				new Notice('No Markdown files found in the selected folder.');
 				return; 
 			}
 
 			const actos = await currentStore.listActos();
 			let acto = actos[actos.length - 1];
-			if (!acto) acto = await currentStore.createActo('Acto 1');
+			if (!acto) acto = await currentStore.createActo('Act 1');
 			const existingChapters = await currentStore.listCapitulosByActo(acto.id_acto);
 			const existingByPath = new Map(
 				existingChapters
@@ -135,9 +135,9 @@ export default class NovelFolderPickerModal extends Modal {
 				}
 			}
 			await useNovelWriter.getState().reloadAll();
-			new Notice(`Novela importada: ${files.length} capítulos.`);
+			new Notice(`Novel imported: ${files.length} chapters.`);
 		} catch (error: any) {
-			new Notice(`No se pudo importar la novela: ${error?.message ?? String(error)}`);
+			new Notice(`Could not import the novel: ${error?.message ?? String(error)}`);
 		} finally {
 			this.setImportBusy(false);
 		}

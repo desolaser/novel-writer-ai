@@ -50,7 +50,7 @@ export async function updateActo(app: App, fp: string, id: EntityId, patch: Part
 export async function deleteActo(app: App, fp: string, id: EntityId) {
 	const data = await readFile(app, fp);
 	const caps = data.capitulos.filter(c => c.id_acto === id);
-	if (caps.length > 0) throw new Error('El acto aun contiene capitulos. Mueve o borralos primero.');
+	if (caps.length > 0) throw new Error('The act still contains chapters. Move or delete them first.');
 	data.actos = data.actos.filter(a => a.id_acto !== id);
 	await writeFile(app, fp, data);
 }
@@ -89,7 +89,7 @@ export async function updateCapitulo(app: App, fp: string, id: EntityId, patch: 
 			if (targetPath !== file.path) {
 				const existing = app.vault.getAbstractFileByPath(targetPath);
 				if (existing && existing !== file)
-					throw new Error(`Ya existe un archivo de capítulo llamado "${patch.nombre}.md".`);
+					throw new Error(`A chapter file named "${patch.nombre}.md" already exists.`);
 				await app.vault.rename(file, targetPath);
 			}
 			c.archivo = targetPath.startsWith(fp + '/') ? targetPath.slice(fp.length + 1) : targetPath;
@@ -116,7 +116,7 @@ function sanitizeFileName(name: string): string {
 		.replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
 		.replace(/\.+$/, '')
 		.slice(0, 120)
-		|| 'capitulo';
+		|| 'chapter';
 }
 
 /** Crea el manuscrito del capítulo si aún no existe. */

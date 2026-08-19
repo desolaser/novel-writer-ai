@@ -21,7 +21,7 @@ export function AddChapter({
 	if (!adding) {
 		return (
 			<button className="nw-cap-add" onClick={onStartAdding}>
-				+ Capítulo
+				+ Chapter
 			</button>
 		);
 	}

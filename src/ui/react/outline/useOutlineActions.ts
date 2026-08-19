@@ -95,15 +95,15 @@ export function useOutlineActions(
 
 	async function generateAllMemory() {
 		setBatchBusy(true);
-		setBatchStatus("Generando memoria acumulada...");
+		setBatchStatus("Generating accumulated memory...");
 		try {
 			const list = chapters();
 			for (let i = 0; i < list.length; i++) {
 				const memory = buildChapterMemory(list[i], list);
 				await writeChapterMemory(list[i], memory);
-				setBatchStatus(`Memoria: ${i + 1}/${list.length}`);
+				setBatchStatus(`Memory: ${i + 1}/${list.length}`);
 			}
-			setBatchStatus(`Memoria generada para ${list.length} capítulos.`);
+			setBatchStatus(`Memory generated for ${list.length} chapters.`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -113,11 +113,11 @@ export function useOutlineActions(
 
 	async function generateChapterMemory(chapter: Capitulo) {
 		setBatchBusy(true);
-		setBatchStatus(`Generando memoria: ${chapter.nombre}`);
+		setBatchStatus(`Generating memory: ${chapter.nombre}`);
 		try {
 			const memory = buildChapterMemory(chapter, chapters());
 			await writeChapterMemory(chapter, memory);
-			setBatchStatus(`Memoria actualizada: ${chapter.nombre}`);
+			setBatchStatus(`Memory updated: ${chapter.nombre}`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -129,17 +129,17 @@ export function useOutlineActions(
 		if (!store || !chapter.archivo) return;
 		const settings = plugin.settings.data;
 		if (!settings.proveedor.modelo) {
-			setBatchStatus("Configura un modelo en Settings.");
+			setBatchStatus("Configure a model in Settings.");
 			return;
 		}
 
 		setBatchBusy(true);
-		setBatchStatus(`Generando outline: ${chapter.nombre}`);
+		setBatchStatus(`Generating outline: ${chapter.nombre}`);
 
 		try {
 			const manuscript = await readCapituloTexto(chapter.id_capitulo);
 			if (!manuscript.trim()) {
-				setBatchStatus(`El manuscrito de ${chapter.nombre} está vacío.`);
+				setBatchStatus(`The manuscript for ${chapter.nombre} is empty.`);
 				return;
 			}
 			const prompt = buildOutlinePrompt(chapter, manuscript);
@@ -157,11 +157,11 @@ export function useOutlineActions(
 			);
 			const outline = normalizeOutline(result.text ?? "");
 			if (!outline) {
-				setBatchStatus(`La IA no devolvió un outline para ${chapter.nombre}.`);
+				setBatchStatus(`The AI did not return an outline for ${chapter.nombre}.`);
 				return;
 			}
 			await updateCapitulo(chapter.id_capitulo, { outline });
-			setBatchStatus(`Outline actualizado: ${chapter.nombre}`);
+			setBatchStatus(`Outline updated: ${chapter.nombre}`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -194,7 +194,7 @@ export function useOutlineActions(
 	async function generateAllOutlines() {
 		if (!store) return;
 		if (!plugin.settings.data.proveedor.modelo) {
-			setBatchStatus("Configura un modelo en Settings.");
+			setBatchStatus("Configure a model in Settings.");
 			return;
 		}
 		setBatchBusy(true);
@@ -202,11 +202,11 @@ export function useOutlineActions(
 			const list = chapters();
 			for (let i = 0; i < list.length; i++) {
 				setBatchStatus(
-					`Generando outline: ${i + 1}/${list.length} — ${list[i].nombre}`
+					`Generating outline: ${i + 1}/${list.length} — ${list[i].nombre}`
 				);
 				await generateChapterOutlineForBatch(list[i]);
 			}
-			setBatchStatus(`Outlines generados para ${list.length} capítulos.`);
+			setBatchStatus(`Outlines generated for ${list.length} chapters.`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -217,14 +217,14 @@ export function useOutlineActions(
 	async function createAllManuscripts() {
 		if (!store) return;
 		setBatchBusy(true);
-		setBatchStatus("Creando archivos...");
+		setBatchStatus("Creating files...");
 		try {
 			const list = chapters();
 			for (let i = 0; i < list.length; i++) {
 				await ensureCapituloArchivo(list[i].id_capitulo);
-				setBatchStatus(`Creando archivos: ${i + 1}/${list.length}`);
+				setBatchStatus(`Creating files: ${i + 1}/${list.length}`);
 			}
-			setBatchStatus(`Listo: ${list.length} manuscritos preparados.`);
+			setBatchStatus(`Done: ${list.length} manuscripts prepared.`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -234,10 +234,10 @@ export function useOutlineActions(
 
 	async function createChapterManuscript(chapter: Capitulo) {
 		setBatchBusy(true);
-		setBatchStatus(`Creando manuscrito: ${chapter.nombre}`);
+		setBatchStatus(`Creating manuscript: ${chapter.nombre}`);
 		try {
 			await ensureCapituloArchivo(chapter.id_capitulo);
-			setBatchStatus(`Manuscrito preparado: ${chapter.nombre}`);
+			setBatchStatus(`Manuscript prepared: ${chapter.nombre}`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -249,12 +249,12 @@ export function useOutlineActions(
 		if (!store) return;
 		const settings = plugin.settings.data;
 		if (!settings.proveedor.modelo) {
-			alert("Configura un modelo en Settings.");
+			alert("Configure a model in Settings.");
 			return;
 		}
 		if (
 			!confirm(
-				"Se generarán drafts solamente para capítulos sin contenido. ¿Continuar?"
+				"Drafts will be generated only for chapters without content. Continue?"
 			)
 		)
 			return;
@@ -270,7 +270,7 @@ export function useOutlineActions(
 			for (let i = 0; i < list.length; i++) {
 				const c = list[i];
 				setBatchStatus(
-					`Generando draft: ${i + 1}/${list.length} — ${c.nombre}`
+					`Generating draft: ${i + 1}/${list.length} — ${c.nombre}`
 				);
 				await ensureCapituloArchivo(c.id_capitulo);
 				const existing = await readCapituloTexto(c.id_capitulo);
@@ -285,7 +285,7 @@ export function useOutlineActions(
 					const prevText = await readCapituloTexto(prev.id_capitulo);
 					if (prevText.trim() && !isCorruptGeneration(prevText)) {
 						prevContextParts.push(
-							`Capítulo ${prev.nombre}: ${makeContextExcerpt(prevText)}`
+							`Chapter ${prev.nombre}: ${makeContextExcerpt(prevText)}`
 						);
 					}
 				}
@@ -310,14 +310,14 @@ export function useOutlineActions(
 						text,
 						historicalContext,
 						targetWords
-					)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. ${
+					)}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. ${
 						currentWords === 0
-							? "Escribe el capítulo completo."
-							: `Faltan aproximadamente ${remainingWords} palabras. Continúa exactamente desde el final del draft.`
+							? "Write the complete chapter."
+							: `Approximately ${remainingWords} words remain. Continue exactly from the end of the draft.`
 					} ${
 						currentWords >= targetWords * 0.8
-							? "Estás cerca del objetivo: resuelve la trama y termina el capítulo en esta respuesta; no agregues otra introducción."
-							: "Todavía no cierres prematuramente el capítulo."
+							? "You are close to the target: resolve the plot and finish the chapter in this response; do not add another introduction."
+							: "Do not close the chapter prematurely yet."
 					}`;
 					const requestTokens = Math.max(
 						512,
@@ -335,7 +335,7 @@ export function useOutlineActions(
 					if (!addition.trim()) break;
 					if (isCorruptGeneration(addition)) {
 						setBatchStatus(
-							`La IA devolvió una respuesta inválida para ${c.nombre}; se detuvo el capítulo.`
+							`The AI returned an invalid response for ${c.nombre}; the chapter was stopped.`
 						);
 						break;
 					}
@@ -346,7 +346,7 @@ export function useOutlineActions(
 					draftsGenerated++;
 				}
 			}
-			setBatchStatus(`Listo: ${draftsGenerated} drafts generados.`);
+			setBatchStatus(`Done: ${draftsGenerated} drafts generated.`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {
@@ -358,18 +358,18 @@ export function useOutlineActions(
 		if (!store) return;
 		const settings = plugin.settings.data;
 		if (!settings.proveedor.modelo) {
-			alert("Configura un modelo en Settings.");
+			alert("Configure a model in Settings.");
 			return;
 		}
 		setBatchBusy(true);
-		setBatchStatus(`Generando draft: ${chapter.nombre}`);
+		setBatchStatus(`Generating draft: ${chapter.nombre}`);
 		try {
 			await ensureCapituloArchivo(chapter.id_capitulo);
 			const existing = await readCapituloTexto(chapter.id_capitulo);
 			if (
 				existing.trim() &&
 				!confirm(
-					`El capítulo "${chapter.nombre}" ya tiene contenido. Se borrará y se generará un draft desde cero. ¿Continuar?`
+					`The chapter "${chapter.nombre}" already has content. It will be deleted and a draft will be generated from scratch. Continue?`
 				)
 			)
 				return;
@@ -384,7 +384,7 @@ export function useOutlineActions(
 				const prevText = await readCapituloTexto(c.id_capitulo);
 				if (prevText.trim() && !isCorruptGeneration(prevText))
 					historyParts.push(
-						`Capítulo ${c.nombre}: ${makeContextExcerpt(prevText)}`
+						`Chapter ${c.nombre}: ${makeContextExcerpt(prevText)}`
 					);
 			}
 			const historicalContext = historyParts.join("\n\n");
@@ -413,10 +413,10 @@ export function useOutlineActions(
 					text,
 					historicalContext,
 					targetWords
-				)}\n\n[Control de extensión]\nEl draft actual tiene ${currentWords} palabras y el objetivo es ${targetWords}. Faltan aproximadamente ${remainingWords} palabras. ${
+				)}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. Approximately ${remainingWords} words remain. ${
 					currentWords >= targetWords * 0.8
-						? "Cierra la trama en esta respuesta."
-						: "Continúa desarrollando el capítulo sin reiniciarlo."
+						? "Close the plot in this response."
+						: "Keep developing the chapter without restarting it."
 				}`;
 				const result = await requestDraftCompletion(
 					api,
@@ -430,7 +430,7 @@ export function useOutlineActions(
 				if (!addition.trim()) break;
 				if (isCorruptGeneration(addition)) {
 					setBatchStatus(
-						`La IA devolvió una respuesta inválida para ${chapter.nombre}; se detuvo el capítulo.`
+						`The AI returned an invalid response for ${chapter.nombre}; the chapter was stopped.`
 					);
 					break;
 				}
@@ -438,7 +438,7 @@ export function useOutlineActions(
 			}
 			await ensureCapituloArchivo(chapter.id_capitulo);
 			await writeCapituloTexto(chapter.id_capitulo, text);
-			setBatchStatus(`Draft listo: ${chapter.nombre}`);
+			setBatchStatus(`Draft ready: ${chapter.nombre}`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
 		} finally {

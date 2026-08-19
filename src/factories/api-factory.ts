@@ -25,7 +25,7 @@ export class ApiFactory {
             case 'novelai':
                 return new NovelAiApi(apiKey);
             default:
-                throw new Error(`Proveedor de API no soportado: ${provider}`);
+                throw new Error(`Unsupported API provider: ${provider}`);
         }
     }
 }
