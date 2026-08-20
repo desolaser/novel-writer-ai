@@ -1,7 +1,13 @@
-import { Modal, Notice, Setting } from "obsidian";
+import { Modal, Notice, Platform, Setting } from "obsidian";
 import type NovelWriterPlugin from "../../../main";
 import type { Modelo } from "../../domain/entities/Modelo";
-import { PROVIDERS, getProvider } from "../../constants/providers";
+import {
+	PROVIDERS,
+	getProvider,
+	providerRequiresApiKey,
+	providerIsDesktopOnly,
+	providerIgnoresSamplingParams,
+} from "../../constants/providers";
 import { ApiFactory } from "../../factories/api-factory";
 import type { Model as AvailableModel } from "../../types/Model";
 import { ModelRepository } from "../../infrastructure/settings/model-repository";
@@ -69,7 +75,11 @@ export class ModelModal extends Modal {
 				})
 			);
 		new Setting(contentEl).setName("Provider").addDropdown((dropdown) => {
-			PROVIDERS.forEach((provider) =>
+			// Claude Code spawns a local subprocess: no point offering it on mobile.
+			PROVIDERS.filter(
+				(provider) =>
+					!providerIsDesktopOnly(provider.nombre) || Platform.isDesktopApp
+			).forEach((provider) =>
 				dropdown.addOption(
 					String(provider.id_proveedor),
 					provider.nombre_display
@@ -88,14 +98,14 @@ export class ModelModal extends Modal {
 		});
 		const provider = getProvider(this.form.id_proveedor)!;
 		new Setting(contentEl)
-			.setName("API Key")
-			.setDesc(
-				provider.nombre === "ollama"
-					? "Local Ollama does not require a key."
-					: "Stored securely in the plugin settings for this provider."
+			.setName(
+				provider.nombre === "claudecode" ? "Claude CLI path" : "API Key"
 			)
+			.setDesc(apiKeyDescription(provider.nombre))
 			.addText((text) => {
-				text.inputEl.type = "password";
+				if (providerRequiresApiKey(provider.nombre)) {
+					text.inputEl.type = "password";
+				}
 				text.setValue(
 					this.plugin.settings.data.apiToken[provider.nombre] ?? ""
 				).onChange((value) => {
@@ -141,6 +151,14 @@ export class ModelModal extends Modal {
 		);
 		this.renderModelDropdown(modelDropdownHost);
 		contentEl.createEl("h3", { text: "Parameters" });
+		if (providerIgnoresSamplingParams(provider.nombre)) {
+			contentEl.createEl("p", {
+				text:
+					"With this provider, Temperature / Top P / Top K and the penalties have no effect: " +
+					"the Anthropic API removed them and the CLI does not expose them. Max Context, Max Output and Stream still apply.",
+				cls: "setting-item-description",
+			});
+		}
 		this.numberSetting(contentEl, "Max Context", "max_context");
 		this.numberSetting(contentEl, "Max Output (Generation)", "max_output");
 		this.numberSetting(contentEl, "Max Output (Chat)", "max_output_chat");
@@ -209,7 +227,7 @@ export class ModelModal extends Modal {
 		const provider = getProvider(this.form.id_proveedor)!;
 		const apiKey =
 			this.plugin.settings.data.apiToken[provider.nombre] ?? "";
-		if (provider.nombre !== "ollama" && !apiKey.trim()) {
+		if (providerRequiresApiKey(provider.nombre) && !apiKey.trim()) {
 			this.availableModels = [];
 			this.modelsError =
 				"Enter a valid API Key to load the models.";
@@ -394,5 +412,25 @@ export class ModelModal extends Modal {
 				if (!Number.isNaN(number)) (this.form as any)[field] = number;
 			})
 		);
+	}
+}
+
+/** This field doubles as the executable path for Claude Code, hence the per-provider text. */
+function apiKeyDescription(provider: string): string {
+	switch (provider) {
+		case "ollama":
+			return "Local Ollama does not require a key.";
+		case "claudecode":
+			return (
+				"Optional: full path to the Claude Code executable. Leave empty to use the one on " +
+				"PATH. This provider uses your local Claude Code session (subscription), not an API Key."
+			);
+		case "anthropic":
+			return (
+				"API Key from console.anthropic.com. This is a separately billed account: your " +
+				"Claude Pro/Max subscription does not work here (use the Claude Code provider for that)."
+			);
+		default:
+			return "Stored securely in the plugin settings for this provider.";
 	}
 }

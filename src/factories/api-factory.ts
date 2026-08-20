@@ -6,6 +6,8 @@ import { OllamaApi } from '../apis/ollama-api';
 import { OpenCodeZenApi } from '../apis/opencodezen-api';
 import { OpenCodeGoApi } from '../apis/opencodego-api';
 import { NovelAiApi } from '../apis/novelai-api';
+import { AnthropicApi } from '../apis/anthropic-api';
+import { ClaudeCodeApi } from '../apis/claude-code-api';
 
 export class ApiFactory {
     createApi(provider: string, apiKey: string): ApiInterface {
@@ -22,6 +24,10 @@ export class ApiFactory {
                 return new OpenCodeZenApi(apiKey);
             case 'opencodego':
                 return new OpenCodeGoApi(apiKey);
+            case 'anthropic':
+                return new AnthropicApi(apiKey);
+            case 'claudecode':
+                return new ClaudeCodeApi(apiKey);
             case 'novelai':
                 return new NovelAiApi(apiKey);
             default:

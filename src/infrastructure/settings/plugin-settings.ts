@@ -5,7 +5,8 @@ import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 /** Proveedor de IA seleccionado. */
 export type AiProviderId =
 	| 'openrouter' | 'deepseek' | 'ooba' | 'ollama'
-	| 'opencodezen' | 'opencodego' | 'novelai';
+	| 'opencodezen' | 'opencodego' | 'novelai'
+	| 'anthropic' | 'claudecode';
 
 /** Opciones de IA (reformadas). Algunas no aplican a todos los proveedores. */
 export interface AiOptions {
