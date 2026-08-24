@@ -34,10 +34,8 @@ export class OllamaApi extends ApiInterface {
         options: Record<string, any> = {}
     ): Promise<CompletionResponse> {
         try {
-            const isStream = options.stream || false;
-            const contentTokens = options.max_tokens ?? 512;
-            const totalTokens = contentTokens * 4;
-
+            const isStream = options.stream || true;
+            
             const response = await fetch(`${this.baseUrl}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -46,15 +44,23 @@ export class OllamaApi extends ApiInterface {
                     messages: [
                         { 
                             role: "system", 
-                            content: `You are an assistant for creative writing. Continue the text directly without thinking, analyzing, or explaining. Write approximately ${contentTokens} tokens of content, no more than that. Just write the next part of the story.` 
+                            content: `You are an assistant for creative writing.` 
                         },
                         { role: "user", content: prompt }
                     ],
                     stream: isStream,
                     options: {
+                        mirostat: 0,
+                        mirsotat_eta: 0.1,
+                        mirostat_tau: 5.0,
+                        num_ctx: options.max_context,
+                        repeat_last_n: options.repetition_penalty_range ?? 64,
+                        repeat_penalty: options.repetition_penalty ?? 1.1,
                         temperature: options.temperature ?? 0.7,
-                        num_predict: totalTokens,
+                        num_predict: options.max_tokens ?? 512,
+                        top_k: options.top_k ?? 40,
                         top_p: options.top_p ?? 0.9,
+                        min_p: options.min_p ?? 0,
                     }
                 })
             });

@@ -22,6 +22,7 @@ export interface AiOptions {
 	repetitionPenaltyRange?: number;
 	presencePenalty?: number;
 	frequencyPenalty?: number;
+	minP?: number;
 }
 
 /** Opciones de Codex. */
@@ -80,12 +81,17 @@ export interface PluginSettings {
 export const PALETTE = DEFAULT_COLORS;
 
 export const DEFAULT_AI_OPTIONS: AiOptions = {
-	maxContext: 32764,
-	maxOutput: 250,
-	maxOutputChat: 2048,
-	streaming: false,
+	maxContext: 32768,
+	maxOutput: 300,
+	maxOutputChat: 8192,
+	streaming: true,
 	temperature: 1,
-	topP: 0.01,
+	topP: 0.9,
+	topK: 40,
+	presencePenalty: 1.5,
+	repetitionPenalty: 1,
+	repetitionPenaltyRange: 64, // Used for repeat_last_n in ollama
+	minP: 0.05
 };
 
 export const DEFAULT_CODEX_OPTIONS: CodexOptions = {

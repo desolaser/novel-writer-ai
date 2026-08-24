@@ -13,6 +13,7 @@ export function getActiveModelConfig(
 	const model = settings.modelos.find(
 		(item) => item.id_modelo === settings.modeloPredeterminadoId
 	);
+
 	if (!model) {
 		// When no saved model exists, use the legacy AiOptions fallback, respecting context.
 		const fallbackMaxTokens =
@@ -28,6 +29,7 @@ export function getActiveModelConfig(
 				temperature: settings.aiOptions.temperature,
 				top_p: settings.aiOptions.topP,
 				top_k: settings.aiOptions.topK,
+				min_p: settings.aiOptions.minP,
 				repetition_penalty: settings.aiOptions.repetitionPenalty,
 				repetition_penalty_range:
 					settings.aiOptions.repetitionPenaltyRange,
@@ -37,6 +39,7 @@ export function getActiveModelConfig(
 			},
 		};
 	}
+
 	const provider = getProvider(model.id_proveedor);
 	if (!provider) throw new Error("The provider of the active model does not exist.");
 	// For chat context, prefer max_output_chat; fall back to max_output if not set.
@@ -53,6 +56,7 @@ export function getActiveModelConfig(
 			temperature: model.temperature,
 			top_p: model.top_p,
 			top_k: model.top_k,
+			min_p: model.min_p,
 			repetition_penalty: model.repetition_penalty,
 			repetition_penalty_range: model.repetition_penalty_range,
 			frequency_penalty: model.frecuence_penalty,

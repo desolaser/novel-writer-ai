@@ -16,6 +16,7 @@ export interface Modelo {
 	temperature: number;
 	top_p?: number;
 	top_k?: number;
+	min_p?: number;
 	repetition_penalty?: number;
 	repetition_penalty_range?: number;
 	frecuence_penalty?: number;

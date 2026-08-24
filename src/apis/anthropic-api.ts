@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ApiInterface } from '../interfaces/api-interface';
-import { mapAnthropicUsage } from './anthropic-usage';
+import { mapAnthropicUsage } from '../utils/anthropic-usage';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
 

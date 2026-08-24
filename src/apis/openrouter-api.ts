@@ -70,8 +70,6 @@ export class OpenRouterApi extends ApiInterface {
                 ]}
                 : { role: "user" as const, content: prompt };
 
-            console.log({ requestOptions, apiKey: this.apiKey });
-
             const response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
@@ -87,7 +85,6 @@ export class OpenRouterApi extends ApiInterface {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                console.log({ error: errorData.error });
                 throw new Error(`Error generating text: ${errorData.error?.message || response.statusText}`);
             }
 
@@ -102,7 +99,6 @@ export class OpenRouterApi extends ApiInterface {
             }
 
             const data = await response.json();
-            console.log('[OpenRouter] Full response data:', JSON.stringify(data));
             const message = data.choices?.[0]?.message ?? {};
             const content = message.content;
             const contentBlocks = Array.isArray(content) ? content : content ? [content] : [];

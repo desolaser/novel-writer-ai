@@ -47,13 +47,14 @@ export class ModelModal extends Modal {
 					temperature: defaults.temperature,
 					top_p: defaults.topP,
 					top_k: defaults.topK,
+					min_p: defaults.minP,
 					repetition_penalty: defaults.repetitionPenalty,
 					repetition_penalty_range: defaults.repetitionPenaltyRange,
 					frecuence_penalty: defaults.frequencyPenalty,
 					presence_penalty: defaults.presencePenalty,
 					supports_image_generation: false,
 					supports_vision: false,
-					};
+				};
 	}
 
 	onOpen(): void {
@@ -170,18 +171,11 @@ export class ModelModal extends Modal {
 		this.numberSetting(contentEl, "Temperature", "temperature");
 		this.numberSetting(contentEl, "Top P", "top_p");
 		this.numberSetting(contentEl, "Top K", "top_k");
-		this.numberSetting(
-			contentEl,
-			"Repetition Penalty",
-			"repetition_penalty"
-		);
-		this.numberSetting(
-			contentEl,
-			"Repetition Penalty Range",
-			"repetition_penalty_range"
-		);
+		this.numberSetting(contentEl, "Repetition Penalty", "repetition_penalty");
+		this.numberSetting(contentEl, "Repetition Penalty Range", "repetition_penalty_range");
 		this.numberSetting(contentEl, "Frequence Penalty", "frecuence_penalty");
 		this.numberSetting(contentEl, "Presence Penalty", "presence_penalty");
+		this.numberSetting(contentEl, "Min P", "min_p");
 		const actions = contentEl.createDiv("modal-button-container");
 		const test = actions.createEl("button", { text: "Test" });
 		test.onclick = async () => {
@@ -404,6 +398,7 @@ export class ModelModal extends Modal {
 			| "repetition_penalty_range"
 			| "frecuence_penalty"
 			| "presence_penalty"
+			| "min_p"
 		>
 	): void {
 		new Setting(host).setName(label).addText((text) =>
