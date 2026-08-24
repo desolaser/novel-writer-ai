@@ -32,6 +32,16 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 	const sel = detalles.find((d: any) => d.id_detalle === selected);
 	const extended = useNovelWriter().detalles;
 
+	// AI hint: instruction the generator adds when writing this detail's value.
+	const [hintDraft, setHintDraft] = React.useState(sel?.ai_hint ?? '');
+	React.useEffect(() => {
+		setHintDraft(sel?.ai_hint ?? '');
+	}, [sel?.id_detalle, sel?.ai_hint]);
+	const persistHint = React.useCallback(() => {
+		if (!sel || hintDraft === (sel.ai_hint ?? '')) return;
+		updateDetalle({ ...sel, ai_hint: hintDraft });
+	}, [sel, hintDraft, updateDetalle]);
+
 	// Debounced name input to avoid saving + reloadAll on every keystroke
 	const [nameDraft, setNameDraft] = React.useState(sel?.nombre ?? '');
 	const nameTimerRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -142,6 +152,16 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 							{tab === 'ai' && (
 								<div className="nw-entry-tab" style={{ gap: 8 }}>
 									<label className="nw-checkbox"><input type="checkbox" checked={sel.incluir_ia} onChange={e => updateDetalle({ ...sel, incluir_ia: e.target.checked })} /> Include in AI</label>
+									<label>Generation hint</label>
+									<p className="nw-muted" style={{ padding: 0, margin: 0, fontSize: 11 }}>Extra instruction sent to the AI when it generates the value of this detail, e.g. "answer with a whole number" or "use short bullet points".</p>
+									<textarea
+										className="nw-textarea"
+										rows={3}
+										value={hintDraft}
+										onChange={e => setHintDraft(e.target.value)}
+										onBlur={persistHint}
+										placeholder="Optional instruction for the AI..."
+									/>
 								</div>
 							)}
 							{tab === 'opciones' && <DetalleOpciones detalle={sel} store={store} />}

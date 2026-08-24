@@ -50,7 +50,8 @@ interface NovelWriterStore extends UIState {
 	reloadAll: () => Promise<void>;
 	setSidebarTab: (t: NovelWriterStore["activeSidebarTab"]) => void;
 
-	createEntry: (idCategoria: EntityId, nombre: string) => Promise<void>;
+	/** Creates an entry and returns it, so callers can link to it right away. */
+	createEntry: (idCategoria: EntityId, nombre: string) => Promise<EntradaCodex | null>;
 	updateEntry: (e: EntradaCodex) => Promise<void>;
 	deleteEntry: (id: EntityId) => Promise<void>;
 	archiveEntry: (id: EntityId, archived: boolean) => Promise<void>;
@@ -238,9 +239,10 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 
 	createEntry: async (idCategoria, nombre) => {
 		const s = get().store;
-		if (!s) return;
-		await s.createEntry(idCategoria, nombre);
+		if (!s) return null;
+		const created = await s.createEntry(idCategoria, nombre);
 		await get().reloadAll();
+		return created ?? null;
 	},
 	updateEntry: async (e) => {
 		const s = get().store;

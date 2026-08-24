@@ -11,12 +11,27 @@ import { getActiveModelConfig } from '../../../../infrastructure/settings/active
 import type { EntradaCodex, ChatContextItem, ChatContextKind } from '../../../../domain';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { estimateTokens } from '../../../../context/promptBuilder';
+import { buildToolPrompt } from '../../../../context/toolPrompt';
+import { TOOL_DEFINITIONS } from '../../../../tools/registry';
+import { formatToolResults } from '../../../../utils/toolCallParsing';
+import { parseToolAnswer } from '../../../../tools/parseToolAnswer';
+import { useToolRunner } from './tools/useToolRunner';
+import { ToolCallCard } from './tools/ToolCallCard';
 
 type ContextKind = ChatContextKind;
 type ContextItem = ChatContextItem;
 type ContextMenu = 'root' | 'codex' | 'chapters' | 'outlines' | 'notes' | 'folders' | 'characters' | 'impersonate';
 
 const extractImageUrls = (result: { images?: string[] }): string[] => result.images?.filter(url => typeof url === 'string' && url.trim()) ?? [];
+
+/** Safety net against a model that keeps calling tools instead of answering. */
+const MAX_TOOL_ROUNDS = 4;
+
+/** Appends a compact record of what the tools did, so the chat keeps the trace. */
+const composeReply = (text: string, log: string[]): string => {
+	if (!log.length) return text;
+	return `${text}\n\n---\n${log.map(line => `_${line}_`).join('\n')}`.trim();
+};
 
 const dataUrlToArrayBuffer = async (dataUrl: string): Promise<ArrayBuffer> => {
 	const res = await fetch(dataUrl);
@@ -66,6 +81,7 @@ function buildPrompt(
 	impersonateContext: ContextItem | null,
 	activeNoteItem: ContextItem | null,
 	chatPromptText?: string,
+	toolsBlock?: string,
 ): string {
 	const groups: Array<[ContextKind, string]> = [
 		['codex', 'Selected Codex entries'], ['chapter', 'Selected chapters'], ['outline', 'Selected outlines'],
@@ -89,6 +105,9 @@ function buildPrompt(
 	let systemPrompt = '';
 	if (chatPromptText) {
 		systemPrompt = `${chatPromptText}\n\n`;
+	}
+	if (toolsBlock) {
+		systemPrompt += `${toolsBlock}\n\n`;
 	}
 	if (characterContext) {
 		systemPrompt += `[ROLE MODE: You are roleplaying the character "${characterContext.name}". Always respond IN CHARACTER, using their tone, vocabulary, knowledge and personality. Do NOT break character under any circumstances. Do NOT mention that you are an AI. You are "${characterContext.name}".]\n\nCharacter information:\n${characterContext.content}\n\n`;
@@ -254,6 +273,11 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const promptRef = useRef<HTMLDivElement | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const runner = useToolRunner();
+	// Tool instructions cost ~800 tokens per request, so they can be switched off.
+	const [toolsEnabled, setToolsEnabled] = useState(true);
+	// What the model has written so far this turn, shown while the tools still run.
+	const [liveText, setLiveText] = useState('');
 
 	const markdownFiles = useMemo(() => plugin.app.vault.getMarkdownFiles(), [plugin, contextOpen]);
 	const folders = useMemo(() => plugin.app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder), [plugin, contextOpen]);
@@ -265,6 +289,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	// Load persisted context when chat changes
 	useEffect(() => {
+		// Switching chats abandons any tool call still waiting for approval.
+		runner.reset();
 		if (!activeChatId || !store) {
 			setMensajes([]);
 			setCurrentPromptId(null);
@@ -281,7 +307,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			setImpersonateContext((c as any)?.impersonateContext ?? null);
 		});
 	}, [activeChatId, store]);
-	useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [mensajes]);
+	// Follows the live text and the tool cards too, so an approval never lands off-screen.
+	useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [mensajes, liveText, runner.calls.length]);
 
 	// Persist context to disk whenever it changes
 	const persistContext = useCallback((items: ContextItem[], charCtx: ContextItem | null, impCtx: ContextItem | null) => {
@@ -472,6 +499,65 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setEditingMsgText('');
 	}, []);
 
+	/**
+	 * Runs one turn: asks the model, executes any tool calls it makes and asks again
+	 * with the results, until it answers without calling anything (or the round limit
+	 * is hit). Returns everything the author should see as a single reply.
+	 */
+	const runAiTurn = useCallback(async ({ history, userText, images, chatPrompt }: {
+		history: any[];
+		userText: string;
+		images: string[];
+		chatPrompt?: string;
+	}): Promise<{ text: string; images: string[]; log: string[] }> => {
+		const settings = plugin.settings.data;
+		const activeModel = getActiveModelConfig(settings, 'chat');
+		if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
+		const token = settings.apiToken[activeModel.providerId] ?? '';
+		const api = new ApiFactory().createApi(activeModel.providerId, token);
+		const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
+		// Tools stay off while roleplaying: a character must not step out of persona to edit the vault.
+		const toolsBlock = characterContext || !toolsEnabled
+			? ''
+			: buildToolPrompt(TOOL_DEFINITIONS, activeModel.options.max_tokens);
+
+		let turns = [...history];
+		let pendingUser = userText;
+		setLiveText('');
+		const visible: string[] = [];
+		const log: string[] = [];
+		let collectedImages: string[] = [];
+
+		for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+			const prompt = buildPrompt(turns, contextItems, pendingUser, characterContext, impersonateContext, activeNoteItem, chatPrompt, toolsBlock);
+			const result = await api.generateCompletion(prompt, activeModel.modelName, {
+				...activeModel.options,
+				stream: false,
+				...(activeModel.providerId === 'openrouter' && savedModel?.supports_image_generation ? { modalities: ['image', 'text'] } : {}),
+				...(round === 0 && images.length > 0 ? { images } : {}),
+			});
+			collectedImages = [...collectedImages, ...extractImageUrls(result)];
+			const answer = result.text ?? '';
+			const parsed = toolsBlock ? parseToolAnswer(answer, `r${round}`) : { text: answer, calls: [] };
+			if (parsed.text) {
+				visible.push(parsed.text);
+				// Show it now: a write tool is about to ask for approval and the author
+				// needs to read why before deciding.
+				setLiveText(visible.join('\n\n'));
+			}
+			if (!parsed.calls.length) break;
+			if (round === MAX_TOOL_ROUNDS) {
+				log.push(`Stopped after ${MAX_TOOL_ROUNDS} rounds of tool calls.`);
+				break;
+			}
+			const results = await runner.runCalls(parsed.calls);
+			results.forEach(item => log.push(`${item.ok ? 'ok' : 'failed'}: ${item.name}`));
+			turns = [...turns, { role: 'user', mensaje: pendingUser }, { role: 'assistant', mensaje: parsed.text || '(tool call)' }];
+			pendingUser = formatToolResults(results);
+		}
+		return { text: visible.join('\n\n').trim(), images: collectedImages, log };
+	}, [plugin, contextItems, characterContext, impersonateContext, activeNoteItem, runner, toolsEnabled]);
+
 	const regenerateMessage = useCallback(async () => {
 		if (!store || !activeChatId) return;
 		const chat = await store.readChat(activeChatId);
@@ -491,24 +577,21 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		const currentUploadedImagesRegen = [...uploadedImages];
 		setUploadedImages([]);
 		setBusy(true);
+		runner.reset();
+		setLiveText('');
 		try {
-			const settings = plugin.settings.data;
-			const activeModel = getActiveModelConfig(settings, 'chat');
-			if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
-			const token = settings.apiToken[activeModel.providerId] ?? '';
-			const api = new ApiFactory().createApi(activeModel.providerId, token);
-			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
-			const prompt = buildPrompt(newMsgs, contextItems, lastUserMsg.mensaje, characterContext, impersonateContext, activeNoteItem, chatPromptText);
-			const result = await api.generateCompletion(prompt, activeModel.modelName, {
-				...activeModel.options,
-				stream: false,
-				...(activeModel.providerId === 'openrouter' && savedModel?.supports_image_generation ? { modalities: ['image', 'text'] } : {}),
-				...(currentUploadedImagesRegen.length > 0 ? { images: currentUploadedImagesRegen } : {}),
+			// The last user message is handed to buildPrompt separately, so it must not
+			// stay in the history as well or the model sees it twice.
+			const cut = newMsgs.findIndex(m => m.id_mensaje === lastUserMsg!.id_mensaje);
+			const turn = await runAiTurn({
+				history: cut >= 0 ? newMsgs.slice(0, cut) : newMsgs,
+				userText: lastUserMsg.mensaje,
+				images: currentUploadedImagesRegen,
+				chatPrompt: chatPromptText,
 			});
-			const images = extractImageUrls(result);
-			const reply = result.text ?? (images.length ? '' : '(no response)');
-			await appendMensaje('assistant', reply, images);
-			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: images, created_at: '' }]);
+			const reply = composeReply(turn.text, turn.log) || (turn.images.length ? '' : '(no response)');
+			await appendMensaje('assistant', reply, turn.images);
+			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: turn.images, created_at: '' }]);
 		} catch (e: any) {
 			const err = 'Error: ' + (e?.message ?? String(e));
 			await appendMensaje('assistant', err);
@@ -542,24 +625,13 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		await appendMensaje('user', t, currentUploadedImages.length > 0 ? currentUploadedImages : undefined);
 		setMensajes(m => [...m, { id_mensaje: 'tmp_u', role: 'user', mensaje: t, imagenes: currentUploadedImages.length > 0 ? currentUploadedImages : undefined, created_at: '' }]);
 		setBusy(true);
+		runner.reset();
+		setLiveText('');
 		try {
-			const settings = plugin.settings.data;
-			const activeModel = getActiveModelConfig(settings, 'chat');
-			if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
-			const token = settings.apiToken[activeModel.providerId] ?? '';
-			const api = new ApiFactory().createApi(activeModel.providerId, token);
-			const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
-			const prompt = buildPrompt(mensajes, contextItems, t, characterContext, impersonateContext, activeNoteItem, chatPromptText);
-			const result = await api.generateCompletion(prompt, activeModel.modelName, {
-				...activeModel.options,
-				stream: false,
-				...(activeModel.providerId === 'openrouter' && savedModel?.supports_image_generation ? { modalities: ['image', 'text'] } : {}),
-				...(currentUploadedImages.length > 0 ? { images: currentUploadedImages } : {}),
-			});
-			const images = extractImageUrls(result);
-			const reply = result.text ?? (images.length ? '' : '(no response)');
-			await appendMensaje('assistant', reply, images);
-			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: images, created_at: '' }]);
+			const turn = await runAiTurn({ history: mensajes, userText: t, images: currentUploadedImages, chatPrompt: chatPromptText });
+			const reply = composeReply(turn.text, turn.log) || (turn.images.length ? '' : '(no response)');
+			await appendMensaje('assistant', reply, turn.images);
+			setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: turn.images, created_at: '' }]);
 		} catch (e: any) {
 			const err = 'Error: ' + (e?.message ?? String(e));
 			await appendMensaje('assistant', err);
@@ -644,7 +716,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const chatPromptText = currentPrompt?.texto;
 
 	const openContextModal = useCallback(() => {
-		const prompt = buildPrompt(mensajes, contextItems, '', characterContext, impersonateContext, activeNoteItem, chatPromptText);
+		// Mirrors what a real request sends, tool instructions included.
+		const previewModel = getActiveModelConfig(plugin.settings.data, 'chat');
+		const toolsBlock = characterContext || !toolsEnabled
+			? ''
+			: buildToolPrompt(TOOL_DEFINITIONS, previewModel.options.max_tokens);
+		const prompt = buildPrompt(mensajes, contextItems, '', characterContext, impersonateContext, activeNoteItem, chatPromptText, toolsBlock);
 
 		// Compute breakdown parts matching buildPrompt internals
 		const groups: Array<[ContextKind, string]> = [
@@ -686,7 +763,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		];
 
 		new ChatContextModal(plugin.app, prompt, breakdown).open();
-	}, [mensajes, contextItems, characterContext, impersonateContext, activeNoteItem, chatPromptText, plugin]);
+	}, [mensajes, contextItems, characterContext, impersonateContext, activeNoteItem, chatPromptText, plugin, toolsEnabled]);
 
 	const handlePromptSelect = async (promptId: string) => {
 		setCurrentPromptId(promptId);
@@ -927,7 +1004,19 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					)}
 				</div>
 			))}
-			{busy && <div className="nw-msg nw-msg-assistant"><em>...typing...</em></div>}
+			{busy && liveText && (
+				<div className="nw-msg nw-msg-assistant nw-msg-live">
+					<MarkdownBlock plugin={plugin} content={liveText} />
+				</div>
+			)}
+			{runner.calls.length > 0 && (
+				<div className="nw-tool-calls">
+					{runner.calls.map(state => (
+						<ToolCallCard key={state.call.id} state={state} onApprove={runner.approve} onReject={runner.reject} />
+					))}
+				</div>
+			)}
+			{busy && !runner.awaiting && <div className="nw-msg nw-msg-assistant"><em>...typing...</em></div>}
 		</div>
 		<div className='nw-chat-input-container'>
 			<div className="nw-chat-context-bar">
@@ -1022,6 +1111,20 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			)}
 			<div className="nw-chat-footer">
 				<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+					<label
+						className="nw-chat-tools-toggle"
+						title={characterContext
+							? 'Tools are disabled while roleplaying a character'
+							: 'Let the AI read and edit chapters, outlines and codex entries'}
+					>
+						<input
+							type="checkbox"
+							checked={toolsEnabled && !characterContext}
+							disabled={!!characterContext}
+							onChange={event => setToolsEnabled(event.target.checked)}
+						/>
+						Tools
+					</label>
 					<div className="nw-chat-model-selector" key={modelVersion}>
 						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
 							{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'No active model'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}{model?.supports_vision && <Icon.Eye width={14} height={14} className="nw-model-image-capability" />}</>; })()}

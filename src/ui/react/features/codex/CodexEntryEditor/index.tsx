@@ -6,7 +6,11 @@ import { DEFAULT_COLORS as PALETTE } from '../../../../../constants/novel';
 import { Icon } from '../../../components/Icon';
 import { DetallesModal } from '../modals/DetallesModal';
 import { ThumbnailCropModal } from '../ThumbnailCropModal';
-import CodexAiGenerator from './CodexAiGenerator';
+import { CodexAiPanel } from './ai/CodexAiPanel';
+import { CodexAiProvider, type CodexAiApply } from './ai/CodexAiProvider';
+import { AiFieldButton } from './ai/AiFieldButton';
+import { AiProposalBox } from './ai/AiProposalBox';
+import { ALIAS_KEY, DESCRIPTION_KEY, detailKey } from './ai/useCodexAiFields';
 
 type Tab = 'detalles' | 'investigacion' | 'relaciones' | 'menciones' | 'tracking';
 
@@ -15,7 +19,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	const {
 		entradas, editingEntryId, setEditingEntry, updateEntry, deleteEntry, archiveEntry,
 		addReferencia, removeReferencia, setEntryTags, findOrCreateTag, tags, categorias, novels,
-		store, refreshEntry, moveEntryToNovel, setEntryThumbnail
+		store, refreshEntry, moveEntryToNovel, setEntryThumbnail, setDetalleValor
 	} = storeState;
 
 	const entry = entradas.find((e: any) => e.id_entrada_codex === editingEntryId) ?? null;
@@ -99,7 +103,17 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 
 	const otherNovels = ((novels ?? []) as any[]).filter((n: any) => n.novela && n.novela.id_novela !== entry.id_novela);
 
+	// AI suggestions are only written through here, once the author accepts them.
+	const aiApply: CodexAiApply = {
+		setEntryField: async (key, value) => { await patchAndSave({ [key]: value }); },
+		setDetalleValue: async (idDetalle, value) => {
+			await setDetalleValor(entry.id_entrada_codex, idDetalle, value);
+			await refreshEntry(entry.id_entrada_codex);
+		},
+	};
+
 	return (
+		<CodexAiProvider plugin={plugin} entry={entry} apply={aiApply}>
 		<div className="nw-entry-editor">
 			<div className="nw-editor-top">
 				<div className="nw-editor-top-left">
@@ -182,23 +196,20 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 			</div>
 
 			{/* AI Generation Collapsible Menu */}
-			<CodexAiGenerator 
-				plugin={plugin} 
-				entry={entry} 
-				setDraft={setDraft} 
-				setDirty={setDirty}
-			/>
+			<CodexAiPanel plugin={plugin} entryId={entry.id_entrada_codex} />
 
 			<div className="nw-tab-content">
 				{tab === 'detalles' && (
 					<div className="nw-entry-tab">
 						<div className="nw-field nw-field-stacked">
-							<label>Aliases/Nicknames</label>
+							<div className="nw-ai-label-row"><label>Aliases/Nicknames</label><AiFieldButton fieldKey={ALIAS_KEY} /></div>
 							<input className="nw-input" value={draft.alias} onChange={(e) => patch({ alias: e.target.value })} onBlur={() => { if (dirty) save(); }} placeholder="Add aliases, ..." />
+							<AiProposalBox fieldKey={ALIAS_KEY} />
 						</div>
 						<div className="nw-field nw-field-stacked">
-							<label>Description</label>
+							<div className="nw-ai-label-row"><label>Description</label><AiFieldButton fieldKey={DESCRIPTION_KEY} /></div>
 							<textarea className="nw-textarea" rows={6} value={draft.descripcion} onChange={(e) => patch({ descripcion: e.target.value })} placeholder="Write a short summary here..." onBlur={() => { if (dirty) save(); }} />
+							<AiProposalBox fieldKey={DESCRIPTION_KEY} />
 						</div>
 						<DetallesFields plugin={plugin} entry={entry} collapsed={collapsed} setCollapsed={setCollapsed} refreshEntry={refreshEntry} />
 					</div>
@@ -262,6 +273,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 				)}
 			</div>
 		</div>
+		</CodexAiProvider>
 	);
 }
 function CategoriaPicker({ value, categorias, onChange }: { value: string; categorias: any[]; onChange: (v: string) => void }) {
@@ -470,10 +482,11 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 										</button>
 										<span className="nw-detail-type">{tipoLabel(d.tipo_detalle)}</span>
 										{d.incluir_ia && <span className="nw-detail-ia">AI</span>}
+										<AiFieldButton fieldKey={detailKey(d.id_detalle)} />
 									</div>
 									{isText && !isCollapsed && (
 										<div className="nw-detail-body">
-											<textarea className="nw-textarea" rows={4} defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
+											<textarea key={ed.valor ?? ''} className="nw-textarea" rows={4} defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
 										</div>
 									)}
 								</div>		
@@ -482,7 +495,7 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 									<DetailLabelMenu d={d} onRemove={() => doRemove(d.id_detalle)} onEdit={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'general' }).open(); }} />
 									<div className="nw-detail-inline-input-body">
 										{d.tipo_detalle === TipoDetalle.Line && (
-											<input className="nw-input" defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
+											<input key={ed.valor ?? ''} className="nw-input" defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
 										)}
 										{d.tipo_detalle === TipoDetalle.Dropdown && (
 											<DropdownField value={ed.valor ?? null} options={opts} onChange={(v) => doSetValue(d.id_detalle, v)} onManageOptions={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'opciones' }).open(); }} />
@@ -493,8 +506,10 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 									</div>
 									<span className="nw-detail-type">{tipoLabel(d.tipo_detalle)}</span>
 									{d.incluir_ia && <span className="nw-detail-ia">AI</span>}
+									<AiFieldButton fieldKey={detailKey(d.id_detalle)} />
 								</div>
 							)}
+							<AiProposalBox fieldKey={detailKey(d.id_detalle)} />
 						</div>
 					);
 				})}

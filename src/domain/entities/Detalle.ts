@@ -11,6 +11,11 @@ export interface Detalle {
 	tipo_detalle: TipoDetalle;
 	/** Si true, el valor de este detalle se incluye en el prompt de IA. */
 	incluir_ia: boolean;
+	/**
+	 * Instruccion opcional del autor para la IA al generar el valor de este
+	 * detalle ("responde con un numero entero", "usa bullet points", etc).
+	 */
+	ai_hint?: string;
 	id_novela: EntityId;
 	created_at: ISODate;
 	updated_at: ISODate;
