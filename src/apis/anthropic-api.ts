@@ -3,8 +3,7 @@ import { ApiInterface } from '../interfaces/api-interface';
 import { mapAnthropicUsage } from '../utils/anthropic-usage';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
-
-type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+import { normalizeEffort, type CompletionOptions } from '../utils/provider-options';
 
 interface ModelCapabilities {
 	adaptiveThinking: boolean;
@@ -77,7 +76,7 @@ export class AnthropicApi extends ApiInterface {
 	async generateCompletion(
 		prompt: string,
 		model: string,
-		options: Record<string, any> = {}
+		options: CompletionOptions = {}
 	): Promise<CompletionResponse> {
 		const capabilities = await this.resolveCapabilities(model);
 
@@ -90,8 +89,8 @@ export class AnthropicApi extends ApiInterface {
 			max_tokens: positiveInt(options.max_tokens, 4096),
 			messages: [{ role: 'user', content: buildContent(prompt, options.images) }],
 		};
-		if (capabilities.adaptiveThinking) body.thinking = { type: 'adaptive' };
-		if (capabilities.effort) body.output_config = { effort: readEffort(options.effort) };
+		if (capabilities.adaptiveThinking && options.thinking !== false) body.thinking = { type: 'adaptive' };
+		if (capabilities.effort) body.output_config = { effort: normalizeEffort(options.effort) };
 
 		try {
 			if (options.stream) {
@@ -141,11 +140,6 @@ function readCapabilities(capabilities: any): ModelCapabilities {
 		effort: capabilities?.effort?.supported ?? false,
 		imageInput: capabilities?.image_input?.supported ?? false,
 	};
-}
-
-function readEffort(value: unknown): EffortLevel {
-	const levels: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
-	return levels.includes(value as EffortLevel) ? (value as EffortLevel) : 'low';
 }
 
 function positiveInt(value: unknown, fallback: number): number {

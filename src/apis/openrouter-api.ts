@@ -1,6 +1,7 @@
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOpenRouterBody, type CompletionOptions } from '../utils/provider-options';
 
 /**
  * Implementación específica para la API de OpenRouter
@@ -50,19 +51,10 @@ export class OpenRouterApi extends ApiInterface {
     /**
      * Genera una respuesta usando el modelo especificado de OpenRouter
      */
-    async generateCompletion(prompt: string, model: string, options = {}): Promise<CompletionResponse> {
+    async generateCompletion(prompt: string, model: string, options: CompletionOptions = {}): Promise<CompletionResponse> {
         try {
-            const defaultOptions = {
-                temperature: 0.7,
-                max_tokens: 1000,
-                stream: false
-            };
-
-            const { images: _inputImages, ...restOptions } = options as any;
-            const requestOptions = { ...defaultOptions, ...restOptions };
-
             // Build messages: if images are provided, use content array format for vision
-            const inputImages: string[] = (Array.isArray(_inputImages) ? _inputImages : []) as string[];
+            const inputImages = options.images ?? [];
             const userMessage = inputImages.length > 0
                 ? { role: "user" as const, content: [
                     { type: "text" as const, text: prompt },
@@ -70,17 +62,15 @@ export class OpenRouterApi extends ApiInterface {
                 ]}
                 : { role: "user" as const, content: prompt };
 
+            const body = toOpenRouterBody([userMessage], model, options);
+
             const response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [userMessage],
-                    ...requestOptions
-                })
+                body: JSON.stringify(body)
             });
 
             if (!response.ok) {
@@ -89,7 +79,7 @@ export class OpenRouterApi extends ApiInterface {
             }
 
             // Si es streaming, devolver la respuesta directamente
-            if (requestOptions.stream && response.body) {
+            if (body.stream && response.body) {
                 // Procesar el stream SSE y devolver un AsyncIterable de objetos tipo OpenAI
                 const stream = this.parseSSEStream(response.body);
                 return {

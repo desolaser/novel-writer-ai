@@ -7,10 +7,14 @@ import {
 	providerRequiresApiKey,
 	providerIsDesktopOnly,
 	providerIgnoresSamplingParams,
+	getProviderCapabilities,
 } from "../../constants/providers";
 import { ApiFactory } from "../../factories/api-factory";
 import type { Model as AvailableModel } from "../../types/Model";
 import { ModelRepository } from "../../infrastructure/settings/model-repository";
+import type { EffortLevel } from "../../utils/provider-options";
+
+const EFFORT_LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
 type ModelInput = Omit<Modelo, "id_modelo" | "created_at" | "updated_at"> &
 	Partial<Pick<Modelo, "id_modelo">>;
@@ -52,6 +56,8 @@ export class ModelModal extends Modal {
 					repetition_penalty_range: defaults.repetitionPenaltyRange,
 					frecuence_penalty: defaults.frequencyPenalty,
 					presence_penalty: defaults.presencePenalty,
+					effort: defaults.effort,
+					thinking: defaults.thinking,
 					supports_image_generation: false,
 					supports_vision: false,
 				};
@@ -152,15 +158,17 @@ export class ModelModal extends Modal {
 		);
 		this.renderModelDropdown(modelDropdownHost);
 		contentEl.createEl("h3", { text: "Parameters" });
+		const capabilities = getProviderCapabilities(provider.nombre);
 		if (providerIgnoresSamplingParams(provider.nombre)) {
 			contentEl.createEl("p", {
 				text:
-					"With this provider, Temperature / Top P / Top K and the penalties have no effect: " +
-					"the Anthropic API removed them and the CLI does not expose them. Max Context, Max Output and Stream still apply.",
+					"This provider does not expose sampling parameters (temperature, top P/K, penalties). " +
+					"Max Output and Stream still apply.",
 				cls: "setting-item-description",
 			});
 		}
-		this.numberSetting(contentEl, "Max Context", "max_context");
+		if (capabilities.maxContext)
+			this.numberSetting(contentEl, "Max Context", "max_context");
 		this.numberSetting(contentEl, "Max Output (Generation)", "max_output");
 		this.numberSetting(contentEl, "Max Output (Chat)", "max_output_chat");
 		new Setting(contentEl).setName("Stream").addToggle((toggle) =>
@@ -168,14 +176,43 @@ export class ModelModal extends Modal {
 				this.form.stream = value;
 			})
 		);
-		this.numberSetting(contentEl, "Temperature", "temperature");
-		this.numberSetting(contentEl, "Top P", "top_p");
-		this.numberSetting(contentEl, "Top K", "top_k");
-		this.numberSetting(contentEl, "Repetition Penalty", "repetition_penalty");
-		this.numberSetting(contentEl, "Repetition Penalty Range", "repetition_penalty_range");
-		this.numberSetting(contentEl, "Frequence Penalty", "frecuence_penalty");
-		this.numberSetting(contentEl, "Presence Penalty", "presence_penalty");
-		this.numberSetting(contentEl, "Min P", "min_p");
+		if (capabilities.temperature)
+			this.numberSetting(contentEl, "Temperature", "temperature");
+		if (capabilities.topP)
+			this.numberSetting(contentEl, "Top P", "top_p");
+		if (capabilities.topK)
+			this.numberSetting(contentEl, "Top K", "top_k");
+		if (capabilities.repetitionPenalty)
+			this.numberSetting(contentEl, "Repetition Penalty", "repetition_penalty");
+		if (capabilities.repetitionPenaltyRange)
+			this.numberSetting(contentEl, "Repetition Penalty Range", "repetition_penalty_range");
+		if (capabilities.frequencyPenalty)
+			this.numberSetting(contentEl, "Frequence Penalty", "frecuence_penalty");
+		if (capabilities.presencePenalty)
+			this.numberSetting(contentEl, "Presence Penalty", "presence_penalty");
+		if (capabilities.minP)
+			this.numberSetting(contentEl, "Min P", "min_p");
+		if (capabilities.effort)
+			new Setting(contentEl)
+				.setName("Effort")
+				.setDesc("Reasoning depth. Higher levels think more before answering, at the cost of latency and tokens.")
+				.addDropdown((dropdown) => {
+					EFFORT_LEVELS.forEach((level) => dropdown.addOption(level, level));
+					dropdown
+						.setValue(this.form.effort ?? "low")
+						.onChange((value) => {
+							this.form.effort = value as EffortLevel;
+						});
+				});
+		if (capabilities.thinking)
+			new Setting(contentEl)
+				.setName("Thinking")
+				.setDesc("Enable extended thinking / reasoning before the model answers.")
+				.addToggle((toggle) =>
+					toggle.setValue(this.form.thinking ?? true).onChange((value) => {
+						this.form.thinking = value;
+					})
+				);
 		const actions = contentEl.createDiv("modal-button-container");
 		const test = actions.createEl("button", { text: "Test" });
 		test.onclick = async () => {

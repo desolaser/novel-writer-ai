@@ -2,6 +2,7 @@ import { ApiInterface } from '../interfaces/api-interface';
 import { mapAnthropicUsage } from '../utils/anthropic-usage';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { normalizeEffort, type CompletionOptions } from '../utils/provider-options';
 
 /**
  * Provider that uses the Claude (Pro/Max) subscription by launching the Claude Code CLI
@@ -73,7 +74,7 @@ export class ClaudeCodeApi extends ApiInterface {
 	async generateCompletion(
 		prompt: string,
 		model: string,
-		options: Record<string, any> = {}
+		options: CompletionOptions = {}
 	): Promise<CompletionResponse> {
 		assertDesktop();
 		if (MODEL_IDS.indexOf(model) === -1) {
@@ -152,7 +153,7 @@ export class ClaudeCodeApi extends ApiInterface {
 	}
 }
 
-function buildArgs(model: string, streaming: boolean, options: Record<string, any>): string[] {
+function buildArgs(model: string, streaming: boolean, options: CompletionOptions): string[] {
 	const args = [
 		'-p',
 		'--model', model,
@@ -165,7 +166,7 @@ function buildArgs(model: string, streaming: boolean, options: Record<string, an
 		// keeps working (unlike `--bare`, which forces an API key).
 		'--safe-mode',
 		'--no-session-persistence',
-		'--effort', readEffort(options.effort),
+		'--effort', normalizeEffort(options.effort),
 	];
 	if (streaming) args.push('--verbose', '--include-partial-messages');
 	const budget = Number(options.max_budget_usd);
@@ -173,7 +174,7 @@ function buildArgs(model: string, streaming: boolean, options: Record<string, an
 	return args;
 }
 
-function buildEnv(options: Record<string, any>): Record<string, string> {
+function buildEnv(options: CompletionOptions): Record<string, string> {
 	// Inheriting process.env is what lets the CLI find the OAuth session in ~/.claude.
 	const env: Record<string, string> = { ...(process.env as Record<string, string>) };
 	const maxTokens = Number(options.max_tokens);
@@ -181,11 +182,6 @@ function buildEnv(options: Record<string, any>): Record<string, string> {
 		env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(Math.floor(maxTokens));
 	}
 	return env;
-}
-
-function readEffort(value: unknown): string {
-	const levels = ['low', 'medium', 'high', 'xhigh', 'max'];
-	return levels.indexOf(value as string) === -1 ? 'low' : (value as string);
 }
 
 function positiveInt(value: unknown, fallback: number): number {

@@ -1,6 +1,7 @@
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOllamaOptions, toOllamaThink, type CompletionOptions } from '../utils/provider-options';
 
 export class OllamaApi extends ApiInterface {
     baseUrl: string = "http://localhost:11434";
@@ -31,37 +32,26 @@ export class OllamaApi extends ApiInterface {
     async generateCompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
         try {
-            const isStream = options.stream || true;
-            
+            const isStream = options.stream ?? true;
+
             const response = await fetch(`${this.baseUrl}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model,
-                    messages: [
-                        { 
-                            role: "system", 
-                            content: `You are an assistant for creative writing.` 
+                    messages: options.messages ?? [
+                        {
+                            role: "system",
+                            content: `You are an assistant for creative writing.`
                         },
                         { role: "user", content: prompt }
                     ],
                     stream: isStream,
-                    options: {
-                        mirostat: 0,
-                        mirsotat_eta: 0.1,
-                        mirostat_tau: 5.0,
-                        num_ctx: options.max_context,
-                        repeat_last_n: options.repetition_penalty_range ?? 64,
-                        repeat_penalty: options.repetition_penalty ?? 1.1,
-                        temperature: options.temperature ?? 0.7,
-                        num_predict: options.max_tokens ?? 512,
-                        top_k: options.top_k ?? 40,
-                        top_p: options.top_p ?? 0.9,
-                        min_p: options.min_p ?? 0,
-                    }
+                    think: toOllamaThink(options),
+                    options: toOllamaOptions(options)
                 })
             });
 

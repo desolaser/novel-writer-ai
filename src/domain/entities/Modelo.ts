@@ -1,3 +1,5 @@
+import type { EffortLevel } from '../../utils/provider-options';
+
 /** Contexto en el que se usa un modelo, determina qué max_output aplicar. */
 export type ModelContext = 'chat' | 'generate';
 
@@ -21,6 +23,10 @@ export interface Modelo {
 	repetition_penalty_range?: number;
 	frecuence_penalty?: number;
 	presence_penalty?: number;
+	/** Reasoning-effort level, for providers with an extended-thinking / reasoning-effort control. */
+	effort?: EffortLevel;
+	/** Whether to enable extended thinking / reasoning, for providers that support toggling it. */
+	thinking?: boolean;
 	/** Whether this saved model profile can generate images. */
 	supports_image_generation?: boolean;
 	/** Whether this saved model profile can accept images as input (vision). */

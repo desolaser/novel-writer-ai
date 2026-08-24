@@ -1,6 +1,7 @@
 import { DEFAULT_COLORS } from '../../constants/novel';
 import type { Modelo } from '../../domain/entities/Modelo';
 import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
+import type { EffortLevel } from '../../utils/provider-options';
 
 /** Proveedor de IA seleccionado. */
 export type AiProviderId =
@@ -23,6 +24,10 @@ export interface AiOptions {
 	presencePenalty?: number;
 	frequencyPenalty?: number;
 	minP?: number;
+	/** Reasoning-effort level, for providers with an extended-thinking / reasoning-effort control. */
+	effort?: EffortLevel;
+	/** Whether to enable extended thinking / reasoning, for providers that support toggling it. */
+	thinking?: boolean;
 }
 
 /** Opciones de Codex. */
@@ -91,7 +96,9 @@ export const DEFAULT_AI_OPTIONS: AiOptions = {
 	presencePenalty: 1.5,
 	repetitionPenalty: 1,
 	repetitionPenaltyRange: 64, // Used for repeat_last_n in ollama
-	minP: 0.05
+	minP: 0.05,
+	effort: 'low',
+	thinking: false, // disabled, you don't want this for autocompletion
 };
 
 export const DEFAULT_CODEX_OPTIONS: CodexOptions = {

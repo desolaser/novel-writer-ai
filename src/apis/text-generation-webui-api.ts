@@ -1,6 +1,7 @@
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOobaBody, type CompletionOptions } from '../utils/provider-options';
 
 /**
  * Implementación específica para la API de OpenRouter
@@ -50,20 +51,17 @@ export class TextGenerationWebuiApi extends ApiInterface {
     /**
      * Genera una respuesta usando el modelo especificado de OpenRouter
      */
-    async generateCompletion(prompt: string, model: string, options = {}): Promise<CompletionResponse> {
+    async generateCompletion(prompt: string, model: string, options: CompletionOptions = {}): Promise<CompletionResponse> {
         try {
-            const defaultOptions = {
-                temperature: 0.8,
-                max_tokens: 1000,
-                stream: false,
-                enable_thinking: false,
-                logit_bias: {
-                    "27": -100,
-                    "33340": -100
-                }
-            };
+            const messages = options.messages ?? [
+                { role: "system", content: "You are an assistant for creative writing. Answer immediately without thinking or analysis."},
+                { role: "system", content: "\no_think"},
+                { role: "user", content: prompt },
+                { role: "assistant", content: "<think></think>"},
+                { role: "assistant", content: "<analysis></analysis>"},
+            ];
 
-            const requestOptions = { ...defaultOptions, ...options };
+            const body = toOobaBody(model, messages, options);
 
             const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
                 method: 'POST',
@@ -71,16 +69,7 @@ export class TextGenerationWebuiApi extends ApiInterface {
                     'Authorization': this.apiKey !== '' ? `Bearer ${this.apiKey}` : '',
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    messages: [
-                        { role: "system", content: "You are an assistant for creative writing. Answer immediately without thinking or analysis."},
-                        { role: "system", content: "\no_think"},
-                        { role: "user", content: prompt },
-                        { role: "assistant", content: "<think></think>"},
-                        { role: "assistant", content: "<analysis></analysis>"},
-                    ],
-                    ...requestOptions
-                })
+                body: JSON.stringify(body)
             });
 
             if (!response.ok) {
@@ -89,7 +78,7 @@ export class TextGenerationWebuiApi extends ApiInterface {
                 throw new Error(`Error generating text: ${errorData.error?.message || response.statusText}`);
             }
 
-            if (requestOptions.stream && response.body) {
+            if (body.stream && response.body) {
                 // Procesar el stream SSE y devolver un AsyncIterable de objetos tipo OpenAI
                 const stream = this.parseSSEStream(response.body);
                 return {

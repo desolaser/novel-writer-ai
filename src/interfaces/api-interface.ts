@@ -1,5 +1,6 @@
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import type { CompletionOptions } from '../utils/provider-options';
 
 export class ApiInterface {
     apiKey = "";
@@ -15,7 +16,7 @@ export class ApiInterface {
         throw new Error("The getAvailableModels method must be implemented by child classes");
     }
 
-    async generateCompletion(prompt: string, model: string, options = {}): Promise<CompletionResponse> {
+    async generateCompletion(prompt: string, model: string, options: CompletionOptions = {}): Promise<CompletionResponse> {
         throw new Error("The generateCompletion method must be implemented by child classes");
     }
 

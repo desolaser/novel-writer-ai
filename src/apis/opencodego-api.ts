@@ -2,6 +2,7 @@ import { requestUrl } from 'obsidian';
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOpenCodeChatBody, type CompletionOptions } from '../utils/provider-options';
 
 /**
  * Modelos que usan el endpoint Anthropic-compatible (/v1/messages)
@@ -94,7 +95,7 @@ export class OpenCodeGoApi extends ApiInterface {
     async generateCompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
         try {
             if (this.isAnthropicModel(model)) {
@@ -114,33 +115,9 @@ export class OpenCodeGoApi extends ApiInterface {
     private async generateOpenAICompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
-        const messages = options.messages ?? [
-            { role: "system", content: "You are a helpful assistant." },
-            { role: "user", content: prompt }
-        ];
-
-        const defaultOptions = {
-            model,
-            messages,
-            temperature: 0.7,
-            max_tokens: 1000,
-            stream: false,
-            ...options
-        };
-
-        // requestUrl no soporta streaming, así que forzamos stream=false
-        const body = JSON.stringify({
-            model: defaultOptions.model,
-            messages: defaultOptions.messages,
-            temperature: defaultOptions.temperature,
-            max_tokens: defaultOptions.max_tokens,
-            stream: false,
-            ...(options.top_p !== undefined ? { top_p: options.top_p } : {}),
-            ...(options.presence_penalty !== undefined ? { presence_penalty: options.presence_penalty } : {}),
-            ...(options.frequency_penalty !== undefined ? { frequency_penalty: options.frequency_penalty } : {})
-        });
+        const body = JSON.stringify(toOpenCodeChatBody(prompt, model, options));
 
         const response = await requestUrl({
             url: `${this.baseUrl}/chat/completions`,
@@ -174,7 +151,7 @@ export class OpenCodeGoApi extends ApiInterface {
     private async generateAnthropicCompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
         const messages = options.messages ?? [
             { role: "user", content: prompt }
@@ -182,7 +159,7 @@ export class OpenCodeGoApi extends ApiInterface {
 
         // Extraer system prompt si existe (Anthropic lo maneja aparte)
         let systemPrompt = '';
-        const filteredMessages = messages.filter((msg: any) => {
+        const filteredMessages = (messages as any[]).filter((msg: any) => {
             if (msg.role === 'system') {
                 systemPrompt = msg.content;
                 return false;

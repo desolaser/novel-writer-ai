@@ -36,6 +36,8 @@ export function getActiveModelConfig(
 				frequency_penalty: settings.aiOptions.frequencyPenalty,
 				presence_penalty: settings.aiOptions.presencePenalty,
 				stream: settings.aiOptions.streaming,
+				effort: settings.aiOptions.effort,
+				thinking: settings.aiOptions.thinking,
 			},
 		};
 	}
@@ -62,6 +64,8 @@ export function getActiveModelConfig(
 			frequency_penalty: model.frecuence_penalty,
 			presence_penalty: model.presence_penalty,
 			stream: model.stream,
+			effort: model.effort,
+			thinking: model.thinking,
 		},
 	};
 }
