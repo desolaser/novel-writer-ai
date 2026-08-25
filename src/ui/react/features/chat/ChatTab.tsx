@@ -884,14 +884,14 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 						{m.role === 'user' ? (
 							impersonateContext ? (
 								<span className="nw-msg-role-character nw-msg-role-impersonate">
-									{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-msg-role-thumb" /> : <Icon.Person width={20} height={20} />}
+									{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-msg-role-thumb" onClick={() => setLightboxSrc(impersonateContext.thumbnail)} /> : <Icon.Person width={20} height={20} />}
 									<span>{impersonateContext.name}</span>
 								</span>
 							) : 'You'
 						) : (
 							characterContext ? (
 								<span className="nw-msg-role-character">
-									{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-msg-role-thumb" /> : <Icon.Person width={20} height={20} />}
+									{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-msg-role-thumb" onClick={() => setLightboxSrc(characterContext.thumbnail)} /> : <Icon.Person width={20} height={20} />}
 									<span>{characterContext.name}</span>
 								</span>
 							) : 'AI'
