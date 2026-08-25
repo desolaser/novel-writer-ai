@@ -7,6 +7,7 @@ import { OutlineHeader } from "./outline/OutlineHeader";
 import { AddActo } from "./outline/AddActo";
 import { ActoSection } from "./outline/ActoSection";
 import { ChapterFileModal } from "./outline/modals";
+import { openNovelBlueprintModal } from "./features/blueprint/NovelBlueprintModal";
 
 /** Outline de una columna: orquesta estado de UI y delega en componentes de `./outline`. */
 export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -236,6 +237,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				onGenerateAllOutlines={() => void generateAllOutlines()}
 				onCreateAllManuscripts={() => void createAllManuscripts()}
 				onGenerateDrafts={() => void generateDrafts()}
+				onOpenSetup={() => openNovelBlueprintModal(plugin)}
 			/>
 			{batchStatus && (
 				<div className="nw-outline-status">{batchStatus}</div>

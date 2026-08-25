@@ -110,6 +110,63 @@ export async function deleteCapitulo(app: App, fp: string, id: EntityId) {
 	await writeFile(app, fp, data);
 }
 
+// ---- Estructura completa ----
+
+/** Acto y sus capitulos, tal como los propone el blueprint de la novela. */
+export interface ActoDraft {
+	nombre: string;
+	capitulos: { nombre: string; outline: string }[];
+}
+
+function matchKey(nombre: string): string {
+	return (nombre || '').trim().toLowerCase();
+}
+
+/**
+ * Reemplaza actos y capitulos en una sola escritura.
+ *
+ * Nunca borra manuscritos: un capitulo que desaparece de la estructura deja su
+ * archivo .md en el vault. Los capitulos cuyo nombre se mantiene conservan su
+ * id y su archivo, para no romper el frontmatter ya escrito en el manuscrito.
+ */
+export async function replaceEstructura(
+	app: App,
+	folderPath: string,
+	idNovela: EntityId,
+	drafts: ActoDraft[],
+): Promise<void> {
+	const data = await readFile(app, folderPath);
+	const previous = new Map<string, Capitulo>();
+	for (const cap of data.capitulos) {
+		const key = matchKey(cap.nombre);
+		if (key && !previous.has(key)) previous.set(key, cap);
+	}
+	const now = nowISO();
+	const actos: Acto[] = [];
+	const capitulos: Capitulo[] = [];
+	drafts.forEach((draft, index) => {
+		const acto: Acto = {
+			id_acto: genId(), nombre: draft.nombre, orden: index, id_novela: idNovela,
+			created_at: now, updated_at: now,
+		};
+		actos.push(acto);
+		draft.capitulos.forEach((chapter, orden) => {
+			const kept = previous.get(matchKey(chapter.nombre));
+			capitulos.push({
+				id_capitulo: kept?.id_capitulo ?? genId(),
+				nombre: chapter.nombre,
+				outline: chapter.outline,
+				archivo: kept?.archivo ?? null,
+				id_acto: acto.id_acto,
+				orden,
+				created_at: kept?.created_at ?? now,
+				updated_at: now,
+			});
+		});
+	});
+	await writeFile(app, folderPath, { actos, capitulos });
+}
+
 /** Sanitiza un nombre para usarlo como nombre de archivo. */
 function sanitizeFileName(name: string): string {
 	return name

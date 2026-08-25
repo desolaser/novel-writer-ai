@@ -18,6 +18,7 @@ import {
 	NovelStore,
 	NovelScanResult,
 } from "../../../infrastructure/storage/store";
+import type { ActoDraft } from "../../../infrastructure/storage/repos/EstructuraRepo";
 import type { SettingsService } from "../../../infrastructure/settings/settings-service";
 
 interface UIState {
@@ -94,6 +95,8 @@ interface NovelWriterStore extends UIState {
 	readCapituloTexto: (id: EntityId) => Promise<string>;
 	linkCapituloArchivo: (id: EntityId, path: string) => Promise<void>;
 	reconcileCapituloArchivos: () => Promise<void>;
+	/** Rewrites every act and chapter from a blueprint layout. */
+	replaceEstructura: (drafts: ActoDraft[]) => Promise<void>;
 
 	createDetalle: (
 		nombre: string,
@@ -406,6 +409,12 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.reconcileCapituloArchivos();
+		await get().reloadAll();
+	},
+	replaceEstructura: async (drafts) => {
+		const s = get().store;
+		if (!s) return;
+		await s.replaceEstructura(drafts);
 		await get().reloadAll();
 	},
 

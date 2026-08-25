@@ -9,6 +9,7 @@ export interface OutlineHeaderProps {
 	onGenerateAllOutlines: () => void;
 	onCreateAllManuscripts: () => void;
 	onGenerateDrafts: () => void;
+	onOpenSetup: () => void;
 }
 
 /** Cabecera del outline: título, ajuste de longitud y acciones en lote. */
@@ -21,6 +22,7 @@ export function OutlineHeader({
 	onGenerateAllOutlines,
 	onCreateAllManuscripts,
 	onGenerateDrafts,
+	onOpenSetup,
 }: OutlineHeaderProps) {
 	const hasChapters = chaptersCount > 0;
 
@@ -28,6 +30,14 @@ export function OutlineHeader({
 		<div className="nw-outline-title">
 			<strong>Outline</strong>
 			<div className="nw-outline-actions">
+				<button
+					className="nw-btn"
+					disabled={batchBusy}
+					onClick={onOpenSetup}
+					title="Lay out acts and chapters from a premise"
+				>
+					Setup
+				</button>
 				<label className="nw-draft-length">
 					Words{" "}
 					<input

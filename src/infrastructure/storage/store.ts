@@ -10,9 +10,10 @@ import * as DetRepo from './repos/DetalleRepo';
 import * as EntryRepo from './repos/CodexEntryRepo';
 import * as EstRepo from './repos/EstructuraRepo';
 import * as ChatRepo from './repos/ChatRepo';
+import * as BlueprintRepo from './repos/BlueprintRepo';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
-	Acto, Capitulo, Chat, ChatContextItem, EntityId,
+	Acto, Capitulo, Chat, ChatContextItem, EntityId, NovelBlueprint,
 } from '../../domain';
 
 export type { NovelScanResult };
@@ -122,6 +123,11 @@ export class NovelStore {
 	async readCapituloTexto(id: EntityId) { return EstRepo.readCapituloTexto(this.app, this.activeFolder!, id); }
 	async linkCapituloArchivo(id: EntityId, path: string) { await EstRepo.linkCapituloArchivo(this.app, this.activeFolder!, id, path); }
 	async reconcileCapituloArchivos() { await EstRepo.reconcileCapituloArchivos(this.app, this.activeFolder!); }
+	async replaceEstructura(drafts: EstRepo.ActoDraft[]) { await EstRepo.replaceEstructura(this.app, this.activeFolder!, this.activeId!, drafts); }
+
+	// Blueprint
+	async readBlueprint(): Promise<NovelBlueprint | null> { return BlueprintRepo.readBlueprint(this.app, this.activeFolder!); }
+	async writeBlueprint(blueprint: NovelBlueprint) { await BlueprintRepo.writeBlueprint(this.app, this.activeFolder!, blueprint); }
 
 	// Chats
 	async listChats(): Promise<Chat[]> { return ChatRepo.listChats(this.app, this.activeFolder!); }

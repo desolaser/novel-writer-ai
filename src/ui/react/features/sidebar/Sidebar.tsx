@@ -10,6 +10,7 @@ import {
 	openNovelEditModal,
 	openNovelDeleteModal,
 } from "./NovelManagementModal";
+import { openNovelBlueprintModal } from "../blueprint/NovelBlueprintModal";
 
 export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [open, setOpen] = useState(false);
@@ -42,6 +43,15 @@ export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {
 						}}
 					>
 						Edit Novel
+					</button>
+					<button
+						disabled={!activeNovelId}
+						onClick={() => {
+							setOpen(false);
+							if (activeNovelId) openNovelBlueprintModal(plugin);
+						}}
+					>
+						Novel Setup
 					</button>
 					<button
 						disabled={!activeNovelId}

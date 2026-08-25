@@ -7,6 +7,7 @@ export * from './entities/Detalle';
 export * from './entities/OpcionDetalle';
 export * from './entities/EntradaCodex';
 export * from './entities/Estructura';
+export * from './entities/NovelBlueprint';
 export * from './entities/Chat';
 export * from './entities/CustomPrompt';
 export * from './entities/Junctions';
