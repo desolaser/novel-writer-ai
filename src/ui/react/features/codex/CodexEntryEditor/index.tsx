@@ -6,6 +6,7 @@ import { DEFAULT_COLORS as PALETTE } from '../../../../../constants/novel';
 import { Icon } from '../../../components/Icon';
 import { DetallesModal } from '../modals/DetallesModal';
 import { ThumbnailCropModal } from '../ThumbnailCropModal';
+import { canvasToDataUrl, cropToCanvas } from '../../../../../utils/image';
 import { CodexAiPanel } from './ai/CodexAiPanel';
 import { CodexAiProvider, type CodexAiApply } from './ai/CodexAiProvider';
 import { AiFieldButton } from './ai/AiFieldButton';
@@ -81,11 +82,9 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 		img.onload = async () => {
 			if (img.width === img.height) {
 				URL.revokeObjectURL(url);
-				const canvas = document.createElement('canvas');
-				canvas.width = 256; canvas.height = 256;
-				const ctx = canvas.getContext('2d')!;
-				ctx.drawImage(img, 0, 0, 256, 256);
-				await setEntryThumbnail(entry.id_entrada_codex, canvas.toDataURL('image/png'));
+				const out = Math.min(480, img.naturalWidth, img.naturalHeight);
+				const canvas = cropToCanvas(img, 0, 0, out, out, out, out);
+				await setEntryThumbnail(entry.id_entrada_codex, canvasToDataUrl(canvas, "image/png"));
 			} else {
 				new ThumbnailCropModal(plugin.app as any, url, async (dataUrl) => {
 					URL.revokeObjectURL(url);

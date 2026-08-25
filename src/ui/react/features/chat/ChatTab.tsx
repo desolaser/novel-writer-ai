@@ -7,6 +7,7 @@ import { ApiFactory } from '../../../../factories/api-factory';
 import { Icon } from '../../components/Icon';
 import { openEntryModal } from '../codex/modals/CodexEntryModal';
 import { ThumbnailCropModal } from '../codex/ThumbnailCropModal';
+import { canvasToDataUrl, cropToCanvas } from '../../../../utils/image';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 import type { EntradaCodex, ChatContextItem, ChatContextKind } from '../../../../domain';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
@@ -800,7 +801,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			if (Math.abs(img.naturalWidth - img.naturalHeight) <= 2) {
 				// Already square – set directly
 				void (async () => {
-					await setEntryThumbnail(entryId, dataUrl);
+					const out = Math.min(480, img.naturalWidth, img.naturalHeight);
+					const canvas = cropToCanvas(img, 0, 0, out, out, out, out);
+					await setEntryThumbnail(entryId, canvasToDataUrl(canvas, "image/png"));
 					new Notice(`✅ Image added as thumbnail for "${entryName}"`);
 					closeImageDropdown();
 				})();

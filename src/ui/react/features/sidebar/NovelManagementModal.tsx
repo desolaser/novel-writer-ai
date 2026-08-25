@@ -1,9 +1,16 @@
 import React from "react";
-import { App, Modal, TFile } from "obsidian";
+import { App, Modal, Notice, TFile } from "obsidian";
 import { createRoot, Root } from "react-dom/client";
 import type NovelWriterPlugin from "../../../../../main";
 import { useNovelWriter } from "../../store/novelWriterStore";
 import { Icon } from "../../components/Icon";
+import { ThumbnailCropModal } from "../codex/ThumbnailCropModal";
+import {
+  canvasToDataUrl,
+  cropToCanvas,
+  dataUrlToArrayBuffer,
+  loadImage,
+} from "../../../../utils/image";
 import type { NovelScanResult } from "../../../../infrastructure/storage/repos/NovelRepo";
 
 abstract class ReactNovelModal extends Modal {
@@ -204,6 +211,7 @@ function NovelEditView({
 	const [name, setName] = React.useState(item?.novela.nombre ?? "");
 	const [author, setAuthor] = React.useState(item?.novela.autor ?? "");
 	const [thumbnail, setThumbnail] = React.useState<ArrayBuffer | null>(null);
+	const [thumbnailPreview, setThumbnailPreview] = React.useState<string | null>(null);
 	const [thumbnailName, setThumbnailName] = React.useState("");
 	const [busy, setBusy] = React.useState(false);
 
@@ -218,6 +226,55 @@ function NovelEditView({
 		current instanceof TFile
 			? plugin.app.vault.getResourcePath(current)
 			: null;
+
+	const COVER_ASPECT = 3 / 4;
+	const COVER_MAX_W = 480;
+	const COVER_MIN_W = 240;
+	const COVER_MIN_H = 320;
+
+	const applyCover = (img: HTMLImageElement, url: string) => {
+		const w = img.naturalWidth;
+		const h = img.naturalHeight;
+		if (w < COVER_MIN_W || h < COVER_MIN_H) {
+			new Notice("Image is small, the cover may look pixelated.");
+		}
+		const isCoverRatio =
+			Math.abs(w / h - COVER_ASPECT) / COVER_ASPECT <= 0.02;
+		if (isCoverRatio) {
+			const outW = Math.min(COVER_MAX_W, Math.max(1, w));
+			const outH = Math.max(1, Math.round(outW / COVER_ASPECT));
+			const canvas = cropToCanvas(img, 0, 0, w, h, outW, outH);
+			const dataUrl = canvasToDataUrl(canvas, "image/jpeg", 0.9);
+			URL.revokeObjectURL(url);
+			acceptDataUrl(dataUrl);
+		} else {
+			new ThumbnailCropModal(
+				plugin.app,
+				url,
+				(dataUrl) => {
+					URL.revokeObjectURL(url);
+					acceptDataUrl(dataUrl);
+				},
+				{ aspect: COVER_ASPECT, maxOutputWidth: COVER_MAX_W, format: "jpeg" }
+			).open();
+		}
+	};
+
+	const acceptDataUrl = (dataUrl: string) => {
+		setThumbnail(dataUrlToArrayBuffer(dataUrl));
+		setThumbnailPreview(dataUrl);
+	};
+
+	const onPickFile = async (file: File) => {
+		const url = URL.createObjectURL(file);
+		try {
+			const img = await loadImage(url);
+			applyCover(img, url);
+		} catch (e: any) {
+			URL.revokeObjectURL(url);
+			new Notice(`Could not load image: ${e?.message ?? String(e)}`);
+		}
+	};
 
 	const save = async () => {
 		if (!name.trim()) return;
@@ -257,21 +314,21 @@ function NovelEditView({
             </label>
             <label>
                 Thumbnail
-                {currentUrl && !thumbnail && (
+                {(thumbnailPreview ?? currentUrl) && (
                     <img
                         className="nw-edit-thumbnail"
-                        src={currentUrl}
-                        alt="Current thumbnail"
+                        src={thumbnailPreview ?? currentUrl!}
+                        alt="Thumbnail"
                     />
                 )}
                 <input
                     type="file"
                     accept="image/*"
-                    onChange={async (e) => {
+                    onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                            setThumbnail(await file.arrayBuffer());
                             setThumbnailName(file.name);
+                            void onPickFile(file);
                         }
                     }}
                 />

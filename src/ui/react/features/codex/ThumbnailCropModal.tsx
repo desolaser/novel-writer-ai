@@ -1,21 +1,41 @@
 import { App, Modal } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import React, { useEffect, useRef, useState } from 'react';
+import { canvasToDataUrl, cropToCanvas } from '../../../../utils/image';
+
+export type CropFormat = 'png' | 'jpeg';
+
+export interface CropOptions {
+	/** Width/height ratio of the selection. Default 1 (square). E.g. 3/4 for a book cover. */
+	aspect?: number;
+	/** Max output width in source pixels. Default 480. */
+	maxOutputWidth?: number;
+	/** Output format. Default png. */
+	format?: CropFormat;
+}
+
+const MAX_DISPLAY = 480;
+const MIN_WIDTH = 60;
 
 export class ThumbnailCropModal extends Modal {
 	private root: Root | null = null;
 	private imageUrl: string;
 	private onConfirm: (dataUrl: string) => void;
-	constructor(app: App, imageUrl: string, onConfirm: (dataUrl: string) => void) {
+	private opts: CropOptions;
+	constructor(app: App, imageUrl: string, onConfirm: (dataUrl: string) => void, opts: CropOptions = {}) {
 		super(app);
 		this.imageUrl = imageUrl;
 		this.onConfirm = onConfirm;
+		this.opts = opts;
 		this.modalEl.addClass('nw-crop-modal-wrap');
 	}
 	async onOpen() {
 		this.root = createRoot(this.contentEl);
 		this.root.render(React.createElement(ThumbnailCropView, {
 			imageUrl: this.imageUrl,
+			aspect: this.opts.aspect ?? 1,
+			maxOutputWidth: this.opts.maxOutputWidth ?? 480,
+			format: this.opts.format ?? 'png',
 			onConfirm: (d: string) => { this.onConfirm(d); this.close(); },
 			onCancel: () => this.close(),
 		}));
@@ -23,16 +43,25 @@ export class ThumbnailCropModal extends Modal {
 	async onClose() { if (this.root) { this.root.unmount(); this.root = null; } }
 }
 
-type DragState = { type: 'move' | 'resize-br'; startX: number; startY: number; startCrop: { x: number; y: number; size: number } } | null;
+type CropRect = { x: number; y: number; w: number };
+type DragState = { type: 'move' | 'resize-br'; startX: number; startY: number; startCrop: CropRect } | null;
 
-const MAX_DISPLAY = 480;
-const MIN_SIZE = 60;
+interface CropViewProps {
+	imageUrl: string;
+	aspect: number;
+	maxOutputWidth: number;
+	format: CropFormat;
+	onConfirm: (dataUrl: string) => void;
+	onCancel: () => void;
+}
 
-function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string; onConfirm: (dataUrl: string) => void; onCancel: () => void }) {
+function ThumbnailCropView({ imageUrl, aspect, maxOutputWidth, format, onConfirm, onCancel }: CropViewProps) {
 	const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
 	const [displaySize, setDisplaySize] = useState<{ w: number; h: number } | null>(null);
-	const [crop, setCrop] = useState<{ x: number; y: number; size: number }>({ x: 0, y: 0, size: 0 });
+	const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, w: 0 });
 	const dragRef = useRef<DragState>(null);
+
+	const h = (w: number) => w / aspect;
 
 	useEffect(() => {
 		const img = new Image();
@@ -47,9 +76,31 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 		const dw = Math.round(imgNatural.w * scale);
 		const dh = Math.round(imgNatural.h * scale);
 		setDisplaySize({ w: dw, h: dh });
-		const size = Math.min(dw, dh);
-		setCrop({ x: Math.round((dw - size) / 2), y: Math.round((dh - size) / 2), size });
-	}, [imgNatural]);
+		// Initial selection: as big as possible while preserving the aspect ratio.
+		const w = Math.min(dw, dh * aspect);
+		setCrop({ x: Math.round((dw - w) / 2), y: Math.round((dh - h(w)) / 2), w });
+	}, [imgNatural, aspect]);
+
+	const doConfirm = () => {
+		if (!displaySize || !imgNatural) return;
+		const scaleX = imgNatural.w / displaySize.w;
+		const scaleY = imgNatural.h / displaySize.h;
+		const scale = Math.min(scaleX, scaleY);
+		const sx = Math.round(crop.x * scaleX);
+		const sy = Math.round(crop.y * scaleY);
+		const sw = Math.round(crop.w * scale);
+		const sh = Math.round(h(crop.w) * scale);
+		const img = new Image();
+		img.onload = () => {
+			const outW = Math.min(maxOutputWidth, sw);
+			const outH = Math.max(1, Math.round(outW / aspect));
+			const canvas = cropToCanvas(img, sx, sy, sw, sh, outW, outH);
+			const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+			onConfirm(canvasToDataUrl(canvas, mime, 0.9));
+		};
+		img.onerror = () => console.error('ThumbnailCropModal: no se pudo cargar la imagen para exportar', imageUrl);
+		img.src = imageUrl;
+	};
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
@@ -68,53 +119,40 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 			const dy = e.clientY - d.startY;
 			const s = d.startCrop;
 			if (d.type === 'move') {
-				const nx = Math.max(0, Math.min(displaySize.w - s.size, s.x + dx));
-				const ny = Math.max(0, Math.min(displaySize.h - s.size, s.y + dy));
-				setCrop({ x: nx, y: ny, size: s.size });
+				const cw = s.w;
+				const ch = h(cw);
+				const nx = Math.max(0, Math.min(displaySize.w - cw, s.x + dx));
+				const ny = Math.max(0, Math.min(displaySize.h - ch, s.y + dy));
+				setCrop({ x: nx, y: ny, w: cw });
 			} else if (d.type === 'resize-br') {
-				const delta = Math.max(dx, dy);
-				const newSize = Math.max(MIN_SIZE, Math.min(displaySize.w - s.x, displaySize.h - s.y, s.size + delta));
-				setCrop({ x: s.x, y: s.y, size: newSize });
+				const delta = Math.max(dx, dy * aspect);
+				const maxW = Math.min(displaySize.w - s.x, (displaySize.h - s.y) * aspect);
+				const newW = Math.max(MIN_WIDTH, Math.min(maxW, s.w + delta));
+				setCrop({ x: s.x, y: s.y, w: newW });
 			}
 		};
 		const onUp = () => { dragRef.current = null; };
 		document.addEventListener('mousemove', onMove);
 		document.addEventListener('mouseup', onUp);
 		return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-	}, [displaySize]);
+	}, [displaySize, aspect]);
 
 	const onMouseDown = (e: React.MouseEvent, type: 'move' | 'resize-br') => {
 		e.preventDefault(); e.stopPropagation();
 		dragRef.current = { type, startX: e.clientX, startY: e.clientY, startCrop: { ...crop } };
 	};
 
-	const doConfirm = () => {
-		if (!displaySize || !imgNatural) return;
-		const scaleX = imgNatural.w / displaySize.w;
-		const scaleY = imgNatural.h / displaySize.h;
-		const scale = Math.min(scaleX, scaleY);
-		const origX = Math.round(crop.x * scaleX);
-		const origY = Math.round(crop.y * scaleY);
-		const origSize = Math.round(crop.size * scale);
-		const img = new Image();
-		img.onload = () => {
-			const canvas = document.createElement('canvas');
-			canvas.width = 256; canvas.height = 256;
-			const ctx = canvas.getContext('2d')!;
-			ctx.drawImage(img, origX, origY, origSize, origSize, 0, 0, 256, 256);
-			onConfirm(canvas.toDataURL('image/png'));
-		};
-		img.src = imageUrl;
-	};
-
 	const thumbRule = (pos: string) => (
 		<div key={pos} className={`nw-crop-rule nw-crop-rule-${pos}`} />
 	);
 
+	const cw = crop.w;
+	const ch = h(cw);
+
 	return (
 		<div className="nw-crop-modal">
 			<div className="nw-crop-header">
-				<h3>Crop Thumbnail</h3>
+				<h3>Crop Image</h3>
 				<p className="nw-muted" style={{ margin: 0, fontSize: 11 }}>Drag to move. Drag the bottom-right corner to resize. Enter to confirm, Esc to cancel.</p>
 			</div>
 			<div className="nw-crop-stage" style={{ width: displaySize ? displaySize.w : MAX_DISPLAY, height: displaySize ? displaySize.h : MAX_DISPLAY }}>
@@ -125,12 +163,11 @@ function ThumbnailCropView({ imageUrl, onConfirm, onCancel }: { imageUrl: string
 							alt=""
 							draggable={false}
 							style={{ width: displaySize.w, height: displaySize.h, display: 'block', userSelect: 'none' }}
-							
 						/>
 						<div className="nw-crop-overlay" style={{ width: displaySize.w, height: displaySize.h }}>
 							<div
 								className="nw-crop-selection"
-								style={{ left: crop.x, top: crop.y, width: crop.size, height: crop.size }}
+								style={{ left: crop.x, top: crop.y, width: cw, height: ch }}
 								onMouseDown={(e) => onMouseDown(e, 'move')}
 							>
 								{thumbRule('top')}

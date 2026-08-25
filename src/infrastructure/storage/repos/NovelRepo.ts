@@ -50,14 +50,21 @@ export async function writeNovel(app: App, folderPath: string, novela: Novela): 
 	await writeJson(app, joinPath(folderPath, NOVELA_META_FILE), novela);
 }
 
+/** Relative path of the novel cover inside the novel folder. */
+export const NOVEL_COVER_PATH = 'images/thumbnail_novela.jpg';
+/** Legacy cover path (pre-jpeg). Removed when replaced by the new cover. */
+const LEGACY_COVER_PATH = 'images/thumbnail_novela.png';
+
 export async function updateNovelThumbnail(app: App, folderPath: string, novela: Novela, data: ArrayBuffer): Promise<void> {
-	const thumbnail = 'images/thumbnail_novela.png';
-	const path = joinPath(folderPath, thumbnail);
+	const path = joinPath(folderPath, NOVEL_COVER_PATH);
 	const file = app.vault.getAbstractFileByPath(path);
 	const bytes = Uint8Array.from(new Uint8Array(data));
 	if (file instanceof TFile) await app.vault.modifyBinary(file, bytes);
 	else await app.vault.createBinary(path, bytes);
-	novela.thumbnail = thumbnail;
+	// Remove a legacy .png cover if it still exists.
+	const legacy = app.vault.getAbstractFileByPath(joinPath(folderPath, LEGACY_COVER_PATH));
+	if (legacy instanceof TFile) await app.vault.trash(legacy, true);
+	novela.thumbnail = NOVEL_COVER_PATH;
 }
 
 /** Retira una novela del índice y, opcionalmente, elimina toda su carpeta. */
@@ -97,7 +104,7 @@ export async function createNovel(
 	const idNovela = genId();
 	let thumbnail: string | null = null;
 	if (thumbnailFile) {
-		thumbnail = 'images/thumbnail_novela.png';
+		thumbnail = NOVEL_COVER_PATH;
 		const tFile = app.vault.getAbstractFileByPath(joinPath(finalPath, thumbnail)) as unknown as TFile | null;
 		const bytes = Uint8Array.from(new Uint8Array(thumbnailFile));
 		if (tFile) await app.vault.modifyBinary(tFile, bytes);
