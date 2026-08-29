@@ -60,6 +60,10 @@ interface NovelWriterStore extends UIState {
 		idEntry: EntityId,
 		targetNovelId: EntityId
 	) => Promise<void>;
+	copyEntryToNovel: (
+		idEntry: EntityId,
+		targetNovelId: EntityId
+	) => Promise<void>;
 	setEntryThumbnail: (
 		idEntry: EntityId,
 		dataUrl: string | null
@@ -118,6 +122,8 @@ interface NovelWriterStore extends UIState {
 		idDetalle: EntityId,
 		valor: string | null
 	) => Promise<void>;
+	reorderDetalles: (orderedIds: EntityId[]) => Promise<void>;
+	reorderEntryDetalles: (idEntry: EntityId, orderedDetalleIds: EntityId[]) => Promise<void>;
 	refreshEntry: (id: EntityId) => Promise<void>;
 
 	createChat: (nombre: string) => Promise<Chat | null>;
@@ -277,6 +283,11 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		await s.moveEntryToNovel(idEntry, targetNovelId);
 		set({ editingEntryId: null });
 		await get().reloadAll();
+	},
+	copyEntryToNovel: async (idEntry, targetNovelId) => {
+		const s = get().store;
+		if (!s) return;
+		await s.copyEntryToNovel(idEntry, targetNovelId);
 	},
 	setEntryThumbnail: async (idEntry, dataUrl) => {
 		const s = get().store;
@@ -468,6 +479,17 @@ export const useNovelWriter = create<NovelWriterStore>((set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.setDetalleValor!(idEntry, idDetalle, valor);
+	},
+	reorderDetalles: async (orderedIds) => {
+		const s = get().store;
+		if (!s) return;
+		await s.reorderDetalles(orderedIds);
+		await get().reloadAll();
+	},
+	reorderEntryDetalles: async (idEntry, orderedDetalleIds) => {
+		const s = get().store;
+		if (!s) return;
+		await s.reorderEntryDetalles(idEntry, orderedDetalleIds);
 	},
 
 	refreshEntry: async (id) => {

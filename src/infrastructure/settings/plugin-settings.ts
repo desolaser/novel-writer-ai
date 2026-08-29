@@ -7,7 +7,7 @@ import type { EffortLevel } from '../../utils/provider-options';
 export type AiProviderId =
 	| 'openrouter' | 'deepseek' | 'ooba' | 'ollama'
 	| 'opencodezen' | 'opencodego' | 'novelai'
-	| 'anthropic' | 'claudecode';
+	| 'anthropic' | 'claudecode' | 'llamacpp';
 
 /** Opciones de IA (reformadas). Algunas no aplican a todos los proveedores. */
 export interface AiOptions {

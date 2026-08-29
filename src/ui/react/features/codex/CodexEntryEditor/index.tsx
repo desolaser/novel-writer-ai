@@ -12,6 +12,9 @@ import { CodexAiProvider, type CodexAiApply } from './ai/CodexAiProvider';
 import { AiFieldButton } from './ai/AiFieldButton';
 import { AiProposalBox } from './ai/AiProposalBox';
 import { ALIAS_KEY, DESCRIPTION_KEY, detailKey } from './ai/useCodexAiFields';
+import { FirstMessageField } from './FirstMessageField';
+import { MentionsTab, useMentionCount } from './MentionsTab';
+import { isCharacterCategory } from '../../../../../utils/categories';
 
 type Tab = 'detalles' | 'investigacion' | 'relaciones' | 'menciones' | 'tracking';
 
@@ -24,6 +27,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	} = storeState;
 
 	const entry = entradas.find((e: any) => e.id_entrada_codex === editingEntryId) ?? null;
+	const mentionCount = useMentionCount(entry, plugin);
 	const [tab, setTab] = useState<Tab>('detalles');
 	const [draft, setDraft] = useState<any>(entry);
 	const [dirty, setDirty] = useState(false);
@@ -96,11 +100,15 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	};
 	const onClearThumbnail = async () => { setMenuOpen(false); await setEntryThumbnail(entry.id_entrada_codex, null); };
 	const onSelectColor = async (color: string | null) => { setMenuOpen(false); await patchAndSave({ color }); };
-	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); setEditingEntry(null); };
+	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); setEditingEntry(null); onClose?.(); };
+	const onSelectCopy = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await storeState.copyEntryToNovel(entry.id_entrada_codex, targetNovelId); };
 	const onArchive = async () => { setMenuOpen(false); await archiveEntry(entry.id_entrada_codex, !entry.archivado); setEditingEntry(null); };
 	const onDelete = async () => { setMenuOpen(false); if (confirm('Delete entry permanently?')) { await deleteEntry(entry.id_entrada_codex); setEditingEntry(null); onClose?.(); } };
 
 	const otherNovels = ((novels ?? []) as any[]).filter((n: any) => n.novela && n.novela.id_novela !== entry.id_novela);
+
+	// The first message only makes sense for someone who can speak in a roleplay.
+	const isCharacter = isCharacterCategory(categorias.find((c: any) => c.id_categoria === entry.id_categoria));
 
 	// AI suggestions are only written through here, once the author accepts them.
 	const aiApply: CodexAiApply = {
@@ -174,6 +182,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 								otherNovels={otherNovels}
 								onSelectColor={onSelectColor}
 								onSelectMove={onSelectMove}
+								onSelectCopy={onSelectCopy}
 								onClearThumbnail={onClearThumbnail}
 								onArchive={onArchive}
 								onDelete={onDelete}
@@ -191,7 +200,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 					<button className={tab === 'menciones' ? 'active' : ''} onClick={() => setTab('menciones')}>Mentions</button>
 					<button className={tab === 'tracking' ? 'active' : ''} onClick={() => setTab('tracking')}>Tracking</button>
 				</div>
-				<span className="nw-mentions">0 mentions</span>
+				<span className="nw-mentions">{mentionCount} {mentionCount === 1 ? 'mention' : 'mentions'}</span>
 			</div>
 
 			{/* AI Generation Collapsible Menu */}
@@ -210,6 +219,14 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 							<textarea className="nw-textarea" rows={6} value={draft.descripcion} onChange={(e) => patch({ descripcion: e.target.value })} placeholder="Write a short summary here..." onBlur={() => { if (dirty) save(); }} />
 							<AiProposalBox fieldKey={DESCRIPTION_KEY} />
 						</div>
+						{isCharacter && (
+							<FirstMessageField
+								key={entry.id_entrada_codex}
+								value={draft.first_message ?? ''}
+								onChange={(next) => patch({ first_message: next })}
+								onSave={() => { if (dirty) save(); }}
+							/>
+						)}
 						<DetallesFields plugin={plugin} entry={entry} collapsed={collapsed} setCollapsed={setCollapsed} refreshEntry={refreshEntry} />
 					</div>
 				)}
@@ -247,9 +264,11 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 					</div>
 				)}
 				{tab === 'menciones' && (
-					<div className="nw-entry-tab">
-						<p className="nw-muted">This entry has not been mentioned in any chapter yet. Mentions are tracked while writing chapters.</p>
-					</div>
+					<MentionsTab
+						entry={entry}
+						plugin={plugin}
+						onClose={onClose}
+					/>
 				)}
 				{tab === 'tracking' && (
 					<div className="nw-entry-tab">
@@ -343,9 +362,10 @@ function ThumbnailControl({ thumbnail, onPick, fileInputRef }: { thumbnail: stri
 		</div>
 	);
 }
-function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onClearThumbnail, onArchive, onDelete }: { entry: any; otherNovels: any[]; onSelectColor: (c: string | null) => void; onSelectMove: (id: string) => void; onClearThumbnail: () => void; onArchive: () => void; onDelete: () => void }) {
+function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onSelectCopy, onClearThumbnail, onArchive, onDelete }: { entry: any; otherNovels: any[]; onSelectColor: (c: string | null) => void; onSelectMove: (id: string) => void; onSelectCopy: (id: string) => void; onClearThumbnail: () => void; onArchive: () => void; onDelete: () => void }) {
 	const [colorOpen, setColorOpen] = useState(false);
 	const [moveOpen, setMoveOpen] = useState(false);
+	const [copyOpen, setCopyOpen] = useState(false);
 	const colorNames = ['Red', 'Orange', 'Yellow', 'Green', 'Teal', 'Blue', 'Purple', 'Pink', 'Gray', 'Black'];
 	return (
 		<div className="nw-dropdown nw-popover nw-threedots-menu" style={{ top: '100%', right: 0, left: 'auto', minWidth: 220, maxHeight: 480, overflowY: 'auto' }}>
@@ -373,6 +393,24 @@ function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onClea
 				</div>
 			)}
 			<hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
+			<div className="nw-popover-section-title">Copy to</div>
+			{!copyOpen ? (
+				<button type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setCopyOpen(true)}>
+					<Icon.Copy width={14} height={14} />
+					<span style={{ flex: 1 }}>Select novel...</span>
+					<Icon.ChevronRight width={12} height={12} />
+				</button>
+			) : (
+				<div>
+					{otherNovels.length === 0 ? (
+						<div className="nw-popover-item nw-muted">No other novels</div>
+					) : otherNovels.map((n) => (
+						<button key={n.novela.id_novela} type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => onSelectCopy(n.novela.id_novela)}>
+							<span style={{ flex: 1 }}>{n.novela.nombre}</span>
+						</button>
+					))}
+				</div>
+			)}
 			<div className="nw-popover-section-title">Move to</div>
 			{!moveOpen ? (
 				<button type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => setMoveOpen(true)}>
@@ -408,7 +446,7 @@ function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onClea
 	);
 }
 function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }: { plugin: NovelWriterPlugin; entry: any; collapsed: Set<string>; setCollapsed: React.Dispatch<React.SetStateAction<Set<string>>>; refreshEntry: (id: string) => Promise<void> }) {
-	const { store, entradas, categorias, detalles, getDetallesByCategoria, listOpcionesByDetalle, setDetalleValor } = useNovelWriter() as any;
+	const { store, entradas, categorias, detalles, getDetallesByCategoria, listOpcionesByDetalle, setDetalleValor, reorderEntryDetalles } = useNovelWriter() as any;
 	const [catDetalles, setCatDetalles] = useState<any[]>([]);
 	const [opcionesMap, setOpcionesMap] = useState<Record<string, any[]>>({});
 	const [addOpen, setAddOpen] = useState(false);
@@ -451,13 +489,37 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 
 	const reload = async () => { await refreshEntry(entry.id_entrada_codex); setVersion((v) => v + 1); };
 	const doAdd = async (idDetalle: string) => { setAddOpen(false); await setDetalleValor(entry.id_entrada_codex, idDetalle, null); await reload(); };
-	const doAddAll = async () => { setAddOpen(false); for (const d of disponibles) await setDetalleValor(entry.id_entrada_codex, d.id_detalle, null); await reload(); };
+	const doAddAll = async () => {
+		setAddOpen(false);
+		const sorted = [...disponibles].sort((a: any, b: any) => (a.orden ?? 0) - (b.orden ?? 0));
+		for (const d of sorted) await setDetalleValor(entry.id_entrada_codex, d.id_detalle, null);
+		const allIds = [...entryDetalles.map((d: any) => d.id_detalle), ...sorted.map((d: any) => d.id_detalle)];
+		await reorderEntryDetalles(entry.id_entrada_codex, allIds);
+		await reload();
+	};
 	const doRemove = async (idDetalle: string) => { if (!store) return; await store.removeDetalleValor(entry.id_entrada_codex, idDetalle); await reload(); };
 	const doSetValue = async (idDetalle: string, valor: string | null) => { await setDetalleValor(entry.id_entrada_codex, idDetalle, valor); await refreshEntry(entry.id_entrada_codex); };
 
 	const tipoLabel = (t: string) => ({ text: 'Text', line: 'Line', dropdown: 'Dropdown', codex_ref: 'Ref. Codex' } as any)[t] ?? t;
 	const refGroups = groupEntriesByCategory(entradas, categorias, entry.id_entrada_codex);
 	const toggleCollapsed = (id: string) => setCollapsed((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+	const dragIdRef = useRef<string | null>(null);
+	const [dragOverId, setDragOverId] = useState<string | null>(null);
+	const onDetailDragStart = (id: string) => (e: React.DragEvent) => { dragIdRef.current = id; e.dataTransfer.effectAllowed = 'move'; };
+	const onDetailDragOver = (id: string) => (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverId(id); };
+	const onDetailDrop = (targetId: string) => async (e: React.DragEvent) => {
+		e.preventDefault(); setDragOverId(null);
+		const srcId = dragIdRef.current; dragIdRef.current = null;
+		if (!srcId || srcId === targetId) return;
+		const ids = entryDetalles.map((d: any) => d.id_detalle);
+		const srcIdx = ids.indexOf(srcId); const tgtIdx = ids.indexOf(targetId);
+		if (srcIdx < 0 || tgtIdx < 0) return;
+		ids.splice(srcIdx, 1); ids.splice(tgtIdx, 0, srcId);
+		await reorderEntryDetalles(entry.id_entrada_codex, ids);
+		await reload();
+	};
+	const onDetailDragEnd = () => { dragIdRef.current = null; setDragOverId(null); };
 
 	return (
 		<div>
@@ -471,10 +533,18 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 					const isText = d.tipo_detalle === TipoDetalle.Text;
 					const isCollapsed = collapsed.has(ed.id_entrada_codex_detalle);
 					return (
-						<div key={ed.id_entrada_codex_detalle} className="nw-detail-card">
+						<div key={ed.id_entrada_codex_detalle}
+							className={`nw-detail-card${dragOverId === ed.id_detalle ? ' nw-drag-over' : ''}`}
+							draggable
+							onDragStart={onDetailDragStart(ed.id_detalle)}
+							onDragOver={onDetailDragOver(ed.id_detalle)}
+							onDrop={onDetailDrop(ed.id_detalle)}
+							onDragEnd={onDetailDragEnd}
+						>
 							{isText ? (
 								<div className="nw-detail-block-input">
 									<div className="nw-detail-header">
+										<span className="nw-drag-handle"><Icon.GripVertical width={12} height={12} /></span>
 										<DetailLabelMenu d={d} onRemove={() => doRemove(d.id_detalle)} onEdit={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'general' }).open(); }} />
 										<button type="button" className="nw-btn nw-btn-icon nw-detail-toggle" onClick={() => toggleCollapsed(ed.id_entrada_codex_detalle)} title={isCollapsed ? 'Expand' : 'Collapse'}>
 											{isCollapsed ? <Icon.ChevronRight width={14} height={14} /> : <Icon.ChevronDown width={14} height={14} />}
@@ -488,9 +558,10 @@ function DetallesFields({ plugin, entry, collapsed, setCollapsed, refreshEntry }
 											<textarea key={ed.valor ?? ''} className="nw-textarea" rows={4} defaultValue={ed.valor ?? ''} placeholder="Value..." onBlur={(e) => doSetValue(d.id_detalle, e.target.value)} />
 										</div>
 									)}
-								</div>		
+								</div>
 							) : (
 								<div className="nw-detail-inline-input">
+									<span className="nw-drag-handle"><Icon.GripVertical width={12} height={12} /></span>
 									<DetailLabelMenu d={d} onRemove={() => doRemove(d.id_detalle)} onEdit={() => { new DetallesModal((plugin as any).app, plugin, { initialId: d.id_detalle, initialTab: 'general' }).open(); }} />
 									<div className="nw-detail-inline-input-body">
 										{d.tipo_detalle === TipoDetalle.Line && (

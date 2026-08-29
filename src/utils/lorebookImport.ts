@@ -136,6 +136,7 @@ export async function runImport(
 			nombre: file.basename,
 			alias: meta.keys.join(', '),
 			descripcion: body.trim(),
+			first_message: '',
 			notas: '',
 			id_categoria: idCategoria,
 			id_novela: idNovela,

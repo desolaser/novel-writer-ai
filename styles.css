@@ -353,7 +353,12 @@
 
 .nw-field-label-row { font-weight: 600; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
 
-.nw-detail-card { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; }
+.nw-detail-card { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; cursor: grab; }
+.nw-detail-card:active { cursor: grabbing; }
+.nw-drag-handle { display: inline-flex; align-items: center; cursor: grab; color: var(--text-muted); opacity: 0.5; flex-shrink: 0; }
+.nw-drag-handle:hover { opacity: 1; }
+.nw-drag-over { border-top: 2px solid var(--interactive-accent) !important; }
+.nw-list-item.nw-drag-over { border-top: 2px solid var(--interactive-accent) !important; }
 .nw-detail-header { display: flex; align-items: center; gap: 6px; }
 .nw-detail-inline-input { 
   display: flex;
@@ -1399,6 +1404,7 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-context-bar { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .nw-context-dropdown-down { top: calc(100% + 2px); bottom: auto; }
 .nw-ai-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nw-first-message-header { cursor: pointer; user-select: none; }
 .nw-ai-field-btn { flex: 0 0 auto; opacity: 0.7; }
 .nw-ai-field-btn:hover:not(:disabled) { opacity: 1; color: var(--text-accent); }
 .nw-ai-field-btn-loading { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--background-modifier-border); border-top-color: var(--text-accent); border-radius: 50%; animation: nw-spin 0.8s linear infinite; }
@@ -1455,3 +1461,44 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-blueprint-note { flex: 1; font-size: 11px; margin: 0; }
 .nw-blueprint-empty { padding: 40px; text-align: center; }
 @media (max-width: 900px) { .nw-blueprint-body { flex-direction: column; overflow-y: auto; } .nw-blueprint-markdown { min-height: 300px; } }
+
+/* Novel blueprint - AI deduction */
+.nw-blueprint-ai { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--background-modifier-border); border-radius: 6px; background: var(--background-secondary); }
+.nw-blueprint-ai-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nw-blueprint-ai-head .nw-btn { display: inline-flex; align-items: center; gap: 6px; }
+.nw-blueprint-ai-targets { font-size: 11px; }
+.nw-blueprint-label { display: inline-flex; align-items: center; gap: 6px; }
+.nw-blueprint-badge { padding: 1px 6px; border-radius: 8px; border: 1px solid var(--text-accent); color: var(--text-accent); font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.nw-blueprint-outline-btn { display: inline-flex; align-items: center; gap: 4px; }
+.nw-blueprint-progress { font-size: 11px; color: var(--text-muted); padding: 2px 0; }
+.nw-blueprint-progress.is-running { color: var(--text-accent); animation: nw-pulse 1.2s ease-in-out infinite; }
+
+.nw-blueprint-bible-toggle { margin-right: auto; font-size: 12px; color: var(--text-muted); }
+
+/* ── Codex keyword highlighter tooltip ── */
+.nw-codex-highlight { cursor: default; }
+.nw-codex-tooltip { position: fixed; z-index: 9999; max-width: 320px; min-width: 200px; padding: 10px; font-size: 12px; line-height: 1.45; color: var(--text-normal); background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); pointer-events: auto; }
+.nw-codex-tooltip-header { display: flex; gap: 10px; align-items: flex-start; }
+.nw-codex-tooltip-thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--background-modifier-border); }
+.nw-codex-tooltip-info { flex: 1; min-width: 0; }
+.nw-codex-tooltip-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nw-codex-tooltip-alias { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nw-codex-tooltip-desc { margin-top: 8px; color: var(--text-muted); }
+.nw-codex-tooltip-footer { margin-top: 8px; display: flex; justify-content: flex-end; }
+.nw-codex-tooltip-open { background: var(--interactive-accent); color: var(--text-on-accent); border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-weight: 500; }
+.nw-codex-tooltip-open:hover { opacity: 0.9; }
+
+/* Mentions tab in Codex Entry Editor */
+.nw-mentions-tab { display: flex; flex-direction: column; gap: 12px; }
+.nw-mentions-act-group { display: flex; flex-direction: column; gap: 6px; }
+.nw-mentions-act-name { font-weight: 600; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.nw-mentions-chapter-group { margin-left: 4px; display: flex; flex-direction: column; gap: 2px; }
+.nw-mentions-chapter-header { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.nw-mentions-chapter-name { font-weight: 500; font-size: 13px; color: var(--text-normal); }
+.nw-mentions-badge { font-size: 10px; background: var(--background-modifier-border); color: var(--text-muted); border-radius: 10px; padding: 1px 6px; min-width: 18px; text-align: center; }
+.nw-mentions-list { display: flex; flex-direction: column; gap: 2px; margin-left: 8px; }
+.nw-mentions-item { display: block; width: 100%; text-align: left; background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 4px; padding: 6px 8px; cursor: pointer; font-size: 12px; line-height: 1.5; color: var(--text-normal); transition: background 0.15s; }
+.nw-mentions-item:hover { background: var(--background-modifier-hover); }
+.nw-mentions-excerpt { word-break: break-word; }
+.nw-mentions-excerpt mark { background: var(--text-highlight-bg); color: var(--text-normal); border-radius: 2px; padding: 0 1px; }

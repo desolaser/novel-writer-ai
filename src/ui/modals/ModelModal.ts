@@ -452,6 +452,8 @@ function apiKeyDescription(provider: string): string {
 	switch (provider) {
 		case "ollama":
 			return "Local Ollama does not require a key.";
+		case "llamacpp":
+			return "Local llama.cpp server (llama-server) does not require a key. Default port: 8080.";
 		case "claudecode":
 			return (
 				"Optional: full path to the Claude Code executable. Leave empty to use the one on " +

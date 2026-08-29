@@ -3,7 +3,7 @@ import type { AiProviderId } from '../infrastructure/settings/plugin-settings';
 const providers = {
 	openrouter: 'openrouter', deepseek: 'deepseek', ooba: 'ooba', ollama: 'ollama',
 	opencodezen: 'opencodezen', opencodego: 'opencodego', novelai: 'novelai',
-	anthropic: 'anthropic', claudecode: 'claudecode',
+	anthropic: 'anthropic', claudecode: 'claudecode', llamacpp: 'llamacpp',
 };
 
 type ApiProvider = AiProviderId;
@@ -32,6 +32,7 @@ export const PROVIDERS: Provider[] = [
 	{ id_proveedor: 7, nombre: 'novelai', nombre_display: 'NovelAI', tipo_endpoint: 'openai-compatible' },
 	{ id_proveedor: 8, nombre: 'anthropic', nombre_display: 'Anthropic API', tipo_endpoint: 'anthropic-compatible' },
 	{ id_proveedor: 9, nombre: 'claudecode', nombre_display: 'Claude Code (CLI)', tipo_endpoint: 'anthropic-compatible' },
+	{ id_proveedor: 10, nombre: 'llamacpp', nombre_display: 'llama.cpp', tipo_endpoint: 'openai-compatible' },
 ];
 
 export const getProvider = (id: number) => PROVIDERS.find(provider => provider.id_proveedor === id);
@@ -42,7 +43,7 @@ export const getProviderByName = (name: string) => PROVIDERS.find(provider => pr
  * CLI's local OAuth session (there, the field doubles as an optional executable path).
  */
 export const providerRequiresApiKey = (name: AiProviderId) =>
-	name !== 'ollama' && name !== 'claudecode';
+	name !== 'ollama' && name !== 'claudecode' && name !== 'llamacpp';
 
 /** Providers that only work on desktop (they spawn a local subprocess). */
 export const providerIsDesktopOnly = (name: AiProviderId) => name === 'claudecode';
@@ -180,6 +181,16 @@ const PROVIDER_CAPABILITIES: Record<AiProviderId, ProviderCapabilities> = {
 	},
 	anthropic: { ...NO_CAPABILITIES, effort: true, thinking: true },
 	claudecode: { ...NO_CAPABILITIES, effort: true },
+	llamacpp: {
+		...NO_CAPABILITIES,
+		temperature: true,
+		topP: true,
+		topK: true,
+		minP: true,
+		repetitionPenalty: true,
+		frequencyPenalty: true,
+		presencePenalty: true,
+	},
 };
 
 export const getProviderCapabilities = (name: AiProviderId): ProviderCapabilities =>

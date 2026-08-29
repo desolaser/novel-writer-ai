@@ -98,8 +98,13 @@ export function getStructureTemplate(id: string): StructureTemplate | undefined 
 	return STRUCTURE_TEMPLATES.find((template) => template.id === id);
 }
 
-/** Options offered for narrative time. */
+/**
+ * Options offered for narrative time. `unset` is first so an untouched blueprint
+ * reads as undecided instead of as a choice the author never made; it resolves
+ * to linear wherever a real value is needed.
+ */
 export const NARRATIVE_TIMES: { id: NarrativeTimeId; label: string }[] = [
+	{ id: 'unset', label: 'Not selected' },
 	{ id: 'linear', label: 'Linear' },
 	{ id: 'in-media-res', label: 'In media res' },
 	{ id: 'flashback', label: 'Flashback' },
@@ -108,11 +113,33 @@ export const NARRATIVE_TIMES: { id: NarrativeTimeId; label: string }[] = [
 	{ id: 'frame', label: 'Frame story' },
 ];
 
-/** Options offered for verb tense. */
+/** Options offered for verb tense. `unset` resolves to past, the standard. */
 export const NARRATIVE_TENSES: { id: NarrativeTense; label: string }[] = [
+	{ id: 'unset', label: 'Not selected' },
 	{ id: 'past', label: 'Past' },
 	{ id: 'present', label: 'Present' },
 	{ id: 'future', label: 'Future' },
+];
+
+/**
+ * Suggestions for the language field. It is a free-text field, not a closed
+ * list: the story can be written in any language, including one that is not
+ * here, so these only save typing.
+ */
+export const COMMON_LANGUAGES: string[] = [
+	'English',
+	'Español',
+	'Português',
+	'Français',
+	'Italiano',
+	'Deutsch',
+	'Català',
+	'Galego',
+	'Euskara',
+	'Русский',
+	'日本語',
+	'中文',
+	'한국어',
 ];
 
 /** Options offered for the target platform. */

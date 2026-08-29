@@ -16,6 +16,7 @@ export interface Detalle {
 	 * detalle ("responde con un numero entero", "usa bullet points", etc).
 	 */
 	ai_hint?: string;
+	orden: number;
 	id_novela: EntityId;
 	created_at: ISODate;
 	updated_at: ISODate;

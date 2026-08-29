@@ -27,6 +27,12 @@ export interface EntradaCodex {
 	/** Keywords separados por coma. String unico (\"a, b, c\"). */
 	alias: string;
 	descripcion: string;
+	/**
+	 * Opening line the character says when they are added to an empty chat, so a
+	 * roleplay starts in their voice. Only meaningful for character entries.
+	 * Stored raw: {{char}} and {{user}} are resolved when the chat shows or sends it.
+	 */
+	first_message: string;
 	/** Notas privadas del usuario; la IA NUNCA las vera. */
 	notas: string;
 	/** Id de la categoria. La categoria \"Otros\" se asigna si ninguna. */

@@ -8,6 +8,8 @@ import { prepareImport, runImport } from './src/utils/lorebookImport';
 import { buildScenePrompt } from './src/context/promptBuilder';
 import { ApiFactory } from './src/factories/api-factory';
 import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
+import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
+import { openEntryModal } from './src/ui/react/features/codex/modals/CodexEntryModal';
 
 // onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
 // callbacks left by the previous instance. Keep the lock outside the class so
@@ -20,6 +22,7 @@ export default class NovelWriterPlugin extends Plugin {
 	settings!: SettingsService;
 	private openingWorkingViews = false;
 	private operationStatusBarItem: HTMLElement | null = null;
+	private codexHighlighter: CodexHighlighterControl | null = null;
 
 	async onload() {
 		this.settings = new SettingsService(this);
@@ -31,6 +34,12 @@ export default class NovelWriterPlugin extends Plugin {
 		if (this.settings.data.lastActiveNovelId) {
 			await this.store.setActive(this.settings.data.lastActiveNovelId);
 		}
+
+		const { extension, control } = createCodexHighlighter({
+			onOpenEntry: (entryId) => openEntryModal(this, entryId),
+		});
+		this.codexHighlighter = control;
+		this.registerEditorExtension(extension);
 
 		this.registerView(VIEW_TYPE_COMPANION, (leaf) => new CompanionView(leaf, this));
 		this.registerView(VIEW_TYPE_OUTLINE, (leaf) => new OutlineView(leaf, this));
@@ -45,6 +54,21 @@ export default class NovelWriterPlugin extends Plugin {
 		// Obsidian may restore persisted ItemViews just after layout-ready. Wait a
 		// moment so we do not create a second Companion before that restoration is visible.
 		this.app.workspace.onLayoutReady(() => { window.setTimeout(() => { void this.openWorkingViews(); }, 1000); });
+
+		void import('./src/ui/react/store/novelWriterStore').then(({ useNovelWriter }) => {
+			const initial = useNovelWriter.getState();
+			let prevEntradas = initial.entradas;
+			let prevCategorias = initial.categorias;
+			if (prevEntradas.length) this.codexHighlighter?.update(prevEntradas, prevCategorias);
+			const unsub = useNovelWriter.subscribe((s) => {
+				if (s.entradas !== prevEntradas || s.categorias !== prevCategorias) {
+					prevEntradas = s.entradas;
+					prevCategorias = s.categorias;
+					this.codexHighlighter?.update(s.entradas, s.categorias);
+				}
+			});
+			this.register(() => unsub());
+		});
 
 		this.addRibbonIcon('book', 'Generate text', async () => { await this.generateEditorText(); });
 		this.registerEvent(this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor) => {
@@ -400,34 +424,6 @@ async function promptNovel(app: App): Promise<{ nombre: string; autor: string; t
 		cancel.onclick = () => { done(null); modal.close(); };
 		ok.onclick = () => { done({ nombre, autor, thumbnail: thumb }); modal.close(); };
 		modal.onClose = () => done(null);
-		modal.open();
-	});
-}
-/** Modal para escoger subcarpetas a importar. */
-async function pickSubfolders(app: App, plan: { subfolders: { name: string; path: string; count: number }[]; rootFiles: any[] }): Promise<string[] | null> {
-	return new Promise((resolve) => {
-		const modal = new Modal(app);
-		modal.titleEl.setText('Import legacy lorebook');
-		modal.modalEl.style.width = '420px';
-		const wrap = modal.contentEl;
-		const checked = new Set<string>();
-		plan.subfolders.forEach((s, i) => {
-			const row = wrap.createDiv({ cls: 'mod-setting' });
-			row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.padding = '4px 0';
-			const cb = row.createEl('input', { type: 'checkbox' });
-			cb.checked = true; cb.style.marginRight = '8px';
-			cb.onchange = () => { if (cb.checked) checked.add(s.name); else checked.delete(s.name); };
-			checked.add(s.name);
-			row.createEl('span', { text: `${s.name} (${s.count} .md)` });
-		});
-		wrap.createEl('p', { text: `Additionally, ${plan.rootFiles.length} loose files in the root will be imported as "Others".`, cls: 'setting-item-description' });
-		const btnRow = wrap.createDiv();
-		btnRow.style.display = 'flex'; btnRow.style.justifyContent = 'flex-end'; btnRow.style.gap = '8px'; btnRow.style.marginTop = '8px';
-		btnRow.createEl('button', { text: 'Cancel' }).onclick = () => { resolve(null); modal.close(); };
-		const ok = btnRow.createEl('button', { text: 'Import', cls: 'mod-cta' });
-		let done = false;
-		ok.onclick = () => { done = true; resolve(Array.from(checked)); modal.close(); };
-		modal.onClose = () => { if (!done) resolve(null); };
 		modal.open();
 	});
 }

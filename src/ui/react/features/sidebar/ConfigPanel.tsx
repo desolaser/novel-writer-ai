@@ -4,6 +4,7 @@ import type NovelWriterPlugin from '../../../../../main';
 import { Modal, App, MarkdownView } from 'obsidian';
 import { buildScenePrompt, buildCodexYaml, estimateTokens } from '../../../../context/promptBuilder';
 import { getPromptMetaCascading, writePromptMeta } from '../../../../context/promptMeta';
+import { buildStoryBibleBlock } from '../../../../context/blueprintPrompt';
 
 export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const { store } = useNovelWriter();
@@ -12,6 +13,23 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const memoryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [contextBusy, setContextBusy] = useState(false);
+	const [storyBible, setStoryBible] = useState('');
+
+	// Read-only here on purpose: the blueprint owns these values, this only makes
+	// the cost of carrying them visible next to memory and the author's note.
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			if (!store?.activeFolderPath) { setStoryBible(''); return; }
+			try {
+				const blueprint = await store.readBlueprint();
+				if (!cancelled) setStoryBible(buildStoryBibleBlock(blueprint));
+			} catch {
+				if (!cancelled) setStoryBible('');
+			}
+		})();
+		return () => { cancelled = true; };
+	}, [store, store?.activeNovelId]);
 
 	// Cargar valores actuales de settings
 	useEffect(() => {
@@ -75,6 +93,18 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 			<div className="options-section">
 				<h5>Context</h5><p className="setting-item-description">Get a full view of what's sent to the AI</p>
 				<div className="setting-item"><div className="setting-item-info"><div className="setting-item-name">View current context</div><div className="setting-item-description">Open a modal to see the full context sent to the AI</div></div><div className="setting-item-control"><button className="mod-cta nw-config-context-button" onClick={openContextModal} disabled={contextBusy || !store?.activeFolderPath}>{contextBusy ? 'Building...' : 'Current Context'}</button></div></div>
+			</div>
+			<div className="options-section">
+				<h5>Story Bible</h5>
+				<p className="setting-item-description">What the novel is, sent with every draft and chat request. Edit it in Novel Setup.</p>
+				{storyBible ? (
+					<div className="textarea-wrapper">
+						<div className="textarea-label"><span>Sent to the AI:</span><span className="token-count">{estimateTokens(storyBible)} tokens</span></div>
+						<textarea value={storyBible} readOnly rows={8} />
+					</div>
+				) : (
+					<p className="setting-item-description nw-muted">Not in use: either the novel has no blueprint yet, or it is switched off in Novel Setup.</p>
+				)}
 			</div>
 			<div className="options-section">
 				<h5>Memory</h5><p className="setting-item-description">The AI will better remember info placed here.</p>

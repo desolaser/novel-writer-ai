@@ -6,6 +6,8 @@ import { listCategorias } from '../infrastructure/storage/repos/CategoriaRepo';
 import { listDetalles, listOpcionesByDetalle } from '../infrastructure/storage/repos/DetalleRepo';
 import { PluginSettings } from '../infrastructure/settings/plugin-settings';
 import { getPromptMetaCascading } from './promptMeta';
+import { readBlueprint } from '../infrastructure/storage/repos/BlueprintRepo';
+import { buildStoryBibleBlock } from './blueprintPrompt';
 
 export function estimateTokens(text: string): number { return Math.ceil((text || '').length / 4); }
 
@@ -99,6 +101,10 @@ export async function buildScenePrompt(
 	parts.push("--- Codex ---");
 	parts.push(codexYaml || "(empty)");
 	parts.push("--- End Codex ---");
+	// Story bible: what the novel is, and above all the language it is written
+	// in. These instructions are in English whatever the story's language is.
+	const storyBible = buildStoryBibleBlock(await readBlueprint(app, folderPath));
+	if (storyBible) parts.push(storyBible);
 	const memory = await getPromptMetaCascading(app, settings, 'memoryContent');
 	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());

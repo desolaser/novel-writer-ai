@@ -7,12 +7,15 @@ import { ApiFactory } from '../../../../factories/api-factory';
 import { Icon } from '../../components/Icon';
 import { openEntryModal } from '../codex/modals/CodexEntryModal';
 import { ThumbnailCropModal } from '../codex/ThumbnailCropModal';
+import { isCharacterCategory } from '../../../../utils/categories';
+import { resolvePlaceholders } from '../../../../utils/roleplayPlaceholders';
 import { canvasToDataUrl, cropToCanvas } from '../../../../utils/image';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 import type { EntradaCodex, ChatContextItem, ChatContextKind } from '../../../../domain';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { estimateTokens } from '../../../../context/promptBuilder';
 import { buildToolPrompt } from '../../../../context/toolPrompt';
+import { buildStoryBibleBlock } from '../../../../context/blueprintPrompt';
 import { TOOL_DEFINITIONS } from '../../../../tools/registry';
 import { formatToolResults } from '../../../../utils/toolCallParsing';
 import { parseToolAnswer } from '../../../../tools/parseToolAnswer';
@@ -83,6 +86,7 @@ function buildPrompt(
 	activeNoteItem: ContextItem | null,
 	chatPromptText?: string,
 	toolsBlock?: string,
+	storyBible?: string,
 ): string {
 	const groups: Array<[ContextKind, string]> = [
 		['codex', 'Selected Codex entries'], ['chapter', 'Selected chapters'], ['outline', 'Selected outlines'],
@@ -99,13 +103,21 @@ function buildPrompt(
 		? `Active note selected:\n--- ${activeNoteItem.name}${activeNoteItem.path ? ` (${activeNoteItem.path})` : ''} ---\n${activeNoteItem.content}`
 		: '';
 
+	// {{user}} / {{char}} are resolved before the model reads them: the placeholders
+	// are storage, the names are what the conversation is actually about.
+	const names = { user: impersonateContext?.name, char: characterContext?.name };
 	const history = [...mensajes, { role: 'user', mensaje: newUserMessage }]
 		.filter(m => m.role === 'user' || m.role === 'assistant')
-		.map(m => ({ role: m.role, content: m.mensaje }));
+		.map(m => ({ role: m.role, content: resolvePlaceholders(m.mensaje ?? '', names) }));
 
 	let systemPrompt = '';
 	if (chatPromptText) {
 		systemPrompt = `${chatPromptText}\n\n`;
+	}
+	// What the novel is, and the language it is written in: these instructions
+	// are in English no matter what language the author writes the story in.
+	if (storyBible) {
+		systemPrompt += `${storyBible}\n\n`;
 	}
 	if (toolsBlock) {
 		systemPrompt += `${toolsBlock}\n\n`;
@@ -277,8 +289,48 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const runner = useToolRunner();
 	// Tool instructions cost ~800 tokens per request, so they can be switched off.
 	const [toolsEnabled, setToolsEnabled] = useState(true);
+	// Story bible of the active novel, rebuilt whenever the novel changes. Carries
+	// the language of the story, which the English instructions would otherwise
+	// override. The toggle is per conversation; the blueprint keeps its own flag.
+	const [storyBible, setStoryBible] = useState('');
+	const [roleplayLanguage, setRoleplayLanguage] = useState('');
+	const [bibleEnabled, setBibleEnabled] = useState(true);
 	// What the model has written so far this turn, shown while the tools still run.
 	const [liveText, setLiveText] = useState('');
+
+	// Reloaded when the novel or the conversation changes, which is also when an
+	// edit made in Novel Setup gets picked up.
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			if (!store?.activeFolderPath) {
+				setStoryBible('');
+				setRoleplayLanguage('');
+				return;
+			}
+			try {
+				const blueprint = await store.readBlueprint();
+				if (cancelled) return;
+				setStoryBible(buildStoryBibleBlock(blueprint));
+				setRoleplayLanguage(buildStoryBibleBlock(blueprint, { languageOnly: true }));
+			} catch {
+				if (!cancelled) {
+					setStoryBible('');
+					setRoleplayLanguage('');
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [store, store?.activeNovelId, activeChatId]);
+
+	/** Full bible normally; while roleplaying, only the language of the story. */
+	const activeStoryBible = !bibleEnabled ? '' : characterContext ? roleplayLanguage : storyBible;
+
+	/** Names for {{user}} / {{char}}, re-read on every render so they follow the personas. */
+	const roleplayNames = { user: impersonateContext?.name, char: characterContext?.name };
+	const resolveText = (text: string) => resolvePlaceholders(text ?? '', roleplayNames);
 
 	const markdownFiles = useMemo(() => plugin.app.vault.getMarkdownFiles(), [plugin, contextOpen]);
 	const folders = useMemo(() => plugin.app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder), [plugin, contextOpen]);
@@ -316,6 +368,29 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		if (!activeChatId) return;
 		void saveChatContext(activeChatId, items, charCtx, impCtx);
 	}, [activeChatId, saveChatContext]);
+
+	// The portrait opens the character sheet, so an edit made there has to reach the
+	// conversation: the persona is stored as a snapshot and would otherwise keep
+	// sending the old description to the model.
+	useEffect(() => {
+		if (!characterContext && !impersonateContext) return;
+		const sync = (item: ContextItem | null, prefix: string): ContextItem | null => {
+			if (!item) return null;
+			const entry = entradas.find(e => `${prefix}:${e.id_entrada_codex}` === item.id);
+			if (!entry) return item;
+			const unchanged = entry.nombre === item.name
+				&& entry.descripcion === item.content
+				&& (entry.thumbnail ?? null) === (item.thumbnail ?? null);
+			if (unchanged) return item;
+			return { ...item, name: entry.nombre, content: entry.descripcion, thumbnail: entry.thumbnail, categoryColor: entry.color ?? undefined };
+		};
+		const nextCharacter = sync(characterContext, 'character');
+		const nextImpersonate = sync(impersonateContext, 'impersonate');
+		if (nextCharacter === characterContext && nextImpersonate === impersonateContext) return;
+		setCharacterContext(nextCharacter);
+		setImpersonateContext(nextImpersonate);
+		persistContext(contextItems, nextCharacter, nextImpersonate);
+	}, [entradas, characterContext, impersonateContext, contextItems, persistContext]);
 
 	const updateContextItems = (updater: (items: ContextItem[]) => ContextItem[]) => {
 		setContextItems(items => {
@@ -398,7 +473,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		addContext({ id: `outline:${chapterId}`, kind: 'outline', name: chapter.nombre, chapterId, content: chapter.outline ?? '' });
 	};
 
-	const addCharacterContext = (entry: EntradaCodex) => {
+	const addCharacterContext = async (entry: EntradaCodex) => {
 		const item: ContextItem = {
 			id: `character:${entry.id_entrada_codex}`,
 			kind: 'character',
@@ -412,6 +487,22 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		setContextOpen(false);
 		setContextMenu('root');
 		setQuery('');
+		// A conversation that has not started yet opens in the character's voice, so
+		// the author has something to answer instead of a blank chat. An ongoing one
+		// is left alone: the opening line would land in the middle of the scene.
+		const opening = (entry.first_message ?? '').trim();
+		if (!opening || !activeChatId || mensajes.length > 0) return;
+		await appendMensaje('assistant', opening);
+		setMensajes(m => [...m, { id_mensaje: 'tmp_first', role: 'assistant', mensaje: opening, created_at: '' }]);
+	};
+
+	/**
+	 * The portrait next to a roleplay message is a shortcut to the character sheet:
+	 * the author is reading the scene and wants to fix the persona, not zoom in.
+	 */
+	const openCharacterEntry = (item: ContextItem) => {
+		const entryId = item.id.replace(/^(character|impersonate):/, '');
+		if (entryId) openEntryModal(plugin, entryId);
 	};
 
 	const removeCharacterContext = () => {
@@ -530,7 +621,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		let collectedImages: string[] = [];
 
 		for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-			const prompt = buildPrompt(turns, contextItems, pendingUser, characterContext, impersonateContext, activeNoteItem, chatPrompt, toolsBlock);
+			const prompt = buildPrompt(turns, contextItems, pendingUser, characterContext, impersonateContext, activeNoteItem, chatPrompt, toolsBlock, activeStoryBible);
 			const result = await api.generateCompletion(prompt, activeModel.modelName, {
 				...activeModel.options,
 				stream: false,
@@ -557,7 +648,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			pendingUser = formatToolResults(results);
 		}
 		return { text: visible.join('\n\n').trim(), images: collectedImages, log };
-	}, [plugin, contextItems, characterContext, impersonateContext, activeNoteItem, runner, toolsEnabled]);
+	}, [plugin, contextItems, characterContext, impersonateContext, activeNoteItem, runner, toolsEnabled, activeStoryBible]);
 
 	const regenerateMessage = useCallback(async () => {
 		if (!store || !activeChatId) return;
@@ -722,7 +813,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		const toolsBlock = characterContext || !toolsEnabled
 			? ''
 			: buildToolPrompt(TOOL_DEFINITIONS, previewModel.options.max_tokens);
-		const prompt = buildPrompt(mensajes, contextItems, '', characterContext, impersonateContext, activeNoteItem, chatPromptText, toolsBlock);
+		const prompt = buildPrompt(mensajes, contextItems, '', characterContext, impersonateContext, activeNoteItem, chatPromptText, toolsBlock, activeStoryBible);
 
 		// Compute breakdown parts matching buildPrompt internals
 		const groups: Array<[ContextKind, string]> = [
@@ -743,6 +834,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		if (chatPromptText) {
 			systemPrompt = `${chatPromptText}\n\n`;
 		}
+		if (activeStoryBible) {
+			systemPrompt += `${activeStoryBible}\n\n`;
+		}
 		if (characterContext) {
 			systemPrompt += `[ROLE MODE: You are roleplaying the character "${characterContext.name}". Always respond IN CHARACTER, using their tone, vocabulary, knowledge and personality. Do NOT break character under any circumstances. Do NOT mention that you are an AI. You are "${characterContext.name}".]\n\nCharacter information:\n${characterContext.content}\n\n`;
 		}
@@ -753,18 +847,19 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		const userLabel = impersonateContext ? impersonateContext.name : 'User';
 		const chatHistory = mensajes
 			.filter(m => m.role === 'user' || m.role === 'assistant')
-			.map(m => `${m.role === 'user' ? userLabel : 'AI'}: ${m.mensaje}`)
+			.map(m => `${m.role === 'user' ? userLabel : 'AI'}: ${resolvePlaceholders(m.mensaje ?? '', { user: impersonateContext?.name, char: characterContext?.name })}`)
 			.join('\n\n');
 
 		const breakdown = [
 			{ label: 'System Prompt', content: systemPrompt },
+			{ label: 'Story Bible', content: activeStoryBible },
 			{ label: 'Selected Context', content: contextPrompt },
 			{ label: 'Active Note Block', content: activeNoteBlock },
 			{ label: 'Chat History', content: chatHistory },
 		];
 
 		new ChatContextModal(plugin.app, prompt, breakdown).open();
-	}, [mensajes, contextItems, characterContext, impersonateContext, activeNoteItem, chatPromptText, plugin, toolsEnabled]);
+	}, [mensajes, contextItems, characterContext, impersonateContext, activeNoteItem, chatPromptText, plugin, toolsEnabled, activeStoryBible]);
 
 	const handlePromptSelect = async (promptId: string) => {
 		setCurrentPromptId(promptId);
@@ -857,7 +952,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const filteredNotes = (query ? markdownFiles : notes).filter(file => includesQuery(query, file.basename, file.path));
 	const filteredCategories = categorias.map(category => ({ category, entries: entradas.filter(entry => !entry.archivado && entry.id_categoria === category.id_categoria && includesQuery(query, entry.nombre, entry.alias, entry.descripcion)) })).filter(group => group.entries.length);
 
-	const personajeCategory = categorias.find(c => c.nombre.toLocaleLowerCase() === 'characters');
+	const personajeCategory = categorias.find(c => isCharacterCategory(c));
 	const characterEntries = personajeCategory
 		? entradas.filter(e => !e.archivado && e.id_categoria === personajeCategory.id_categoria && includesQuery(query, e.nombre, e.alias))
 		: [];
@@ -884,14 +979,14 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 						{m.role === 'user' ? (
 							impersonateContext ? (
 								<span className="nw-msg-role-character nw-msg-role-impersonate">
-									{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-msg-role-thumb" onClick={() => setLightboxSrc(impersonateContext.thumbnail)} /> : <Icon.Person width={20} height={20} />}
+									{impersonateContext.thumbnail ? <img src={impersonateContext.thumbnail} alt="" className="nw-msg-role-thumb" title={`Edit ${impersonateContext.name}`} onClick={() => openCharacterEntry(impersonateContext)} /> : <Icon.Person width={20} height={20} />}
 									<span>{impersonateContext.name}</span>
 								</span>
 							) : 'You'
 						) : (
 							characterContext ? (
 								<span className="nw-msg-role-character">
-									{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-msg-role-thumb" onClick={() => setLightboxSrc(characterContext.thumbnail)} /> : <Icon.Person width={20} height={20} />}
+									{characterContext.thumbnail ? <img src={characterContext.thumbnail} alt="" className="nw-msg-role-thumb" title={`Edit ${characterContext.name}`} onClick={() => openCharacterEntry(characterContext)} /> : <Icon.Person width={20} height={20} />}
 									<span>{characterContext.name}</span>
 								</span>
 							) : 'AI'
@@ -921,7 +1016,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							</div>
 						) : (
 							<div className="nw-msg-body">
-								{m.role === 'assistant' ? <MarkdownBlock plugin={plugin} content={m.mensaje} /> : m.mensaje}
+								{m.role === 'assistant' ? <MarkdownBlock plugin={plugin} content={resolveText(m.mensaje)} /> : resolveText(m.mensaje)}
 							</div>
 						)
 					)}
@@ -984,7 +1079,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							<button className="nw-msg-action-btn" title="Edit" onClick={() => startEditMessage(m.id_mensaje, m.mensaje)}>
 								<Icon.Edit width={13} height={13} />
 							</button>
-							<button className="nw-msg-action-btn" title="Copy to clipboard" onClick={() => void copyToClipboard(m.mensaje)}>
+							<button className="nw-msg-action-btn" title="Copy to clipboard" onClick={() => void copyToClipboard(resolveText(m.mensaje))}>
 								<Icon.Copy width={13} height={13} />
 							</button>
 							{m.role === 'assistant' && (
@@ -992,7 +1087,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 									<button className="nw-msg-action-btn" title="Regenerate" onClick={() => void regenerateMessage()}>
 										<Icon.Refresh width={13} height={13} />
 									</button>
-									<button className="nw-msg-action-btn" title="Save as note" onClick={() => void saveAsNote(m.mensaje, m.id_mensaje)}>
+									<button className="nw-msg-action-btn" title="Save as note" onClick={() => void saveAsNote(resolveText(m.mensaje), m.id_mensaje)}>
 										<Icon.SaveAlt width={13} height={13} />
 									</button>
 								</>
@@ -1062,7 +1157,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 						{contextMenu === 'characters' && (
 							<>
 								{characterEntries.length > 0 ? characterEntries.map(entry => (
-									<button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => addCharacterContext(entry)}>
+									<button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => void addCharacterContext(entry)}>
 										{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}
 										{entry.nombre}
 									</button>
@@ -1127,6 +1222,22 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							onChange={event => setToolsEnabled(event.target.checked)}
 						/>
 						Tools
+					</label>
+					<label
+						className="nw-chat-tools-toggle"
+						title={!storyBible
+							? 'Set up the novel in Novel Setup to use a story bible'
+							: characterContext
+							? 'While roleplaying only the language of the story is sent'
+							: 'Send the premise, style, tense and language of the novel'}
+					>
+						<input
+							type="checkbox"
+							checked={bibleEnabled && !!storyBible}
+							disabled={!storyBible}
+							onChange={event => setBibleEnabled(event.target.checked)}
+						/>
+						Story bible
 					</label>
 					<div className="nw-chat-model-selector" key={modelVersion}>
 						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>

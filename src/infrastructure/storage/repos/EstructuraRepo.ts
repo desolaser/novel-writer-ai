@@ -271,8 +271,12 @@ export async function reconcileCapituloArchivos(app: App, folderPath: string): P
 		const path = byId.get(cap.id_capitulo);
 		if (!path) continue;
 		if (cap.archivo !== path) { cap.archivo = path; changed = true; }
+		// El nombre del capitulo sigue al del archivo cuando el autor lo renombra
+		// en el vault, pero se compara contra el nombre ya saneado: si difieren
+		// solo por caracteres que no son validos en un archivo (":", "?", ...),
+		// el nombre elegido en el outline es el correcto y no se pisa.
 		const fileName = basenameNoExt(path);
-		if (fileName && cap.nombre !== fileName) { cap.nombre = fileName; changed = true; }
+		if (fileName && fileName !== sanitizeFileName(cap.nombre)) { cap.nombre = fileName; changed = true; }
 	}
 	if (changed) await writeFile(app, folderPath, data);
 }

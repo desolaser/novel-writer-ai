@@ -10,3 +10,13 @@ export function findFallbackCategory(categorias: Categoria[]): Categoria | null 
 	const byName = categorias.find((category) => ['others', 'otros'].includes((category.nombre ?? '').trim().toLowerCase()));
 	return byName ?? categorias[categorias.length - 1];
 }
+
+/**
+ * Whether a category holds characters. Matched by name because categories are
+ * plain user data with no fixed ids; the Spanish name is accepted so vaults
+ * created before the English rename keep working.
+ */
+export function isCharacterCategory(categoria: Categoria | null | undefined): boolean {
+	if (!categoria) return false;
+	return ['characters', 'personajes'].includes((categoria.nombre ?? '').trim().toLowerCase());
+}

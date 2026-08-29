@@ -44,6 +44,7 @@ export async function createEntry(
 		nombre,
 		alias: '',
 		descripcion: '',
+		first_message: '',
 		notas: '',
 		id_categoria: idCategoria,
 		id_novela: idNovela,
@@ -98,6 +99,40 @@ export async function removeDetalleValor(app: App, folderPath: string, idEntry: 
 	if (!entry) return;
 	entry.detalles = entry.detalles.filter(d => d.id_detalle !== idDetalle);
 	await writeEntry(app, folderPath, entry);
+}
+
+export async function reorderEntryDetalles(app: App, folderPath: string, idEntry: EntityId, orderedDetalleIds: EntityId[]) {
+	const entry = await readEntry(app, folderPath, idEntry);
+	if (!entry) return;
+	const byId = new Map(entry.detalles.map(d => [d.id_detalle, d]));
+	const reordered: DetalleValorEmbed[] = [];
+	for (const id of orderedDetalleIds) {
+		const d = byId.get(id);
+		if (d) reordered.push(d);
+	}
+	for (const d of entry.detalles) {
+		if (!orderedDetalleIds.includes(d.id_detalle)) reordered.push(d);
+	}
+	entry.detalles = reordered;
+	await writeEntry(app, folderPath, entry);
+}
+
+export async function copyEntry(app: App, folderPath: string, entry: EntradaCodex, targetFolderPath: string, targetNovelId: EntityId) {
+	await ensureFolder(app, joinPath(targetFolderPath, ENTRIES_DIR));
+	const newId = genId();
+	const now = nowISO();
+	const copy: EntradaCodex = {
+		...entry,
+		id_entrada_codex: newId,
+		id_novela: targetNovelId,
+		detalles: entry.detalles.map(d => ({ ...d, id_entrada_codex_detalle: genId() })),
+		referencias_externas: entry.referencias_externas.map(r => ({ ...r, id_referencia_externa: genId() })),
+		tags: [...(entry.tags ?? [])],
+		created_at: now,
+		updated_at: now,
+	};
+	await writeJson(app, entryPath(targetFolderPath, newId), copy);
+	return copy;
 }
 
 // ---- Referencias externas embebidas ----

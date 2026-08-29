@@ -8,6 +8,7 @@ import { OpenCodeGoApi } from '../apis/opencodego-api';
 import { NovelAiApi } from '../apis/novelai-api';
 import { AnthropicApi } from '../apis/anthropic-api';
 import { ClaudeCodeApi } from '../apis/claude-code-api';
+import { LlamaCppApi } from '../apis/llamacpp-api';
 
 export class ApiFactory {
     createApi(provider: string, apiKey: string): ApiInterface {
@@ -30,6 +31,8 @@ export class ApiFactory {
                 return new ClaudeCodeApi(apiKey);
             case 'novelai':
                 return new NovelAiApi(apiKey);
+            case 'llamacpp':
+                return new LlamaCppApi(apiKey);
             default:
                 throw new Error(`Unsupported API provider: ${provider}`);
         }

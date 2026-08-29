@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Notice } from "obsidian";
 import { useNovelWriter } from "./store/novelWriterStore";
 import type NovelWriterPlugin from "../../../main";
 import type { Acto, Capitulo } from "../../domain";
@@ -41,6 +42,8 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		plugin.settings.data.draftWordCount || 2000
 	);
 	const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+	/** Chapters whose outline has an unsaved edit; their draft survives a reload. */
+	const dirtyOutlines = useRef<Set<string>>(new Set());
 
 	const {
 		batchBusy,
@@ -55,10 +58,20 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		generateSingleDraft,
 	} = useOutlineActions(plugin, targetWords);
 
+	// Saving an outline reloads the whole store, which lands back here as a new
+	// `capitulos` array. Refreshing every draft from it would overwrite whatever
+	// the author typed while the save was in flight, so chapters with an edit in
+	// progress keep their local text.
 	useEffect(() => {
-		const next: Record<string, string> = {};
-		capitulos.forEach((c) => (next[c.id_capitulo] = c.outline ?? ""));
-		setDrafts(next);
+		setDrafts((current) => {
+			const next: Record<string, string> = {};
+			capitulos.forEach((c) => {
+				next[c.id_capitulo] = dirtyOutlines.current.has(c.id_capitulo)
+					? current[c.id_capitulo] ?? c.outline ?? ""
+					: c.outline ?? "";
+			});
+			return next;
+		});
 	}, [capitulos]);
 
 	useEffect(() => {
@@ -100,11 +113,17 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		});
 
 	const saveOutline = (id: string, value: string) => {
+		dirtyOutlines.current.add(id);
 		setDrafts((d) => ({ ...d, [id]: value }));
 		const old = timers.current[id];
 		if (old) clearTimeout(old);
 		timers.current[id] = setTimeout(() => {
-			void updateCapitulo(id, { outline: value });
+			delete timers.current[id];
+			void updateCapitulo(id, { outline: value }).then(() => {
+				// Stop protecting the draft only if nothing was typed since: a new
+				// timer means there is a newer edit that must not be reverted.
+				if (!timers.current[id]) dirtyOutlines.current.delete(id);
+			});
 		}, 600);
 	};
 
@@ -137,7 +156,11 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const commitCapName = (chapter: Capitulo, name: string) => {
 		if (name && name !== chapter.nombre)
-			void updateCapitulo(chapter.id_capitulo, { nombre: name });
+			// Renaming also renames the manuscript, which fails on a name collision.
+			// Without this the rename was silently dropped and the old name came back.
+			void updateCapitulo(chapter.id_capitulo, { nombre: name }).catch((error: any) =>
+				new Notice(`Could not rename the chapter: ${error?.message ?? String(error)}`)
+			);
 		setEditingCap(null);
 	};
 

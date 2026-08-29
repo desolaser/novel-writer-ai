@@ -101,12 +101,15 @@ export class NovelStore {
 	async deleteEntry(id: EntityId) { await EntryRepo.deleteEntry(this.app, this.activeFolder!, id); }
 	async archiveEntry(id: EntityId, archived: boolean) { const e = await EntryRepo.readEntry(this.app, this.activeFolder!, id); if (!e) return; e.archivado = archived; await EntryRepo.writeEntry(this.app, this.activeFolder!, e); }
 	async moveEntryToNovel(idEntry: EntityId, targetNovelId: EntityId) { const src = this.activeFolder!; const e = await EntryRepo.readEntry(this.app, src, idEntry); if (!e) return; const target = await findNovelFolder(this.app, targetNovelId); if (!target) throw new Error('Target novel not found'); e.id_novela = targetNovelId; await EntryRepo.writeEntry(this.app, target, e); await EntryRepo.deleteEntry(this.app, src, idEntry); }
+	async copyEntryToNovel(idEntry: EntityId, targetNovelId: EntityId) { const src = this.activeFolder!; const e = await EntryRepo.readEntry(this.app, src, idEntry); if (!e) return; const target = await findNovelFolder(this.app, targetNovelId); if (!target) throw new Error('Target novel not found'); await EntryRepo.copyEntry(this.app, src, e, target, targetNovelId); new Notice(`Entry "${e.nombre}" copied successfully.`); }
 	async setEntryThumbnail(idEntry: EntityId, dataUrl: string | null) { const e = await EntryRepo.readEntry(this.app, this.activeFolder!, idEntry); if (!e) return; e.thumbnail = dataUrl; await EntryRepo.writeEntry(this.app, this.activeFolder!, e); }
 	async setEntryTags(idEntry: EntityId, tagIds: EntityId[]) { await EntryRepo.setEntryTags(this.app, this.activeFolder!, idEntry, tagIds); }
 	async addReferencia(idEntry: EntityId, url: string) { return EntryRepo.addReferencia(this.app, this.activeFolder!, idEntry, url); }
 	async removeReferencia(idEntry: EntityId, idRef: EntityId) { await EntryRepo.removeReferencia(this.app, this.activeFolder!, idEntry, idRef); }
 	async setDetalleValor(idEntry: EntityId, idDetalle: EntityId, valor: string | null) { await EntryRepo.setDetalleValor(this.app, this.activeFolder!, idEntry, idDetalle, valor); }
 	async removeDetalleValor(idEntry: EntityId, idDetalle: EntityId) { await EntryRepo.removeDetalleValor(this.app, this.activeFolder!, idEntry, idDetalle); }
+	async reorderEntryDetalles(idEntry: EntityId, orderedDetalleIds: EntityId[]) { await EntryRepo.reorderEntryDetalles(this.app, this.activeFolder!, idEntry, orderedDetalleIds); }
+	async reorderDetalles(orderedIds: EntityId[]) { await DetRepo.reorderDetalles(this.app, this.activeFolder!, orderedIds); }
 
 	// Estructura
 	async listActos(): Promise<Acto[]> { return EstRepo.listActos(this.app, this.activeFolder!); }

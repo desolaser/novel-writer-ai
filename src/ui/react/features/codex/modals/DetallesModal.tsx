@@ -23,7 +23,7 @@ export class DetallesModal extends Modal {
 }
 
 function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPlugin; initialId?: string | null; initialTab?: 'general' | 'ai' | 'opciones' | null }) {
-	const { detalles, categorias, createDetalle, updateDetalle, listAllDetallesExtended, setDetalleCategorias, store } = useNovelWriter() as any;
+	const { detalles, categorias, createDetalle, updateDetalle, listAllDetallesExtended, setDetalleCategorias, reorderDetalles, store } = useNovelWriter() as any;
 	const [selected, setSelected] = React.useState<string | null>((initialId && detalles.find((d: any) => d.id_detalle === initialId) ? initialId : null) ?? detalles[0]?.id_detalle ?? null);
 	const [query, setQuery] = React.useState('');
 	const [tab, setTab] = React.useState<'general' | 'ai' | 'opciones'>(initialTab ?? 'general');
@@ -91,6 +91,23 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 	const typeIcon = (t: TipoDetalle) => tipos.find(x => x.v === t)?.icon ?? '?';
 	const filtered = detalles.filter((d: any) => (d.nombre || '').toLowerCase().includes(query.toLowerCase()) || !d.nombre);
 
+	const dragIdRef = React.useRef<string | null>(null);
+	const [dragOverId, setDragOverId] = React.useState<string | null>(null);
+	const isDraggable = !query;
+	const onDragStart = (id: string) => (e: React.DragEvent) => { dragIdRef.current = id; e.dataTransfer.effectAllowed = 'move'; };
+	const onDragOver = (id: string) => (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverId(id); };
+	const onDrop = (targetId: string) => async (e: React.DragEvent) => {
+		e.preventDefault(); setDragOverId(null);
+		const srcId = dragIdRef.current; dragIdRef.current = null;
+		if (!srcId || srcId === targetId) return;
+		const ids = detalles.map((d: any) => d.id_detalle);
+		const srcIdx = ids.indexOf(srcId); const tgtIdx = ids.indexOf(targetId);
+		if (srcIdx < 0 || tgtIdx < 0) return;
+		ids.splice(srcIdx, 1); ids.splice(tgtIdx, 0, srcId);
+		await reorderDetalles(ids);
+	};
+	const onDragEnd = () => { dragIdRef.current = null; setDragOverId(null); };
+
 	return (
 		<div className="nw-modal-2col">
 			<div className="nw-modal-left">
@@ -100,7 +117,16 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 				<div className="nw-modal-list">
 					{filtered.map((d: any) => {
 						return (
-							<button key={d.id_detalle} className={`nw-list-item ${d.id_detalle === selected ? 'active' : ''}`} onClick={() => setSelected(d.id_detalle)}>
+							<button key={d.id_detalle}
+								className={`nw-list-item ${d.id_detalle === selected ? 'active' : ''}${dragOverId === d.id_detalle ? ' nw-drag-over' : ''}`}
+								onClick={() => setSelected(d.id_detalle)}
+								draggable={isDraggable}
+								onDragStart={onDragStart(d.id_detalle)}
+								onDragOver={onDragOver(d.id_detalle)}
+								onDrop={onDrop(d.id_detalle)}
+								onDragEnd={onDragEnd}
+							>
+								{isDraggable && <span className="nw-drag-handle"><Icon.GripVertical width={12} height={12} /></span>}
 								<span style={{ display: 'inline-flex', width: 16, justifyContent: 'center', fontWeight: 700, marginRight: 4 }}>{typeIcon(d.tipo_detalle)}</span>
 								<span style={{ flex: 1 }}>{d.nombre || '(unnamed)'}</span>
 								{d.incluir_ia && <span title="Included in AI" style={{ color: 'var(--text-accent)', fontSize: 10 }}>AI</span>}

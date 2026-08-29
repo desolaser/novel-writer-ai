@@ -25,7 +25,8 @@ async function writeFile(app: App, fp: string, data: DetallesFile) {
 }
 
 export async function listDetalles(app: App, fp: string): Promise<Detalle[]> {
-	return (await readFile(app, fp)).detalles;
+	const detalles = (await readFile(app, fp)).detalles;
+	return detalles.map((d, i) => ({ ...d, orden: d.orden ?? i })).sort((a, b) => a.orden - b.orden);
 }
 
 export async function listAllDetallesExtended(app: App, fp: string): Promise<DetallesFile> {
@@ -40,11 +41,12 @@ export async function createDetalle(
 	app: App, folderPath: string, idNovela: EntityId,
 	nombre: string, tipo: TipoDetalle, incluirIa = true,
 ): Promise<Detalle> {
+	const data = await readFile(app, folderPath);
+	const maxOrden = data.detalles.reduce((max, d) => Math.max(max, d.orden ?? 0), -1);
 	const item: Detalle = {
 		id_detalle: genId(), nombre, tipo_detalle: tipo, incluir_ia: incluirIa,
-		id_novela: idNovela, created_at: nowISO(), updated_at: nowISO(),
+		orden: maxOrden + 1, id_novela: idNovela, created_at: nowISO(), updated_at: nowISO(),
 	};
-	const data = await readFile(app, folderPath);
 	data.detalles.push(item);
 	await writeFile(app, folderPath, data);
 	return item;
@@ -126,5 +128,18 @@ export async function getCategoriasByDetalle(app: App, fp: string, idDetalle: En
 export async function getDetallesByCategoria(app: App, fp: string, idCategoria: EntityId): Promise<Detalle[]> {
 	const data = await readFile(app, fp);
 	const ids = data.detalle_categorias.filter(dc => dc.id_categoria === idCategoria).map(dc => dc.id_detalle);
-	return data.detalles.filter(d => ids.includes(d.id_detalle));
+	return data.detalles
+		.filter(d => ids.includes(d.id_detalle))
+		.map((d, i) => ({ ...d, orden: d.orden ?? i }))
+		.sort((a, b) => a.orden - b.orden);
+}
+
+export async function reorderDetalles(app: App, fp: string, orderedIds: EntityId[]) {
+	const data = await readFile(app, fp);
+	const now = nowISO();
+	for (let i = 0; i < orderedIds.length; i++) {
+		const d = data.detalles.find(x => x.id_detalle === orderedIds[i]);
+		if (d) { d.orden = i; d.updated_at = now; }
+	}
+	await writeFile(app, fp, data);
 }

@@ -284,3 +284,37 @@ export function toOllamaThink(options: CompletionOptions): boolean | EffortLevel
 	if (options.thinking === true) return true;
 	return undefined;
 }
+
+export interface LlamaCppChatBody extends OpenAiCompatibleChatBody {
+	top_k?: number;
+	min_p?: number;
+	repetition_penalty?: number;
+}
+
+/**
+ * llama.cpp server's /v1/chat/completions body. Supports the standard OpenAI fields plus
+ * top_k, min_p, and repetition_penalty. Context length (n_ctx) is set at server startup,
+ * not per-request, so max_context is not forwarded.
+ */
+export function toLlamaCppBody(
+	model: string,
+	messages: ChatMessage[],
+	options: CompletionOptions
+): LlamaCppChatBody {
+	return {
+		model,
+		messages,
+		stream: options.stream ?? false,
+		temperature: options.temperature ?? 0.7,
+		max_tokens: options.max_tokens ?? 1000,
+		...definedOnly({
+			top_p: options.top_p,
+			top_k: options.top_k,
+			min_p: options.min_p,
+			repetition_penalty: options.repetition_penalty,
+			frequency_penalty: options.frequency_penalty,
+			presence_penalty: options.presence_penalty,
+			stop: options.stop,
+		}),
+	};
+}

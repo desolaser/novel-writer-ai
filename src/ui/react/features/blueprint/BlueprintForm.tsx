@@ -1,18 +1,20 @@
 import React from "react";
-import type { NovelBlueprint } from "../../../../domain";
+import type { BlueprintField, NovelBlueprint } from "../../../../domain";
 import {
 	AUDIENCES,
+	COMMON_LANGUAGES,
 	NARRATIVE_TENSES,
 	NARRATIVE_TIMES,
 	STRUCTURE_TEMPLATES,
 	getStructureTemplate,
 } from "../../../../constants/structures";
 import type { BlueprintController } from "./useBlueprint";
+import type { BlueprintAiController } from "./useBlueprintAi";
+import { BlueprintProposalBox, DeducedBadge } from "./BlueprintProposalBox";
 
 /**
  * Chapter count. Committed on blur or Enter instead of on every keystroke,
- * because each commit re-lays out the structure and may ask the author before
- * discarding hand edits.
+ * because each commit re-lays out the structure.
  */
 function ChapterCountField({
 	value,
@@ -41,18 +43,39 @@ function ChapterCountField({
 	);
 }
 
+/** Label of a field the AI may fill in, with its deduced badge. */
+function FieldLabel({
+	text,
+	field,
+	inferred,
+}: {
+	text: string;
+	field: BlueprintField;
+	inferred: BlueprintField[];
+}) {
+	return (
+		<span className="nw-blueprint-label">
+			{text}
+			<DeducedBadge show={inferred.includes(field)} />
+		</span>
+	);
+}
+
 /** Premise and settings of the novel. The structure preview lives in its own component. */
 export function BlueprintForm({
 	blueprint,
 	controller,
+	ai,
 }: {
 	blueprint: NovelBlueprint;
 	controller: BlueprintController;
+	ai: BlueprintAiController;
 }) {
 	const { setField, setStructure, setChapterCount, useSuggestedLength, suggestion, minChapters } =
 		controller;
 	const template = getStructureTemplate(blueprint.structure) ?? STRUCTURE_TEMPLATES[0];
 	const range = blueprint.wordsPerChapter;
+	const inferred = blueprint.inferred;
 	const suggestionDiffers =
 		suggestion.range.min !== range.min || suggestion.range.max !== range.max;
 	const suggestionSource =
@@ -68,7 +91,7 @@ export function BlueprintForm({
 	return (
 		<div className="nw-blueprint-form">
 			<label>
-				Title
+				<FieldLabel text="Title" field="title" inferred={inferred} />
 				<input
 					className="nw-input"
 					value={blueprint.title}
@@ -76,6 +99,7 @@ export function BlueprintForm({
 					onChange={(event) => setField("title", event.target.value)}
 				/>
 			</label>
+			<BlueprintProposalBox field="title" ai={ai} />
 
 			<label>
 				Description
@@ -101,7 +125,7 @@ export function BlueprintForm({
 
 			<div className="nw-blueprint-row">
 				<label>
-					Genre
+					<FieldLabel text="Genre" field="genre" inferred={inferred} />
 					<input
 						className="nw-input"
 						value={blueprint.genre}
@@ -110,7 +134,7 @@ export function BlueprintForm({
 					/>
 				</label>
 				<label>
-					Style
+					<FieldLabel text="Style" field="style" inferred={inferred} />
 					<input
 						className="nw-input"
 						value={blueprint.style}
@@ -119,6 +143,8 @@ export function BlueprintForm({
 					/>
 				</label>
 			</div>
+			<BlueprintProposalBox field="genre" ai={ai} />
+			<BlueprintProposalBox field="style" ai={ai} />
 
 			<div className="nw-blueprint-row">
 				<label>
@@ -136,7 +162,7 @@ export function BlueprintForm({
 					</select>
 				</label>
 				<label>
-					Narrative time
+					<FieldLabel text="Narrative time" field="narrativeTime" inferred={inferred} />
 					<select
 						className="nw-select"
 						value={blueprint.narrativeTime}
@@ -152,25 +178,55 @@ export function BlueprintForm({
 					</select>
 				</label>
 			</div>
-
-			<label>
-				Platform / audience
-				<select
-					className="nw-select"
-					value={blueprint.audience}
-					onChange={(event) => setField("audience", event.target.value as NovelBlueprint["audience"])}
-				>
-					{AUDIENCES.map((item) => (
-						<option key={item.id} value={item.id}>
-							{item.label}
-						</option>
-					))}
-				</select>
-			</label>
+			<BlueprintProposalBox field="narrativeTime" ai={ai} />
 
 			<div className="nw-blueprint-row">
 				<label>
-					Words per chapter (min)
+					Language
+					<input
+						className="nw-input"
+						list="nw-blueprint-languages"
+						value={blueprint.language}
+						placeholder="Same as the description"
+						onChange={(event) => setField("language", event.target.value)}
+					/>
+					{/* Free text, not a closed list: the story can be in any language. */}
+					<datalist id="nw-blueprint-languages">
+						{COMMON_LANGUAGES.map((language) => (
+							<option key={language} value={language} />
+						))}
+					</datalist>
+				</label>
+				<label>
+					Platform / audience
+					<select
+						className="nw-select"
+						value={blueprint.audience}
+						onChange={(event) =>
+							setField("audience", event.target.value as NovelBlueprint["audience"])
+						}
+					>
+						{AUDIENCES.map((item) => (
+							<option key={item.id} value={item.id}>
+								{item.label}
+							</option>
+						))}
+					</select>
+				</label>
+			</div>
+			<p className="nw-muted nw-blueprint-hint">
+				{blueprint.language.trim()
+					? `Titles, outlines and drafts are written in ${blueprint.language.trim()}.`
+					: "Leave it empty and the AI writes in the same language as the description."}
+			</p>
+
+			<div className="nw-blueprint-row">
+				<label>
+					<FieldLabel
+						text="Words per chapter (min)"
+						field="wordsPerChapter"
+						inferred={inferred}
+					/>
 					<input
 						className="nw-input"
 						type="number"
@@ -200,6 +256,7 @@ export function BlueprintForm({
 					</button>
 				)}
 			</p>
+			<BlueprintProposalBox field="wordsPerChapter" ai={ai} />
 
 			<div className="nw-blueprint-row">
 				<label>

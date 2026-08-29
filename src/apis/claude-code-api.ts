@@ -28,6 +28,26 @@ const PROSE_SYSTEM_PROMPT =
 	'afterward, and no markdown formatting. Do not offer to edit files or use tools.';
 
 /**
+ * The CLI has no `max_tokens`: `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is a failure threshold, not a
+ * stop condition. When the answer goes over it the request fails with "response exceeded the
+ * N output token maximum" and the CLI RETRIES the whole message (4 attempts, measured), so in
+ * streaming mode every attempt's deltas reach the reader: a 300-token budget produced ~1200
+ * tokens of restarted text instead of less. Thinking tokens count toward it too, which at low
+ * budgets is most of the allowance on its own.
+ *
+ * So the env var is only a runaway guard, set well above the budget, and the budget the author
+ * configured is enforced here: asked for in the prompt (cheap), cut from the stream once it is
+ * reached (which also kills the process, so nothing beyond it is paid for), and trimmed off the
+ * non-streaming text.
+ */
+const CLI_TOKENS_HEADROOM = 2;
+const MIN_CLI_OUTPUT_TOKENS = 4096;
+/** Past the model's own output ceiling the CLI rejects the request outright. */
+const MAX_CLI_OUTPUT_TOKENS = 32000;
+/** Rough tokens-to-characters ratio: enforcing the budget without shipping a tokenizer. */
+const CHARS_PER_TOKEN = 4;
+
+/**
  * The CLI has no models endpoint, so the list is static (same pattern as
  * `novelai-api.ts`). It also doubles as an allowlist: the id is passed via argv, and only
  * these values are accepted.
@@ -89,7 +109,7 @@ export class ClaudeCodeApi extends ApiInterface {
 
 		if (streaming) {
 			const lines = streamProcessLines(executable, args, prompt, timeoutMs, env);
-			return { stream: toTextChunks(lines), model };
+			return { stream: toTextChunks(lines, charBudget(options)), model };
 		}
 
 		const result = await runProcess(executable, args, prompt, timeoutMs, env);
@@ -105,7 +125,7 @@ export class ClaudeCodeApi extends ApiInterface {
 			throw new Error(`Claude Code returned an error (${payload.subtype ?? payload.api_error_status}): ${payload.result ?? ''}`);
 		}
 		return {
-			text: typeof payload.result === 'string' ? payload.result : '',
+			text: typeof payload.result === 'string' ? truncateToBudget(payload.result, charBudget(options)) : '',
 			usage: mapAnthropicUsage(payload.usage),
 			model,
 		};
@@ -161,7 +181,7 @@ function buildArgs(model: string, streaming: boolean, options: CompletionOptions
 		// Pure text generation: with no tools there are no permissions to ask for (which
 		// would hang or fail in headless mode) and most of the injected context is trimmed.
 		'--tools', '',
-		'--system-prompt', PROSE_SYSTEM_PROMPT,
+		'--system-prompt', buildSystemPrompt(options),
 		// Disables CLAUDE.md, skills, plugins, hooks and MCP servers. Subscription auth
 		// keeps working (unlike `--bare`, which forces an API key).
 		'--safe-mode',
@@ -177,11 +197,48 @@ function buildArgs(model: string, streaming: boolean, options: CompletionOptions
 function buildEnv(options: CompletionOptions): Record<string, string> {
 	// Inheriting process.env is what lets the CLI find the OAuth session in ~/.claude.
 	const env: Record<string, string> = { ...(process.env as Record<string, string>) };
-	const maxTokens = Number(options.max_tokens);
-	if (Number.isFinite(maxTokens) && maxTokens > 0) {
-		env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(Math.floor(maxTokens));
+	const budget = outputBudget(options);
+	if (budget) {
+		// Deliberately above the budget: see the note on CLI_TOKENS_HEADROOM. Setting it to the
+		// budget itself is what made the CLI fail and retry instead of stopping.
+		const guard = Math.min(MAX_CLI_OUTPUT_TOKENS, Math.max(MIN_CLI_OUTPUT_TOKENS, budget * CLI_TOKENS_HEADROOM));
+		env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(guard);
 	}
 	return env;
+}
+
+/** The author's configured output limit, or 0 when there is none. */
+function outputBudget(options: CompletionOptions): number {
+	const value = Number(options.max_tokens);
+	return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+/** The same budget in characters, or Infinity when unlimited. */
+function charBudget(options: CompletionOptions): number {
+	const budget = outputBudget(options);
+	return budget ? budget * CHARS_PER_TOKEN : Infinity;
+}
+
+/**
+ * Asking for the length in the prompt is what keeps the limit from being a blind cut: the text
+ * beyond it is discarded but already paid for, so it is better for the model to land short.
+ * Stated in words because that is what a model can actually aim at; the ratio is conservative
+ * so it also holds for languages that tokenize worse than English.
+ */
+function buildSystemPrompt(options: CompletionOptions): string {
+	const budget = outputBudget(options);
+	if (!budget) return PROSE_SYSTEM_PROMPT;
+	const words = Math.max(20, Math.floor(budget * 0.6));
+	return `${PROSE_SYSTEM_PROMPT} Keep the answer under about ${words} words; anything past that ` +
+		'is discarded, so bring it to a close before reaching the limit.';
+}
+
+/** Cuts on a whitespace boundary so the last word is not left half written. */
+function truncateToBudget(text: string, limit: number): string {
+	if (!Number.isFinite(limit) || text.length <= limit) return text;
+	const clipped = text.slice(0, limit);
+	const lastBreak = clipped.search(/\s\S*$/);
+	return (lastBreak > limit / 2 ? clipped.slice(0, lastBreak) : clipped).trimEnd();
 }
 
 function positiveInt(value: unknown, fallback: number): number {
@@ -216,10 +273,14 @@ function parseResultLine(stdout: string): any {
  *
  * NOTE: only `content_block_delta` events are emitted. The `type: "assistant"` event
  * repeats the FULL message, so without filtering it the text comes out duplicated.
+ *
+ * `limit` is the output budget in characters (Infinity when unset); reaching it ends the
+ * stream, which is what enforces Max Output on a CLI that has no such parameter.
  */
-async function* toTextChunks(lines: AsyncIterable<string>): AsyncGenerator<{ text: string }> {
+async function* toTextChunks(lines: AsyncIterable<string>, limit: number): AsyncGenerator<{ text: string }> {
 	let emitted = false;
 	let fallback = '';
+	let used = 0;
 	for await (const line of lines) {
 		let event: any;
 		try {
@@ -230,8 +291,16 @@ async function* toTextChunks(lines: AsyncIterable<string>): AsyncGenerator<{ tex
 		if (event?.type === 'stream_event') {
 			const inner = event.event;
 			if (inner?.type === 'content_block_delta' && inner.delta?.type === 'text_delta' && inner.delta.text) {
+				const chunk: string = inner.delta.text;
+				if (chunk.length >= limit - used) {
+					// Budget reached: returning ends the reader, whose `finally` kills the CLI process.
+					const tail = truncateToBudget(chunk, limit - used);
+					if (tail) yield { text: tail };
+					return;
+				}
+				used += chunk.length;
 				emitted = true;
-				yield { text: inner.delta.text };
+				yield { text: chunk };
 			}
 			continue;
 		}
@@ -243,7 +312,7 @@ async function* toTextChunks(lines: AsyncIterable<string>): AsyncGenerator<{ tex
 		}
 	}
 	// If no delta arrived (a CLI version without --include-partial-messages), use the final text.
-	if (!emitted && fallback) yield { text: fallback };
+	if (!emitted && fallback) yield { text: truncateToBudget(fallback, limit) };
 }
 
 interface ProcessResult {
