@@ -110,7 +110,12 @@ export async function buildScenePrompt(
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());
 	if (authorNote) parts.push("Author note: " + authorNote);
 	if (historicalContext) parts.push("Context of previous chapters:\n" + historicalContext);
-	if (outline) parts.push("Chapter outline: " + outline);
+	if (outline) {
+		parts.push("Chapter outline: " + outline);
+		if (storyText) {
+			parts.push("The outline describes what should happen in this chapter. Some of it may already be written in the manuscript above. Do not repeat what is already written — identify where the manuscript left off relative to the outline and continue from that point forward.");
+		}
+	}
 	if (targetWords) parts.push(storyText ? `Continue this draft and, as you approach the target, resolve the conflict and write a natural ending. Do not restart or repeat the text already written.` : `Write a new, independent chapter of approximately ${targetWords} words. Develop the current outline, reach a length close to the target, and leave room to close the chapter. Do not copy the previous context.`);
 	const defaultTextPromptId = settings.defaultTextPromptId;
 	const defaultTextPrompt = defaultTextPromptId

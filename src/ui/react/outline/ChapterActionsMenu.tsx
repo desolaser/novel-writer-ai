@@ -3,6 +3,7 @@ export interface ChapterActionsMenuProps {
 	hasFile: boolean;
 	onCreateManuscript: () => void;
 	onGenerateOutline: () => void;
+	onGenerateOutlineByMemory: () => void;
 	onGenerateMemory: () => void;
 	onGenerateDraft: () => void;
 	onLinkFile: () => void;
@@ -15,6 +16,7 @@ export function ChapterActionsMenu({
 	hasFile,
 	onCreateManuscript,
 	onGenerateOutline,
+	onGenerateOutlineByMemory,
 	onGenerateMemory,
 	onGenerateDraft,
 	onLinkFile,
@@ -26,7 +28,10 @@ export function ChapterActionsMenu({
 				Generate manuscript
 			</button>
 			<button disabled={batchBusy || !hasFile} onClick={onGenerateOutline}>
-				Generate Outline
+				Generate outline by manuscript
+			</button>
+			<button disabled={batchBusy} onClick={onGenerateOutlineByMemory}>
+				Generate outline by memory
 			</button>
 			<button disabled={batchBusy} onClick={onGenerateMemory}>
 				Generate memory

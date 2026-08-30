@@ -6,6 +6,8 @@ import { AddChapter } from "./AddChapter";
 export interface ActoSectionProps {
 	acto: Acto;
 	chapters: Capitulo[];
+	collapsed: boolean;
+	onToggleCollapse: () => void;
 	// Cabecera del acto
 	editingAct: boolean;
 	onStartEditingAct: () => void;
@@ -33,6 +35,7 @@ export interface ActoSectionProps {
 	onSaveOutline: (id: string, value: string) => void;
 	onOpenManuscript: (path: string) => void;
 	onGenerateChapterOutline: (chapter: Capitulo) => void;
+	onGenerateChapterOutlineByMemory: (chapter: Capitulo) => void;
 	onGenerateChapterMemory: (chapter: Capitulo) => void;
 	onGenerateChapterDraft: (chapter: Capitulo) => void;
 	onCreateChapterManuscript: (chapter: Capitulo) => void;
@@ -55,6 +58,8 @@ export function ActoSection(props: ActoSectionProps) {
 	const {
 		acto,
 		chapters,
+		collapsed,
+		onToggleCollapse,
 		editingAct,
 		onStartEditingAct,
 		onCommitActName,
@@ -80,6 +85,7 @@ export function ActoSection(props: ActoSectionProps) {
 		onSaveOutline,
 		onOpenManuscript,
 		onGenerateChapterOutline,
+		onGenerateChapterOutlineByMemory,
 		onGenerateChapterMemory,
 		onGenerateChapterDraft,
 		onCreateChapterManuscript,
@@ -101,6 +107,8 @@ export function ActoSection(props: ActoSectionProps) {
 			<ActoHeader
 				acto={acto}
 				chaptersCount={chapters.length}
+				collapsed={collapsed}
+				onToggleCollapse={onToggleCollapse}
 				editing={editingAct}
 				onStartEditing={onStartEditingAct}
 				onCommitName={onCommitActName}
@@ -112,7 +120,7 @@ export function ActoSection(props: ActoSectionProps) {
 				onDragEnd={onDragEndAct}
 				onDrop={onDropAct}
 			/>
-			{chapters.map((chapter) => {
+			{!collapsed && chapters.map((chapter) => {
 				const isExpanded = expanded.has(chapter.id_capitulo);
 				const isEditing = editingCap === chapter.id_capitulo;
 				const menuOpen = openChapterMenu === chapter.id_capitulo;
@@ -142,6 +150,9 @@ export function ActoSection(props: ActoSectionProps) {
 						onGenerateOutline={() =>
 							onGenerateChapterOutline(chapter)
 						}
+						onGenerateOutlineByMemory={() =>
+							onGenerateChapterOutlineByMemory(chapter)
+						}
 						onGenerateMemory={() =>
 							onGenerateChapterMemory(chapter)
 						}
@@ -162,14 +173,16 @@ export function ActoSection(props: ActoSectionProps) {
 					/>
 				);
 			})}
-			<AddChapter
-				adding={adding}
-				name={newChapterName}
-				onNameChange={onNewChapterNameChange}
-				onStartAdding={onStartAddingChapter}
-				onCancel={onCancelAddingChapter}
-				onAdd={onAddChapter}
-			/>
+			{!collapsed && (
+				<AddChapter
+					adding={adding}
+					name={newChapterName}
+					onNameChange={onNewChapterNameChange}
+					onStartAdding={onStartAddingChapter}
+					onCancel={onCancelAddingChapter}
+					onAdd={onAddChapter}
+				/>
+			)}
 		</section>
 	);
 }

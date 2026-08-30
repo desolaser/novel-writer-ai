@@ -20,6 +20,7 @@ export interface ChapterRowProps {
 	onToggleMenu: () => void;
 	onCreateManuscript: () => void;
 	onGenerateOutline: () => void;
+	onGenerateOutlineByMemory: () => void;
 	onGenerateMemory: () => void;
 	onGenerateDraft: () => void;
 	onLinkFile: () => void;
@@ -48,6 +49,7 @@ export function ChapterRow({
 	onToggleMenu,
 	onCreateManuscript,
 	onGenerateOutline,
+	onGenerateOutlineByMemory,
 	onGenerateMemory,
 	onGenerateDraft,
 	onLinkFile,
@@ -129,6 +131,7 @@ export function ChapterRow({
 						hasFile={Boolean(chapter.archivo)}
 						onCreateManuscript={onCreateManuscript}
 						onGenerateOutline={onGenerateOutline}
+						onGenerateOutlineByMemory={onGenerateOutlineByMemory}
 						onGenerateMemory={onGenerateMemory}
 						onGenerateDraft={onGenerateDraft}
 						onLinkFile={onLinkFile}

@@ -8,12 +8,14 @@ import {
 	orderedChapters,
 	buildChapterMemory,
 	buildOutlinePrompt,
+	buildOutlineByMemoryPrompt,
 	buildDraftSettings,
 	makeContextExcerpt,
 	isCorruptGeneration,
 	normalizeOutline,
 	requestDraftCompletion,
 } from "./outlineGenerators";
+import { buildStoryBibleBlock } from "../../../context/blueprintPrompt";
 
 /** Operaciones de IA / batch del outline, desacopladas de la UI. */
 export interface OutlineActions {
@@ -22,6 +24,7 @@ export interface OutlineActions {
 	generateAllMemory: () => Promise<void>;
 	generateChapterMemory: (chapter: Capitulo) => Promise<void>;
 	generateChapterOutline: (chapter: Capitulo) => Promise<void>;
+	generateChapterOutlineByMemory: (chapter: Capitulo) => Promise<void>;
 	generateAllOutlines: () => Promise<void>;
 	createAllManuscripts: () => Promise<void>;
 	createChapterManuscript: (chapter: Capitulo) => Promise<void>;
@@ -143,6 +146,56 @@ export function useOutlineActions(
 				return;
 			}
 			const prompt = buildOutlinePrompt(chapter, manuscript);
+			const api = new ApiFactory().createApi(
+				settings.proveedor.id,
+				settings.apiToken[settings.proveedor.id] ?? ""
+			);
+			const result = await requestDraftCompletion(
+				api,
+				prompt,
+				settings.proveedor.modelo,
+				800,
+				settings.aiOptions.temperature,
+				settings.aiOptions.topP
+			);
+			const outline = normalizeOutline(result.text ?? "");
+			if (!outline) {
+				setBatchStatus(`The AI did not return an outline for ${chapter.nombre}.`);
+				return;
+			}
+			await updateCapitulo(chapter.id_capitulo, { outline });
+			setBatchStatus(`Outline updated: ${chapter.nombre}`);
+		} catch (e: any) {
+			setBatchStatus("Error: " + (e?.message ?? String(e)));
+		} finally {
+			setBatchBusy(false);
+		}
+	}
+
+	async function generateChapterOutlineByMemory(chapter: Capitulo) {
+		if (!store) return;
+		const settings = plugin.settings.data;
+		if (!settings.proveedor.modelo) {
+			setBatchStatus("Configure a model in Settings.");
+			return;
+		}
+
+		setBatchBusy(true);
+		setBatchStatus(`Generating outline by memory: ${chapter.nombre}`);
+
+		try {
+			const list = chapters();
+			const chapterIndex = list.findIndex((c) => c.id_capitulo === chapter.id_capitulo);
+			const previousOutlines = list
+				.slice(0, Math.max(0, chapterIndex))
+				.filter((c) => c.outline?.trim())
+				.map((c) => `${c.nombre}:\n${c.outline.trim()}`)
+				.join("\n\n===\n\n");
+
+			const blueprint = await store.readBlueprint();
+			const storyBible = buildStoryBibleBlock(blueprint);
+
+			const prompt = buildOutlineByMemoryPrompt(chapter, previousOutlines, storyBible, blueprint);
 			const api = new ApiFactory().createApi(
 				settings.proveedor.id,
 				settings.apiToken[settings.proveedor.id] ?? ""
@@ -452,6 +505,7 @@ export function useOutlineActions(
 		generateAllMemory,
 		generateChapterMemory,
 		generateChapterOutline,
+		generateChapterOutlineByMemory,
 		generateAllOutlines,
 		createAllManuscripts,
 		createChapterManuscript,

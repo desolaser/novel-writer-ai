@@ -14,6 +14,7 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const authorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [contextBusy, setContextBusy] = useState(false);
 	const [storyBible, setStoryBible] = useState('');
+	const [includeOutline, setIncludeOutline] = useState(plugin.settings.data.includeOutlineInContext ?? true);
 
 	// Read-only here on purpose: the blueprint owns these values, this only makes
 	// the cost of carrying them visible next to memory and the author's note.
@@ -69,7 +70,24 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		const view = leaf?.view instanceof MarkdownView ? leaf.view : null;
 		const currentText = view?.editor?.getValue() ?? '';
 		const storyText = currentText.replace(/^---\s*[\s\S]*?---\s*/, '');
-			Promise.all([buildScenePrompt(plugin.app, store.activeFolderPath, settings, '', storyText), buildCodexYaml(plugin.app, store.activeFolderPath, undefined, storyText, settings.codexOptions.searchRange), getPromptMetaCascading(plugin.app, settings, 'memoryContent'), getPromptMetaCascading(plugin.app, settings, 'authorNote')])
+		const resolveOutline = async (): Promise<string> => {
+			if (!settings.includeOutlineInContext) return '';
+			const activeFile = plugin.app.workspace.getActiveFile();
+			if (!activeFile) return '';
+			const chapters = await store.listCapitulos();
+			const match = chapters.find(c => {
+				if (!c.archivo) return false;
+				const resolved = c.archivo.startsWith('escritura/')
+					? `${store.activeFolderPath}/${c.archivo}`
+					: c.archivo;
+				return resolved === activeFile.path;
+			});
+			return match?.outline?.trim() ?? '';
+		};
+		resolveOutline()
+			.then(outline =>
+				Promise.all([buildScenePrompt(plugin.app, store.activeFolderPath!, settings, outline, storyText), buildCodexYaml(plugin.app, store.activeFolderPath!, undefined, storyText, settings.codexOptions.searchRange), getPromptMetaCascading(plugin.app, settings, 'memoryContent'), getPromptMetaCascading(plugin.app, settings, 'authorNote')])
+			)
 			.then(([prompt, codex, resolvedMemory, resolvedAuthor]) => {
 				new ContextModal(plugin.app, prompt, storyText, codex, resolvedMemory, resolvedAuthor).open();
 			})
@@ -87,12 +105,39 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		new AuthorModal(plugin.app, plugin, setAuthorNote).open();
 	}, [plugin]);
 
+	const openStoryBibleModal = useCallback(() => {
+		new StoryBibleModal(plugin.app, storyBible).open();
+	}, [plugin, storyBible]);
+
+	const toggleIncludeOutline = useCallback((checked: boolean) => {
+		setIncludeOutline(checked);
+		plugin.settings.data.includeOutlineInContext = checked;
+		void plugin.settings.save();
+	}, [plugin]);
+
 	return (
 		<div className="options-view-container nw-config-legacy">
 			<h4>Options</h4>
 			<div className="options-section">
 				<h5>Context</h5><p className="setting-item-description">Get a full view of what's sent to the AI</p>
-				<div className="setting-item"><div className="setting-item-info"><div className="setting-item-name">View current context</div><div className="setting-item-description">Open a modal to see the full context sent to the AI</div></div><div className="setting-item-control"><button className="mod-cta nw-config-context-button" onClick={openContextModal} disabled={contextBusy || !store?.activeFolderPath}>{contextBusy ? 'Building...' : 'Current Context'}</button></div></div>
+				<div className="setting-item"><div className="setting-item-info"><div className="setting-item-name">
+					View current context
+				</div>
+				<div className="setting-item-description">
+					Open a modal to see the full context sent to the AI
+				</div>
+			</div>
+			<div className="setting-item-control">
+				<button className="mod-cta nw-config-context-button" onClick={openContextModal} disabled={contextBusy || !store?.activeFolderPath}>{contextBusy ? 'Building...' : 'Current Context'}</button></div></div>
+				<div className="setting-item">
+					<div className="setting-item-info">
+						<div className="setting-item-name">Include chapter outline</div>
+						<div className="setting-item-description">Send the current chapter's outline as context for autocompletion</div>
+					</div>
+					<div className="setting-item-control">
+						<input type="checkbox" checked={includeOutline} onChange={e => toggleIncludeOutline(e.target.checked)} />
+					</div>
+				</div>
 			</div>
 			<div className="options-section">
 				<h5>Story Bible</h5>
@@ -104,6 +149,9 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					</div>
 				) : (
 					<p className="setting-item-description nw-muted">Not in use: either the novel has no blueprint yet, or it is switched off in Novel Setup.</p>
+				)}
+				{storyBible && (
+					<div className="setting-item"><div className="setting-item-info"><div className="setting-item-name">Story Bible Modal</div><div className="setting-item-description">Open a modal to view the full story bible</div></div><div className="setting-item-control"><button className="mod-cta" onClick={openStoryBibleModal}>[ ]</button></div></div>
 				)}
 			</div>
 			<div className="options-section">
@@ -178,6 +226,36 @@ class MemoryModal extends PromptMetaModal {
 class AuthorModal extends PromptMetaModal {
 	constructor(app: App, plugin: NovelWriterPlugin, onValueChange: (value: string) => void) {
 		super(app, plugin, 'authorNote', "Author's Note", 'Info placed here will strongly influence AI output.', onValueChange);
+	}
+}
+
+/** Read-only modal to view the story bible at full size. */
+class StoryBibleModal extends Modal {
+	private readonly content: string;
+
+	constructor(app: App, content: string) {
+		super(app);
+		this.content = content;
+	}
+
+	onOpen() {
+		const { contentEl, modalEl } = this;
+		modalEl.addClass('context-modal-large');
+		contentEl.empty();
+		contentEl.createEl('h4', { text: 'Story Bible' });
+		contentEl.createEl('p', { text: 'What the novel is, sent with every draft and chat request. Edit it in Novel Setup.' });
+		const label = contentEl.createDiv('textarea-label');
+		label.createSpan({ text: 'Sent to the AI: ' });
+		label.createSpan({ text: `${estimateTokens(this.content)} tokens`, cls: 'token-count' });
+		const section = contentEl.createDiv('options-section');
+		const wrapper = section.createDiv('textarea-wrapper');
+		const textarea = wrapper.createEl('textarea', { attr: { rows: '38' } });
+		textarea.value = this.content;
+		textarea.readOnly = true;
+	}
+
+	onClose() {
+		this.contentEl.empty();
 	}
 }
 

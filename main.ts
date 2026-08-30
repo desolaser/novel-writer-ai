@@ -225,7 +225,22 @@ export default class NovelWriterPlugin extends Plugin {
 		const afterCursor = fullText.slice(beforeCursor.length);
 		try {
 			const settings = this.settings.data;
-			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, '', storyBeforeCursor);
+			let chapterOutline = '';
+			if (settings.includeOutlineInContext && this.store.activeFolderPath) {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (activeFile) {
+					const chapters = await this.store.listCapitulos();
+					const match = chapters.find(c => {
+						if (!c.archivo) return false;
+						const resolved = c.archivo.startsWith('escritura/')
+							? `${this.store.activeFolderPath}/${c.archivo}`
+							: c.archivo;
+						return resolved === activeFile.path;
+					});
+					if (match?.outline?.trim()) chapterOutline = match.outline;
+				}
+			}
+			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, chapterOutline, storyBeforeCursor);
 			const result = await this.requestCompletion(prompt, 'Generating text');
 			let generated = '';
 			if (result.text) {

@@ -38,6 +38,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [draggedChapter, setDraggedChapter] = useState<string | null>(null);
 	const [reorderingAct, setReorderingAct] = useState<string | null>(null);
 	const [draggedAct, setDraggedAct] = useState<string | null>(null);
+	const [collapsedActs, setCollapsedActs] = useState<Set<string>>(new Set());
 	const [targetWords, setTargetWords] = useState(
 		plugin.settings.data.draftWordCount || 2000
 	);
@@ -51,6 +52,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		generateAllMemory,
 		generateChapterMemory,
 		generateChapterOutline,
+		generateChapterOutlineByMemory,
 		generateAllOutlines,
 		createAllManuscripts,
 		createChapterManuscript,
@@ -188,27 +190,47 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		const targetChapter = capitulos.find(
 			(item) => item.id_capitulo === targetId
 		);
-		if (!chapter || !targetChapter || chapter.id_acto !== targetChapter.id_acto)
-			return;
-
-		const chaptersInAct = capitulos
-			.filter((item) => item.id_acto === chapter.id_acto)
-			.sort((first, second) => first.orden - second.orden);
-		const sourceIndex = chaptersInAct.findIndex(
-			(item) => item.id_capitulo === chapter.id_capitulo
-		);
-		const targetIndex = chaptersInAct.findIndex(
-			(item) => item.id_capitulo === targetChapter.id_capitulo
-		);
-		const [movedChapter] = chaptersInAct.splice(sourceIndex, 1);
-		chaptersInAct.splice(targetIndex, 0, movedChapter);
+		if (!chapter || !targetChapter) return;
 
 		closeChapterMenu();
 		setReorderingChapter(chapter.id_capitulo);
 		try {
-			for (const [orden, item] of chaptersInAct.entries()) {
-				if (item.orden !== orden)
-					await updateCapitulo(item.id_capitulo, { orden });
+			if (chapter.id_acto === targetChapter.id_acto) {
+				const chaptersInAct = capitulos
+					.filter((item) => item.id_acto === chapter.id_acto)
+					.sort((first, second) => first.orden - second.orden);
+				const sourceIndex = chaptersInAct.findIndex(
+					(item) => item.id_capitulo === chapter.id_capitulo
+				);
+				const targetIndex = chaptersInAct.findIndex(
+					(item) => item.id_capitulo === targetChapter.id_capitulo
+				);
+				const [movedChapter] = chaptersInAct.splice(sourceIndex, 1);
+				chaptersInAct.splice(targetIndex, 0, movedChapter);
+				for (const [orden, item] of chaptersInAct.entries()) {
+					if (item.orden !== orden)
+						await updateCapitulo(item.id_capitulo, { orden });
+				}
+			} else {
+				const sourceAct = capitulos
+					.filter((item) => item.id_acto === chapter.id_acto && item.id_capitulo !== chapter.id_capitulo)
+					.sort((first, second) => first.orden - second.orden);
+				for (const [orden, item] of sourceAct.entries()) {
+					if (item.orden !== orden)
+						await updateCapitulo(item.id_capitulo, { orden });
+				}
+				const targetAct = capitulos
+					.filter((item) => item.id_acto === targetChapter.id_acto)
+					.sort((first, second) => first.orden - second.orden);
+				const targetIndex = targetAct.findIndex(
+					(item) => item.id_capitulo === targetChapter.id_capitulo
+				);
+				targetAct.splice(targetIndex, 0, chapter);
+				await updateCapitulo(chapter.id_capitulo, { id_acto: targetChapter.id_acto });
+				for (const [orden, item] of targetAct.entries()) {
+					if (item.orden !== orden)
+						await updateCapitulo(item.id_capitulo, { orden });
+				}
 			}
 		} finally {
 			setReorderingChapter(null);
@@ -235,6 +257,13 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			setReorderingAct(null);
 		}
 	};
+
+	const toggleActCollapse = (id: string) =>
+		setCollapsedActs((prev) => {
+			const next = new Set(prev);
+			next.has(id) ? next.delete(id) : next.add(id);
+			return next;
+		});
 
 	const openChapter = (path: string) => {
 		const fullPath = path.startsWith("escritura/")
@@ -275,6 +304,8 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 						key={a.id_acto}
 						acto={a}
 						chapters={caps}
+						collapsed={collapsedActs.has(a.id_acto)}
+						onToggleCollapse={() => toggleActCollapse(a.id_acto)}
 						editingAct={editingAct === a.id_acto}
 						onStartEditingAct={() => setEditingAct(a.id_acto)}
 						onCommitActName={(name) => commitActName(a, name)}
@@ -305,6 +336,10 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 						onGenerateChapterOutline={(chapter) => {
 							closeChapterMenu();
 							void generateChapterOutline(chapter);
+						}}
+						onGenerateChapterOutlineByMemory={(chapter) => {
+							closeChapterMenu();
+							void generateChapterOutlineByMemory(chapter);
 						}}
 						onGenerateChapterMemory={(chapter) => {
 							closeChapterMenu();

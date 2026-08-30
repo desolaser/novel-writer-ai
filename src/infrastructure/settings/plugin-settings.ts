@@ -82,6 +82,8 @@ export interface PluginSettings {
 	defaultTextPromptId: string;
 	/** How to generate a name for new chats after the first message. */
 	chatNameGeneration: 'local' | 'active_model';
+	/** Whether to include the current chapter's outline in the autocomplete context. */
+	includeOutlineInContext: boolean;
 }
 
 /** Paleta de colores predeterminada. */
@@ -133,6 +135,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	defaultChatPromptId: '',
 	defaultTextPromptId: '',
 	chatNameGeneration: 'active_model',
+	includeOutlineInContext: true,
 };
 
 /** Crea los dos prompts por defecto y retorna el array inicial. */

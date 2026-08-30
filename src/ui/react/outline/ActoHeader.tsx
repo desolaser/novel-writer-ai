@@ -5,6 +5,8 @@ import { InlineRename } from "./InlineRename";
 export interface ActoHeaderProps {
 	acto: Acto;
 	chaptersCount: number;
+	collapsed: boolean;
+	onToggleCollapse: () => void;
 	editing: boolean;
 	onStartEditing: () => void;
 	onCommitName: (name: string) => void;
@@ -21,6 +23,8 @@ export interface ActoHeaderProps {
 export function ActoHeader({
 	acto,
 	chaptersCount,
+	collapsed,
+	onToggleCollapse,
 	editing,
 	onStartEditing,
 	onCommitName,
@@ -52,6 +56,14 @@ export function ActoHeader({
 				onDragEnd={onDragEnd}
 			>
 				⠿
+			</button>
+			<button
+				className="nw-btn-link nw-outline-expand"
+				onClick={onToggleCollapse}
+				title={collapsed ? "Expand act" : "Collapse act"}
+				aria-label={collapsed ? "Expand act" : "Collapse act"}
+			>
+				{collapsed ? "▸" : "▾"}
 			</button>
 			{editing ? (
 				<InlineRename

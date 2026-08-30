@@ -1,4 +1,5 @@
 import type { Acto, Capitulo } from "../../../domain";
+import type { NovelBlueprint } from "../../../domain/entities/NovelBlueprint";
 
 /** Helpers puros del outline: sin React, sin Obsidian, sin efectos. */
 
@@ -28,6 +29,43 @@ export function buildChapterMemory(
 /** Prompt de resumen de un capítulo ya escrito (generación de outline). */
 export function buildOutlinePrompt(chapter: Capitulo, manuscript: string): string {
 	return `Summarize the following chapter in ONE SINGLE short PARAGRAPH, about 80 to 120 words. Prioritize a complete and finished response; do not cut it off in the middle of a sentence. Write a brief narrative summary in continuous prose. Do not use line breaks, bullets, numbered lists, dashes, headings, labels, Markdown formatting, or presentation structure. Mention only the essential events in order, the important changes to the characters, and the final state of the plot. Do not invent information, do not write the chapter, and return only that single paragraph, without any introduction or additional comments.\n\nChapter title: ${chapter.nombre}\n\nChapter text:\n${manuscript}`;
+}
+
+/** Prompt to generate an outline from previous chapters' outlines. */
+export function buildOutlineByMemoryPrompt(
+	chapter: Capitulo,
+	previousOutlines: string,
+	storyBible: string,
+	blueprint: NovelBlueprint | null,
+): string {
+	const parts: string[] = [];
+	parts.push('You are helping an author outline a novel, chapter by chapter.');
+	parts.push('Write only outlines. Never write the prose of the chapter itself.');
+	parts.push('');
+	if (storyBible) {
+		parts.push(storyBible);
+		parts.push('');
+	}
+	if (previousOutlines) {
+		parts.push('--- PREVIOUS CHAPTERS ---');
+		parts.push(previousOutlines);
+		parts.push('--- END PREVIOUS CHAPTERS ---');
+		parts.push('');
+	}
+	parts.push(`TASK: write the outline for the next chapter titled "${chapter.nombre}".`);
+	parts.push('');
+	parts.push('Rules:');
+	parts.push('- One single paragraph, between 80 and 120 words.');
+	parts.push('- Continuous prose: no bullets, no lists, no headings, no markdown, no dialogue.');
+	parts.push('- Tell what happens, in order, and how it changes the characters or the plot.');
+	parts.push('- Keep continuity with the previous chapters; do not repeat what already happened.');
+	parts.push('- This is a suggestion for the author. Be creative but stay coherent with the story so far.');
+	parts.push('- Prioritize a complete and finished response; do not cut it off in the middle of a sentence.');
+	parts.push('- Return only the outline paragraph, without any introduction or additional comments.');
+	if (!storyBible && blueprint?.language?.trim()) {
+		parts.push(`- Write the outline in ${blueprint.language.trim()}, regardless of the language of these instructions.`);
+	}
+	return parts.join('\n');
 }
 
 /** Limpia y recorta un texto para usarlo como contexto histórico. */
