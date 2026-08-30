@@ -20,6 +20,7 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 		containerEl.createEl('h1', { text: 'Novel Writer AI' });
 		this.renderModels(containerEl);
 		this.renderGlobalPrompts(containerEl);
+		this.renderChatOptions(containerEl);
 		this.renderCodexOptions(containerEl);
 	}
 
@@ -85,6 +86,23 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 			render();
 		};
 		modal.open();
+	}
+
+	private renderChatOptions(host: HTMLElement): void {
+		const settings = this.plugin.settings.data;
+		host.createEl('h3', { text: 'Chat Options' });
+		new Setting(host)
+			.setName('Chat name generation')
+			.setDesc('How to generate a name for new chats after the first message.')
+			.addDropdown(dropdown => {
+				dropdown.addOption('local', 'Local heuristic');
+				dropdown.addOption('active_model', 'Active model');
+				dropdown.setValue(settings.chatNameGeneration ?? 'active_model');
+				dropdown.onChange(async value => {
+					settings.chatNameGeneration = value as 'local' | 'active_model';
+					await this.plugin.settings.save();
+				});
+			});
 	}
 
 	private renderCodexOptions(host: HTMLElement): void {

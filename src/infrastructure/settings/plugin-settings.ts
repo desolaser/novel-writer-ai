@@ -80,6 +80,8 @@ export interface PluginSettings {
 	defaultChatPromptId: string;
 	/** ID del prompt de texto por defecto. */
 	defaultTextPromptId: string;
+	/** How to generate a name for new chats after the first message. */
+	chatNameGeneration: 'local' | 'active_model';
 }
 
 /** Paleta de colores predeterminada. */
@@ -130,6 +132,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	customPrompts: createDefaultPrompts(),
 	defaultChatPromptId: '',
 	defaultTextPromptId: '',
+	chatNameGeneration: 'active_model',
 };
 
 /** Crea los dos prompts por defecto y retorna el array inicial. */

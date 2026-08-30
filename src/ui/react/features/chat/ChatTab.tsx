@@ -21,6 +21,7 @@ import { formatToolResults } from '../../../../utils/toolCallParsing';
 import { parseToolAnswer } from '../../../../tools/parseToolAnswer';
 import { useToolRunner } from './tools/useToolRunner';
 import { ToolCallCard } from './tools/ToolCallCard';
+import { generateChatName } from '../../../../utils/chatNameGeneration';
 
 type ContextKind = ChatContextKind;
 type ContextItem = ChatContextItem;
@@ -245,21 +246,22 @@ class ChatContextModal extends Modal {
 }
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { 
-		activeChatId, 
-		selectChat, 
-		appendMensaje, 
-		createChat, 
-		store, 
-		categorias, 
-		entradas, 
-		capitulos, 
-		setSidebarTab, 
-		setEntryThumbnail, 
-		updateMensaje, 
-		deleteMensaje, 
-		saveChatContext, 
-		getCustomPrompts, 
+	const {
+		activeChatId,
+		selectChat,
+		appendMensaje,
+		createChat,
+		renameChat,
+		store,
+		categorias,
+		entradas,
+		capitulos,
+		setSidebarTab,
+		setEntryThumbnail,
+		updateMensaje,
+		deleteMensaje,
+		saveChatContext,
+		getCustomPrompts,
 		getDefaultChatPrompt,
 	} = useNovelWriter();
 	const [input, setInput] = useState('');
@@ -702,12 +704,11 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		const t = input.trim();
 		if (!t) return;
 		let chatId = activeChatId;
+		const isFirstUserMessage = !mensajes.some(m => m.role === 'user');
 		if (!chatId) {
 			const created = await createChat('Unnamed chat');
 			if (!created) return;
 			chatId = created.id_chat;
-			// Persist current context to the new chat before selecting it,
-			// so the effect that loads the chat file picks up the context.
 			await saveChatContext(chatId, contextItems, characterContext, impersonateContext);
 			selectChat(chatId);
 		}
@@ -730,6 +731,10 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			setMensajes(m => [...m, { id_mensaje: 'tmp_e', role: 'assistant', mensaje: err, created_at: '' }]);
 		}
 		setBusy(false);
+		if (isFirstUserMessage && chatId) {
+			const strategy = plugin.settings.data.chatNameGeneration ?? 'active_model';
+			void generateChatName(t, strategy, plugin).then(name => renameChat(chatId!, name));
+		}
 	};
 
 	const closeImageDropdown = useCallback(() => setImageDropdown(null), []);
