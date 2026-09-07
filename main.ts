@@ -1,731 +1,444 @@
-import {
-	Editor, 
-	MarkdownFileInfo, 
-	MarkdownView, 
-	Notice, 
-	Plugin, 
-	WorkspaceLeaf,
-	TFile
-} from 'obsidian';
-import { AIPluginSettingsTab } from './src/ai-plugin-settings-tab';
+import { Plugin, WorkspaceLeaf, Notice, App, Modal, Setting, Editor, Menu, MarkdownView, TFile, TFolder } from 'obsidian';
+import { CompanionView, VIEW_TYPE_COMPANION } from './src/ui/views/CompanionView';
+import { OutlineView, VIEW_TYPE_OUTLINE } from './src/ui/views/OutlineView';
+import { NovelStore } from './src/infrastructure/storage/store';
+import { SettingsService } from './src/infrastructure/settings/settings-service';
+import { NovelWriterSettingsTab } from './src/ai-plugin-settings-tab-v2';
+import { prepareImport, runImport } from './src/utils/lorebookImport';
+import { buildScenePrompt } from './src/context/promptBuilder';
 import { ApiFactory } from './src/factories/api-factory';
-import { ApiInterface } from 'src/interfaces/api-interface';
-import { CompletionResponse } from 'src/types/CompletionResponse';
-import providers, { ApiProvider } from 'src/constants/providers';
-import { extractLorebookMeta } from './src/utils/lorebook';
-import { getPromptMetaCascading } from './src/utils/prompt-meta';
-import { extractValueFromFrontmatter } from './src/utils/frontmatter';
-import { OptionsView, VIEW_TYPE_OPTIONS } from './src/views/OptionsView';
-import ContextModal from './src/modals/ContextModal';
+import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
+import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
+import { openEntryModal } from './src/ui/react/features/codex/modals/CodexEntryModal';
 
-export type WriterAIPluginSettings = {
-	selectedApi: ApiProvider;
-	apiToken: Record<string, string>;
-	defaultModel: string;
-	stream: boolean;
-	prefixPrompt: string;
-	maxTokens: number;
-	maxContextTokens: number;
-	presencePenalty: number;
-	frequencyPenalty: number;
-	temperature: number;
-	topP: number;
-	lorebook: { 
-		searchRange: number,
-		folder: string;
-		prompt: string;
-	}
-	lorebookPercentage: number;
-	memoryContent: string;
-	authorNote: string;
-}
+// onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
+// callbacks left by the previous instance. Keep the lock outside the class so
+// those instances share the same reservation while creating the leaves.
+const AUTO_OPEN_LOCK = '__novelWriterAutoOpenLock';
+type MenuItemWithSubmenu = { setSubmenu?: () => Menu };
 
-const DEFAULT_SETTINGS: WriterAIPluginSettings = {
-    selectedApi: 'openrouter',
-    apiToken: Object.keys(providers).reduce((acc: any, provider: string) => ({
-		[provider]: '',
-		...acc
-	}), {}),
-    defaultModel: '',
-	stream: false,
-	prefixPrompt: "Continue the text following the narration style of the user: ",
-	maxTokens: 512,
-	maxContextTokens: 32764,
-	presencePenalty: 0,
-	frequencyPenalty: 0,
-	temperature: 1,
-	topP: 0.01,
-	lorebook: { 
-		searchRange: 1000,
-		folder: "Lorebook",
-		prompt: `You are an expert worldbuilding assistant. 
-Given the following description, generate a lorebook entry in markdown format for a story-writing tool. 
-The entry MUST start with a YAML frontmatter block with a "keys" field (a list of keywords relevant to the entry, in lower case, comma separated or as a YAML array). 
-After the frontmatter, write a concise but detailed definition or description for the concept. 
-Do not include anything except the frontmatter and the lorebook entry.`,
-	},	
-	lorebookPercentage: 25,
-	memoryContent: '',
-	authorNote: '',
-}
-
-export default class WriterAIPlugin extends Plugin {
-	settings: WriterAIPluginSettings = DEFAULT_SETTINGS;
-	apiFactory = new ApiFactory();
-	api: ApiInterface | null = null;
+export default class NovelWriterPlugin extends Plugin {
+	store!: NovelStore;
+	settings!: SettingsService;
+	private openingWorkingViews = false;
+	private operationStatusBarItem: HTMLElement | null = null;
+	private codexHighlighter: CodexHighlighterControl | null = null;
 
 	async onload() {
-		await this.loadSettings();
+		this.settings = new SettingsService(this);
+		await this.settings.load();
 
-		this.registerView(
-			VIEW_TYPE_OPTIONS,
-			(leaf) => new OptionsView(leaf, this)
-		);
-		this.activateView();
-		
-		this.registerEvent(
-			this.app.workspace.on('editor-menu', (menu: any, editor: Editor, view) => {
-				if (!view) {
-					new Notice('Por favor, seleccionar un archivo markdown.');
-					return;
+		this.store = new NovelStore(this.app);
+		await this.store.refresh();
+
+		if (this.settings.data.lastActiveNovelId) {
+			await this.store.setActive(this.settings.data.lastActiveNovelId);
+		}
+
+		const { extension, control } = createCodexHighlighter({
+			onOpenEntry: (entryId) => openEntryModal(this, entryId),
+		});
+		this.codexHighlighter = control;
+		this.registerEditorExtension(extension);
+
+		this.registerView(VIEW_TYPE_COMPANION, (leaf) => new CompanionView(leaf, this));
+		this.registerView(VIEW_TYPE_OUTLINE, (leaf) => new OutlineView(leaf, this));
+		this.registerEvent(this.app.vault.on('rename', (file) => {
+			const folderPath = this.store.activeFolderPath;
+			if (!(file instanceof TFile) || file.extension !== 'md' || !folderPath || !file.path.startsWith(`${folderPath}/`)) return;
+			void import('./src/ui/react/store/novelWriterStore').then(({ useNovelWriter }) =>
+				useNovelWriter.getState().reloadAll()
+			);
+		}));
+		// Restore both working views automatically once Obsidian has finished restoring its layout.
+		// Obsidian may restore persisted ItemViews just after layout-ready. Wait a
+		// moment so we do not create a second Companion before that restoration is visible.
+		this.app.workspace.onLayoutReady(() => { window.setTimeout(() => { void this.openWorkingViews(); }, 1000); });
+
+		void import('./src/ui/react/store/novelWriterStore').then(({ useNovelWriter }) => {
+			const initial = useNovelWriter.getState();
+			let prevEntradas = initial.entradas;
+			let prevCategorias = initial.categorias;
+			if (prevEntradas.length) this.codexHighlighter?.update(prevEntradas, prevCategorias);
+			const unsub = useNovelWriter.subscribe((s) => {
+				if (s.entradas !== prevEntradas || s.categorias !== prevCategorias) {
+					prevEntradas = s.entradas;
+					prevCategorias = s.categorias;
+					this.codexHighlighter?.update(s.entradas, s.categorias);
 				}
+			});
+			this.register(() => unsub());
+		});
 
-				menu.addItem((item: any) => {
-					item
-						.setTitle('Generate text')
-						.setIcon('text')
-						.onClick(async () => {
-							const file = 'file' in view ? view.file : undefined;
-							await this.generateCompletionAtSelection(editor, file ?? undefined);
-						});
-				});
+		this.addRibbonIcon('book', 'Generate text', async () => { await this.generateEditorText(); });
+		this.registerEvent(this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor) => {
+			this.addEditorMenuItems(menu, editor);
+		}));
 
-				menu.addItem((item: any) => {
-					item
-						.setTitle('Generate lorebook entry')
-						.setIcon('text')
-						.onClick(async () => {
-							await this.generateLorebookEntry(editor);
-						});
-				});
+		this.addCommand({ id: 'open-novel-writer', name: 'Open Novel Writer Companion', callback: async () => { await this.activateCompanionView(); } });
+		this.addCommand({ id: 'open-novel-writer-outline', name: 'Open Novel Writer Outline', callback: async () => { await this.activateOutlineView(); } });
+		this.addCommand({ id: 'create-novel', name: 'Create new novel', callback: async () => { await this.createNovel(); } });
+		this.addCommand({ id: 'import-legacy-lorebook', name: 'Import legacy lorebook', callback: async () => { await this.importLorebook(); } });
+		this.addCommand({ id: 'generate-text', name: 'Generate text', editorCallback: async (_editor) => { await this.generateEditorText(_editor); } });
+		this.addCommand({ id: 'summarize-selection', name: 'Summarize', editorCallback: async (editor) => { await this.transformSelection(editor, 'Summarize the selected text. Return only the summary.'); } });
+		this.addCommand({ id: 'expand-selection', name: 'Expand', editorCallback: async (editor) => { await this.transformSelection(editor, 'Expand the selected text with useful detail while preserving its meaning and style. Return only the expanded text.'); } });
+		this.addCommand({ id: 'shorten-selection', name: 'Shorten', editorCallback: async (editor) => { await this.transformSelection(editor, 'Shorten the selected text without losing its essential meaning. Return only the shortened text.'); } });
+		this.addCommand({ id: 'rephrase-selection', name: 'Rephrase', editorCallback: async (editor) => { await this.transformSelection(editor, 'Rephrase the selected text clearly and naturally. Return only the rephrased text.'); } });
+		this.addCommand({ id: 'correct-selection', name: 'Correct', editorCallback: async (editor) => { await this.correctEditorText(editor); } });
+		this.addCommand({ id: 'translate-selection-spanish', name: 'Translate to Spanish', editorCallback: async (editor) => { await this.transformSelection(editor, 'Translate the selected text to Spanish. Return only the translation.'); } });
+		this.addCommand({ id: 'translate-selection-english', name: 'Translate to English', editorCallback: async (editor) => { await this.transformSelection(editor, 'Translate the selected text to English. Return only the translation.'); } });
 
-				menu.addItem((item: any) => {
-					item
-						.setTitle('Traduce text to spanish')
-						.setIcon('text')
-						.onClick(async () => {
-							await this.traduceText(editor);
-						});
-				});
+		this.addSettingTab(new NovelWriterSettingsTab(this.app, this)); //
+	}
 
-				menu.addItem((item: any) => {
-					item
-						.setTitle('Summarize text')
-						.setIcon('text')
-						.onClick(async () => {
-							await this.summarizeText(editor);
-						});
-				});
-			})
-		);
+	async activateCompanionView() {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_COMPANION);
+		let leaf: WorkspaceLeaf | null = null;
+		if (leaves.length > 0) leaf = leaves[0];
+		else {
+			leaf = this.app.workspace.getLeftLeaf(true);
+			if (leaf) await leaf.setViewState({ type: VIEW_TYPE_COMPANION, active: true });
+		}
+		if (leaf) this.app.workspace.revealLeaf(leaf);
+	}
+	async activateOutlineView() { const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OUTLINE); let leaf = leaves[0]; if (!leaf) { leaf = this.app.workspace.getRightLeaf(true); if (leaf) await leaf.setViewState({ type: VIEW_TYPE_OUTLINE, active: true }); } if (leaf) this.app.workspace.revealLeaf(leaf); }
+	async openOutlineChapter(chapterId: string) {
+		await this.activateOutlineView();
+		// Let React mount (or reveal) the outline before asking it to expand and focus
+		// the requested chapter.
+		window.setTimeout(() => window.dispatchEvent(new CustomEvent('novel-writer:open-outline-chapter', { detail: chapterId })), 50);
+	}
 
-		const selectedApi = this.settings.selectedApi;
-        if (selectedApi) {
-            this.api = this.apiFactory.createApi(
-                this.settings.selectedApi,
-                this.settings.apiToken[this.settings.selectedApi]
-            );
-        }
-		
-		this.addRibbonIcon('text', 'Generate text', async () => {
-			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-			if (!view) {
-				new Notice('Por favor, seleccionar un archivo markdown.');
+	/** Opens the Companion on the left and the Outline on the right on every plugin load. */
+	async openWorkingViews() {
+		const runtime = globalThis as typeof globalThis & { [AUTO_OPEN_LOCK]?: boolean };
+		if (this.openingWorkingViews || runtime[AUTO_OPEN_LOCK]) return;
+		this.openingWorkingViews = true;
+		runtime[AUTO_OPEN_LOCK] = true;
+		try {
+			this.removeDuplicateViews(VIEW_TYPE_COMPANION);
+			this.removeDuplicateViews(VIEW_TYPE_OUTLINE);
+			await this.activateCompanionView();
+			await this.activateOutlineView();
+		} finally {
+			this.openingWorkingViews = false;
+			runtime[AUTO_OPEN_LOCK] = false;
+		}
+	}
+
+	private removeDuplicateViews(viewType: string) {
+		const leaves = this.app.workspace.getLeavesOfType(viewType);
+		for (const duplicate of leaves.slice(1)) duplicate.detach();
+	}
+
+	async createNovel() {
+		const result = await promptNovel(this.app);
+		if (!result) return;
+		if (!result.nombre.trim()) { new Notice('The name is required.'); return; }
+		await this.store.create(result.nombre.trim(), result.autor ?? '', '', result.thumbnail ?? null);
+		this.settings.data.lastActiveNovelId = this.store.activeNovelId;
+		await this.settings.save();
+		new Notice(`Novel "${result.nombre}" created.`);
+		const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
+		await useNovelWriter.getState().refreshNovels();
+		if (this.store.activeNovelId) await useNovelWriter.getState().setActiveNovel(this.store.activeNovelId);
+	}
+
+	async importLorebook() {
+		new Notice('Starting lorebook import...');
+		try {
+			if (!this.store.activeNovelId) { new Notice('Import canceled: select or create a novel first.'); return; }
+			const folderPath = this.store.activeFolderPath;
+			if (!folderPath) { new Notice('Import canceled: no active novel.'); return; }
+			new Notice('Select the lorebook folder you want to import.');
+			const folder = await pickLorebookFolder(this.app);
+			if (!folder) { new Notice('Import canceled: no folder was selected.'); return; }
+			new Notice('Processing folder: ' + folder.path);
+			const plan = await prepareImport(this.app, folder.path);
+			if (plan.subfolders.length === 0 && plan.rootFiles.length === 0) { new Notice('No Markdown files found in ' + folder.path); return; }
+			new Notice(`Found ${plan.rootFiles.length} entries in the root and ${plan.subfolders.length} subfolders.`);
+			// Import the complete selected folder recursively. The old second modal
+			// made it too easy to confirm an empty selection and import nothing.
+			const selected = plan.subfolders.map(subfolder => subfolder.name);
+			new Notice(`Importing ${plan.rootFiles.length + plan.subfolders.reduce((total, subfolder) => total + subfolder.count, 0)} Markdown files...`);
+			new Notice('Importing lorebook...');
+			const res = await runImport(this.app, folderPath, this.store.activeNovelId, plan, selected);
+			new Notice(`Imported ${res.entradas} entries and ${res.categoriasCreadas} categories from ${folder.path}.`);
+			const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
+			await useNovelWriter.getState().reloadAll();
+		} catch (error: any) { new Notice('Error importing lorebook: ' + (error?.message ?? String(error))); }
+	}
+
+	private addEditorMenuItems(menu: Menu, editor: Editor) {
+		menu.addItem(item => item.setTitle('Generate text').setIcon('sparkles').onClick(() => { void this.generateEditorText(editor); }));
+		menu.addSeparator();
+		const actions: Array<[string, string]> = [
+			['Summarize', 'summarize-selection'], ['Expand', 'expand-selection'], ['Shorten', 'shorten-selection'],
+			['Rephrase', 'rephrase-selection'], ['Correct', 'correct-selection'],
+		];
+		for (const [title, id] of actions) menu.addItem(item => item.setTitle(title).onClick(() => { void this.runEditorCommand(id, editor); }));
+		menu.addItem(item => {
+			// setSubmenu is available in current Obsidian builds but is not present in
+			// older versions of the bundled type declarations.
+			const submenu = (item as unknown as MenuItemWithSubmenu).setSubmenu?.();
+			if (!submenu) {
+				item.setTitle('Translate to Spanish').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to Spanish. Return only the translation.'); });
+				menu.addItem(child => child.setTitle('Translate to English').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to English. Return only the translation.'); }));
 				return;
 			}
-
-			await this.generateCompletionAtSelection(view.editor, view.file ?? undefined);
+			item.setTitle('Translate to');
+			submenu.addItem(child => child.setTitle('Spanish').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to Spanish. Return only the translation.'); }));
+			submenu.addItem(child => child.setTitle('English').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to English. Return only the translation.'); }));
 		});
-
-        this.addSettingTab(new AIPluginSettingsTab(this.app, this));
-
-        this.addCommand({
-            id: 'generate-text',
-            name: 'Generate text with AI',
-            editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-                await this.generateCompletionAtSelection(editor, view.file ?? undefined);
-            }
-        });
-
-		this.addCommand({
-			id: 'generate-lorebook-entry',
-			name: 'Generate Lorebook Entry from Note',
-			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-				await this.generateLorebookEntry(editor);
-			}
-		});
-
-		this.addCommand({
-			id: 'split-into-chapters',
-			name: 'Split note into chapters',
-			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-				await this.splitIntoChapters(editor);
-			}
-		});
-
-		this.addCommand({
-			id: 'crear-nuevo-capitulo',
-			name: 'Create new chapter',
-			editorCallback: async (editor, view: MarkdownView | MarkdownFileInfo) => {
-				await this.crearNuevoCapitulo(editor);
-			}
-		});
-
-		this.addCommand({
-			id: 'open-context-modal',
-			name: 'Open Context Modal',
-			callback: () => {
-				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-				
-				if (!view) {
-					new Notice('Por favor, abre un archivo markdown primero.');
-					return;
-				}
-			
-				new ContextModal(this.app, this).open();
-			}
-		});
-
-        console.log('AI Plugin loaded');
 	}
 
-	onunload() {
-        console.log('AI Plugin unloaded');
+	private async runEditorCommand(id: string, editor: Editor) {
+		const action: Record<string, (e: Editor) => Promise<void>> = {
+			'summarize-selection': e => this.transformSelection(e, 'Summarize the selected text. Return only the summary.'),
+			'expand-selection': e => this.transformSelection(e, 'Expand the selected text with useful detail while preserving its meaning and style. Return only the expanded text.'),
+			'shorten-selection': e => this.transformSelection(e, 'Shorten the selected text without losing its essential meaning. Return only the shortened text.'),
+			'rephrase-selection': e => this.transformSelection(e, 'Rephrase the selected text clearly and naturally. Return only the rephrased text.'),
+			'correct-selection': e => this.correctEditorText(e),
+		};
+		if (action[id]) await action[id](editor);
 	}
 
-	async activateView() {
-		let leaf: WorkspaceLeaf | null = null;
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OPTIONS);
-		if (leaves.length > 0) {
-			leaf = leaves[0];
-		} else {
-			leaf = this.app.workspace.getRightLeaf(false);
-			if (leaf !== null) {
-				await leaf.setViewState({ type: VIEW_TYPE_OPTIONS, active: true });
-			}
-		}
-	
-		if (leaf !== null) {
-			this.app.workspace.revealLeaf(leaf);
-		}
-	}
-
-	async loadSettings() {
-		if (Object.keys(providers).length !== Object.keys(this.settings.apiToken).length) {
-			// Si el número de proveedores ha cambiado, agregamos al objeto un nuevo key.
-
-			Object.keys(providers).forEach((provider) => {
-				if (!this.settings.apiToken[provider]) {
-					this.settings.apiToken[provider] = '';
-				}
-			});
-		}
-
-		// Forzar apiToken a objeto si viene como string
-		if (typeof this.settings.apiToken === 'string') {
-			const obj: any = {};
-			Object.keys(providers).forEach(provider => {
-				obj[provider] = '';
-			});
-			this.settings.apiToken = obj;
-		}
-
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-    async saveSettings() {
-        await this.saveData(this.settings);
-
-		const selectedApi = this.settings.selectedApi
-        if (selectedApi) {
-            this.api = this.apiFactory.createApi(
-                this.settings.selectedApi,
-                this.settings.apiToken[this.settings.selectedApi]
-            );
-        } else {
-            this.api = null;
-  		}
-    }
-
-	async generateCompletionAtSelection(editor: Editor, sourceFile?: TFile) {
-		const cursor = editor.getCursor();
-		const context = editor.getRange({ line: 0, ch: 0 }, cursor);
-		const excludeFile = sourceFile ?? this.app.workspace.getActiveFile() ?? undefined;
-		const prompt = await this.generatePrompt(context, false, excludeFile);
-		const result = await this.generateText(prompt, "Generating text...");
-		if (!result) return;
-		this.continueText(editor, result);
-	}
-
-	async generatePrompt(context: string, skipTruncation: boolean = false, excludeFile?: TFile): Promise<string> {
-		const loreEntries = await this.filterLorebookEntriesByContext(context, excludeFile);
-		const authorNote = await getPromptMetaCascading(this.app, this.settings, 'authorNote');
-		const memoryContent = await getPromptMetaCascading(this.app, this.settings, 'memoryContent');
-
-		const loreText = loreEntries
-			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
-			.join('\n---\n\n---\n');
-
-		const maxContextTokens = this.settings.maxContextTokens;
-		const lorebookPercentage = this.settings.lorebookPercentage ?? 25;
-
-		// Build the fixed parts of the prompt (everything except the story context)
-		const lorebookHeader = '--- Start of the lorebook\n';
-		const lorebookFooter = '\n--- End of the lorebook\n\nRelevant persistent information:\n';
-		const memorySection = `${memoryContent}\n\nRelevant guidelines:\n`;
-		const authorSection = `${authorNote}\n\n## Prefix Prompt:\n`;
-		const prefixSection = `${this.settings.prefixPrompt} \n\n`;
-
-		// Calculate available tokens for lorebook
-		const maxLorebookTokens = Math.floor(maxContextTokens * (lorebookPercentage / 100));
-
-		// Truncate lorebook text if it exceeds its budget (skip if viewing full context)
-		let truncatedLoreText = loreText;
-		if (!skipTruncation && this.estimateTokens(loreText) > maxLorebookTokens) {
-			// Truncate lore entries from the end, respecting entry boundaries (separated by ---)
-			const loreEntrySeparator = '\n---\n\n---\n';
-			const loreEntryList = loreText.split(loreEntrySeparator);
-			let accumulatedTokens = 0;
-			const keptEntries: string[] = [];
-			for (const entry of loreEntryList) {
-				const entryTokens = this.estimateTokens(entry);
-				if (accumulatedTokens + entryTokens > maxLorebookTokens) break;
-				keptEntries.push(entry);
-				accumulatedTokens += entryTokens;
-			}
-			truncatedLoreText = keptEntries.join(loreEntrySeparator);
-		}
-
-		// We remove the metadata from the prompt
-		const content = context.replace(/^---[\s\S]*?---\s*/, '');
-		// Build the full prompt with truncated lore
-		let prompt = `${lorebookHeader}${truncatedLoreText}${lorebookFooter}${memorySection}${authorSection}${prefixSection}${content}`;
-
-		// If the full prompt still exceeds maxContextTokens, truncate the story context from the beginning
-		if (!skipTruncation) {
-			const totalTokens = this.estimateTokens(prompt);
-			if (totalTokens > maxContextTokens) {
-				const overflowTokens = totalTokens - maxContextTokens;
-				// Remove overflow from the story context (the last part of the prompt)
-				const contextTokens = this.estimateTokens(context);
-				const keepTokens = Math.max(0, contextTokens - overflowTokens);
-				const keepChars = keepTokens * 4;
-				const truncatedContext = context.slice(-keepChars);
-				prompt = `${lorebookHeader}${truncatedLoreText}${lorebookFooter}${memorySection}${authorSection}${prefixSection}${truncatedContext}`;
-			}
-		}
-
-		return prompt;
-	}
-
-	async splitIntoChapters(editor: Editor) {
-		const content = editor.getValue();
-		const activeFile = this.app.workspace.getActiveFile();
-		if (!activeFile) {
-			new Notice('No active file found.');
-			return;
-		}
-
-		// 1. Remove YAML frontmatter
-		const contentWithoutMeta = content.replace(/^---[\s\S]*?---\s*/, '').trim();
-
-		// 2. Split by *** (dinkus) into chapters
-		const rawChapters = contentWithoutMeta.split(/\n\s*\*{3,}\s*\n/);
-
-		// 3. Parse each chapter: extract [Title] from first line
-		type Chapter = { title: string; text: string };
-		const chapters: Chapter[] = [];
-
-		for (const raw of rawChapters) {
-			const trimmed = raw.trim();
-			if (!trimmed) continue;
-
-			const titleMatch = trimmed.match(/^\s*\[([^\]]+)\]\s*([\s\S]*)/);
-			let title: string;
-			let text: string;
-
-			if (titleMatch) {
-				title = titleMatch[1].trim();
-				text = titleMatch[2].trim();
-			} else {
-				title = `Chapter ${chapters.length + 1}`;
-				text = trimmed;
-			}
-
-			chapters.push({ title, text });
-		}
-
-		if (chapters.length === 0) {
-			new Notice('No chapters found. Make sure chapters are separated by ***');
-			return;
-		}
-
-		new Notice(`Found ${chapters.length} chapters. Generating summaries...`);
-
-		// 4. Generate summary of all chapters via AI
-		const chaptersForPrompt = chapters
-			.map((ch, i) => `## Chapter ${i + 1}: ${ch.title}\n\n${ch.text}`)
-			.join('\n\n***\n\n');
-
-		const summaryPrompt = `I need you to summarize the following chapters of a story. 
-For each chapter, provide a concise summary in spanish.
-
-Format your response exactly like this (do not include anything else, no brackets):
-
-${chapters.map((ch, i) => `${ch.title}:\nSummary of chapter ${i + 1}`).join('\n\n===\n\n')}
-
-Replace "Summary of chapter N" with the actual summary text. Use "===" as separator between chapters.
-
-Here are the chapters:
-
-${chaptersForPrompt}`;
-
-		const summaryResult = await this.generateText(summaryPrompt, "Generating chapter summaries...", {
-			max_tokens: Math.floor(this.estimateTokens(summaryPrompt) * 0.8),
-			presence_penalty: 0,
-			frequency_penalty: 0,
-			temperature: 0.5,
-			top_p: 0.9,
-			stream: false
-		});
-
-		if (!summaryResult || !summaryResult.text) {
-			new Notice('Failed to generate summaries.');
-			return;
-		}
-
-		// Parse summaries from AI response (separated by ===)
-		const summaryBlocks = summaryResult.text.trim().split(/\n\s*={3,}\s*\n/);
-		const summaries: string[] = [];
-
-		for (const block of summaryBlocks) {
-			const summaryMatch = block.match(/^([^:\n]+):\s*\n([\s\S]*)/);
-			if (summaryMatch) {
-				summaries.push(summaryMatch[2].trim());
-			}
-		}
-
-		// Ensure we have the right number of summaries
-		while (summaries.length < chapters.length) {
-			summaries.push('No summary available.');
-		}
-
-		// Get the current folder path
-		const folderPath = activeFile.parent ? activeFile.parent.path : '';
-
-		// 5. Create one note per chapter with previous summaries in memoryContent
-		for (let i = 0; i < chapters.length; i++) {
-			const chapter = chapters[i];
-			const previousSummaries = summaries.slice(0, i)
-				.map((s, j) => `${chapters[j].title}:\n${s}`)
-				.join('\n\n===\n\n');
-
-			const memoryContent = previousSummaries 
-				? `Previous chapter summaries:\n\n${previousSummaries}`
-				: '';
-
-			const chapterFileName = `${chapter.title.replace(/[\\/:*?"<>|]/g, '_')}.md`;
-			const chapterFilePath = folderPath ? `${folderPath}/${chapterFileName}` : chapterFileName;
-
-			// Build frontmatter with memoryContent
-			let chapterContent = '---\n';
-			if (memoryContent) {
-				chapterContent += `memoryContent: |\n  ${memoryContent.replace(/\n/g, '\n  ')}\n`;
-			}
-			chapterContent += `---\n\n${chapter.text}`;
-
-			// Check if file already exists
-			const existingFile = this.app.vault.getAbstractFileByPath(chapterFilePath);
-			if (existingFile instanceof TFile) {
-				await this.app.vault.modify(existingFile, chapterContent);
-			} else {
-				await this.app.vault.create(chapterFilePath, chapterContent);
-			}
-		}
-
-		// 6. Create "Capítulo Nuevo" note with full summary in memoryContent
-		const fullSummary = summaries
-			.map((s, i) => `${chapters[i].title}:\n${s}`)
-			.join('\n\n===\n\n');
-
-		const newChapterContent = `---\nmemoryContent: |\n  Complete story summary:\n  ${fullSummary.replace(/\n/g, '\n  ')}\n---\n\n`;
-		const newChapterPath = folderPath ? `${folderPath}/Capítulo Nuevo.md` : 'Capítulo Nuevo.md';
-
-		const existingNewFile = this.app.vault.getAbstractFileByPath(newChapterPath);
-		if (existingNewFile instanceof TFile) {
-			await this.app.vault.modify(existingNewFile, newChapterContent);
-		} else {
-			await this.app.vault.create(newChapterPath, newChapterContent);
-		}
-
-		new Notice(`Created ${chapters.length} chapter files + Capítulo Nuevo`);
-	}
-
-	async crearNuevoCapitulo(editor: Editor) {
-		const activeFile = this.app.workspace.getActiveFile();
-		if (!activeFile) {
-			new Notice('No active file found.');
-			return;
-		}
-
-		// Get the full content of the current note
-		const content = editor.getValue();
-
-		// Remove YAML frontmatter for the summary prompt
-		const contentWithoutMeta = content.replace(/^---[\s\S]*?---\s*/, '').trim();
-
-		// Get memoryContent from the current chapter's frontmatter
-		const memoryContentChapter = extractValueFromFrontmatter(content, 'memoryContent') || '';
-
-		// Generate summary of the current chapter via AI
-		const summaryPrompt = `I need you to summarize the following chapter of a story.
-Provide a concise summary in spanish.
-
-Here is the chapter:
-
-${contentWithoutMeta}`;
-
-		const inputTokens = this.estimateTokens(summaryPrompt);
-		const summaryResult = await this.generateText(summaryPrompt, "Summarizing current chapter...", {
-			max_tokens: Math.floor(inputTokens * 0.5),
-			presence_penalty: 0,
-			frequency_penalty: 0,
-			temperature: 0.5,
-			top_p: 0.9,
-			stream: false
-		});
-
-		if (!summaryResult || !summaryResult.text) {
-			new Notice('Failed to generate summary.');
-			return;
-		}
-
-		const summaryActualChapter = summaryResult.text.trim();
-
-		// Build the new memoryContent combining previous memoryContent and the new summary
-		let newMemoryContent = '';
-		if (memoryContentChapter) {
-			newMemoryContent += memoryContentChapter + '\n\n===\n\n';
-		}
-		newMemoryContent += summaryActualChapter;
-
-		// Create the new note "Capítulo Nuevo" in the same folder
-		const folderPath = activeFile.parent ? activeFile.parent.path : '';
-		const newChapterPath = folderPath ? `${folderPath}/Capítulo Nuevo.md` : 'Capítulo Nuevo.md';
-
-		const newChapterContent = `---\nmemoryContent: |\n  ${newMemoryContent.replace(/\n/g, '\n  ')}\n---\n\n`;
-
-		const existingFile = this.app.vault.getAbstractFileByPath(newChapterPath);
-		if (existingFile instanceof TFile) {
-			await this.app.vault.modify(existingFile, newChapterContent);
-		} else {
-			await this.app.vault.create(newChapterPath, newChapterContent);
-		}
-
-		new Notice('New chapter created successfully.');
-	}
-
-	async generateLorebookEntry(editor: Editor) {
-		const noteText = editor.getValue();
-		const relatedLore = (await this.filterLorebookEntriesByContext(noteText))
-			.map(e => e.content.replace(/^---[\s\S]*?---\s*/, ''))
-			.join('---\n\n---');
-
-		const prompt = `${this.settings.lorebook.prompt}	
-### Lore:
-${relatedLore ? `Relevant lorebook entries:\n${relatedLore}` : ''}
-
-### This is the text of the note, write a lorebook entry about this:
-${noteText}`;
-		
-		const inputTokens = this.estimateTokens(prompt);
-		const result = await this.generateText(prompt, "Generating lorebook entry...", {
-			max_tokens: Math.floor(inputTokens * 1.3),
-			presence_penalty: 0,
-			frequency_penalty: 0,
-			temperature: 0.7,
-			top_p: 0.9
-		});
-		if (!result) return;
-		this.overwriteNote(editor, result);
-	}	
-
-	async traduceText(editor: Editor) {	
-		const selection = editor.getSelection();
-		const prompt = `Traduce this text to spanish, you will answer just with the traduction. This is the text: ${selection}`;
-		const inputTokens = this.estimateTokens(prompt);
-		const options = {
-			max_tokens: Math.floor(inputTokens * 1.3),
-			presence_penalty: 0,
-			frequency_penalty: 0,
-			temperature: 0.7,
-			top_p: 0.9
-		}
-
-		const result = await this.generateText(prompt, "Traducing text...", options);
-		if (!result) return;
-		this.replaceSelection(editor, result);
-	}
-	
-	async summarizeText(editor: Editor) {	
-		const selection = editor.getSelection();
-		const prompt = `I need you to summarize the selected text. This is the text: ${selection}`;
-		const inputTokens = this.estimateTokens(prompt);
-		const options = {
-			max_tokens: Math.floor(inputTokens * 0.5),
-			presence_penalty: 0,
-			frequency_penalty: 0,
-			temperature: 0.7,
-			top_p: 0.9
-		}
-		const result = await this.generateText(prompt, "Summarizing text...", options);
-		if (!result) return;
-		this.replaceSelection(editor, result);
-	}
-
-	async filterLorebookEntriesByContext(context: string, excludeFile?: TFile): Promise<{file: TFile, content: string}[]> {
-		const files = this.app.vault.getFiles();
-		const lorebookFiles = files.filter(file => file.path.startsWith(`${this.settings.lorebook.folder}/`));
-		const entries = [];
-		const lastContext = context.slice(-this.settings.lorebook.searchRange).toLowerCase();
-	
-		for (const file of lorebookFiles) {
-			// Skip the excluded file (e.g., the current note being edited)
-			if (excludeFile && file.path === excludeFile.path) continue;
-
-			const content = await this.app.vault.read(file);
-			const meta = extractLorebookMeta(content);
-	
-			if (meta.enabled === false) continue;
-	
-			if (meta.alwaysOn === true) {
-				entries.push({ file, content });
-				continue;
-			}
-	
-			if (meta.keys.some(key => {
-				const regex = new RegExp(`\\b${key.toLowerCase()}\\b`, 'u');
-				return regex.test(lastContext);
-			})) {
-				entries.push({ file, content });
-			}
-		}
-		return entries;
-	}
-
-	async replaceSelection(editor: Editor, result: CompletionResponse) {
-		let text = '';
-		if (result.text) {
-			text = result.text;
-			editor.replaceSelection(text);
-		} else if (result.stream) {
-			editor.replaceSelection("");
-			const startCursor = editor.getCursor();
-			let insertedText = '';
-			for await (const chunk of result.stream) {
-				const newText = chunk.choices[0]?.delta?.content || '';
-				if (newText) {
-					const from = {
-						line: startCursor.line,
-						ch: startCursor.ch + insertedText.length
-					};
-					editor.replaceRange(newText, from);
-					insertedText += newText;
-				}
-			}
-		}
-	}
-
-	async continueText(editor: Editor, result: CompletionResponse) {
-		let text = '';
-		if (result.text) {
-			text = result.text;
-			const cursor = editor.getCursor();
-			editor.replaceRange(text, cursor);
-		} else if (result.stream) {
-			let insertedText = '';
-			const startCursor = editor.getCursor();
-			for await (const chunk of result.stream) {
-				const isNovelAIChunk = this.settings.selectedApi === "novelai" && ["kayra-v1", "llama-3-erato-v1"].includes(this.settings.defaultModel);
-				const newText = isNovelAIChunk ? chunk.token : (chunk.choices[0]?.delta?.content || '');
-				if (newText) {
-					const from = {
-						line: startCursor.line,
-						ch: startCursor.ch + insertedText.length
-					};
-					editor.replaceRange(newText, from);
-					insertedText += newText;
-				}
-			}
-		}
-	}
-
-	async overwriteNote(editor: Editor, result: CompletionResponse) {
-		if (result.text) {
-			editor.setValue(result.text.trim());
-		} else if (result.stream) {
-			let insertedText = '';
-			for await (const chunk of result.stream) {
-				const newText = chunk.choices[0]?.delta?.content || '';
-				if (newText) {
-					insertedText += newText;
-					editor.setValue(insertedText);
-				}
-			}
-		}
-	}
-
-	async generateText(prompt: string, loadingText: string = "Generating text", options = {}) {
-		const defaultOptions = {
-			stream: this.settings.stream,
-			max_tokens: this.settings.maxTokens,
-			presence_penalty: this.settings.presencePenalty,
-			frequency_penalty: this.settings.frequencyPenalty,
-			temperature: this.settings.temperature,
-			top_p: this.settings.topP
-		}
-
-		if (!this.api) {
-			new Notice('Please, configure an API key and add a valid token first.');
-			throw new Error('Please, configure an API key and add a valid token first.');
-		}
-
-		new Notice(loadingText);
-	
+	private async correctEditorText(editor: Editor) {
+		const text = editor.getSelection() || editor.getValue();
+		if (!text.trim()) { new Notice('No text to correct.'); return; }
 		try {
-			const statusBarItem = this.addStatusBarItem();
-			statusBarItem.setText(loadingText);
-	
-			const result: CompletionResponse = await this.api.generateCompletion(
-				prompt,
-				this.settings.defaultModel,
-				{ ...defaultOptions, ...options }
-			);
+			const result = await this.complete('Correct all spelling, grammar, punctuation, and orthographic errors in the following text. Preserve its meaning and return only the corrected text.\n\nText:\n' + text, 'Correcting text');
+			if (result) editor.getSelection() ? editor.replaceSelection(result) : editor.setValue(result);
+		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
+	}
 
-			if ((!result.text || result.text === "") && !result.stream) {
-				new Notice('The response of the API is empty.');
-				throw new Error('The response of the API is empty.');
+	private async generateEditorText(editor?: Editor) {
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const target = editor ?? activeView?.editor;
+		if (!target) { new Notice('Open a note to generate text.'); return; }
+		const cursor = target.getCursor();
+		const beforeCursor = target.getRange({ line: 0, ch: 0 }, cursor);
+		// Frontmatter is metadata, never story context. Keep it in the note but
+		// exclude it from the prompt sent to the model and from Codex detection.
+		const storyBeforeCursor = beforeCursor.replace(/^---\s*[\s\S]*?---\s*/, '');
+		const fullText = target.getValue();
+		const afterCursor = fullText.slice(beforeCursor.length);
+		try {
+			const settings = this.settings.data;
+			let chapterOutline = '';
+			if (settings.includeOutlineInContext && this.store.activeFolderPath) {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (activeFile) {
+					const chapters = await this.store.listCapitulos();
+					const match = chapters.find(c => {
+						if (!c.archivo) return false;
+						const resolved = c.archivo.startsWith('escritura/')
+							? `${this.store.activeFolderPath}/${c.archivo}`
+							: c.archivo;
+						return resolved === activeFile.path;
+					});
+					if (match?.outline?.trim()) chapterOutline = match.outline;
+				}
 			}
-	
-			statusBarItem.remove();
+			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, chapterOutline, storyBeforeCursor);
+			const result = await this.requestCompletion(prompt, 'Generating text');
+			let generated = '';
+			if (result.text) {
+				generated = result.text;
+				target.setValue(beforeCursor + generated + afterCursor);
+				target.setCursor(target.offsetToPos(beforeCursor.length + generated.length));
+			} else if (result.stream) {
+				for await (const chunk of this.readCompletionStream(result.stream)) {
+					const piece = this.chunkText(chunk);
+					if (!piece) continue;
+					generated += piece;
+					target.setValue(beforeCursor + generated + afterCursor);
+					target.setCursor(target.offsetToPos(beforeCursor.length + generated.length));
+				}
+			}
+		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
+		finally { this.operationStatusBarItem?.remove(); this.operationStatusBarItem = null; }
+	}
 
-			return result;	
-		} catch (error) {
-			new Notice(`Error generating the lorebook entry: ${error.message}`);
+	private async transformSelection(editor: Editor, instruction: string) {
+		const selected = editor.getSelection();
+		if (!selected.trim()) { new Notice('Select text first.'); return; }
+		try {
+			let replaced = false;
+			let insertionOffset = editor.posToOffset(editor.getCursor('from'));
+			await this.complete(`${instruction}\n\nText:\n${selected}`, this.operationLabel(instruction), chunk => {
+				if (!replaced) {
+					editor.replaceSelection(chunk);
+					replaced = true;
+					insertionOffset += chunk.length;
+				} else {
+					const position = editor.offsetToPos(insertionOffset);
+					editor.replaceRange(chunk, position);
+					insertionOffset += chunk.length;
+				}
+			});
+		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
+	}
+
+	private operationLabel(instruction: string): string {
+		if (/summarize/i.test(instruction)) return 'Summarizing selection';
+		if (/expand/i.test(instruction)) return 'Expanding selection';
+		if (/shorten/i.test(instruction)) return 'Shortening selection';
+		if (/rephrase/i.test(instruction)) return 'Rewriting selection';
+		if (/Spanish/i.test(instruction)) return 'Translating to Spanish';
+		if (/English/i.test(instruction)) return 'Translating to English';
+		return 'Processing selection';
+	}
+
+	private async complete(prompt: string, action: string, onChunk?: (chunk: string) => void): Promise<string> {
+		this.operationStatusBarItem?.remove();
+		this.operationStatusBarItem = this.addStatusBarItem();
+		this.operationStatusBarItem.setText(action + '…');
+		new Notice(action + '…');
+		const settings = this.settings.data;
+		try {
+			const active = getActiveModelConfig(settings, 'generate');
+			if (!active.modelName) throw new Error('Configure a model in Settings.');
+			const token = settings.apiToken[active.providerId] ?? '';
+			const api = new ApiFactory().createApi(active.providerId, token);
+			const result = await api.generateCompletion(prompt, active.modelName, active.options);
+			if (result.stream && typeof result.stream[Symbol.asyncIterator] === 'function') {
+				let text = '';
+				for await (const chunk of result.stream as AsyncIterable<any>) {
+					const piece = this.chunkText(chunk);
+					if (piece) { text += piece; onChunk?.(piece); }
+				}
+				return text.trim();
+			}
+			const text = result.text?.trim() ?? '';
+			if (text) onChunk?.(text);
+			return text;
+		} finally {
+			this.operationStatusBarItem?.remove();
+			this.operationStatusBarItem = null;
 		}
 	}
 
-	estimateTokens(text: string): number {
-	  return Math.ceil(text.length / 4);
+	private async requestCompletion(prompt: string, action: string): Promise<any> {
+		this.operationStatusBarItem?.remove();
+		this.operationStatusBarItem = this.addStatusBarItem();
+		this.operationStatusBarItem.setText(action + '…');
+		new Notice(action + '…');
+		const settings = this.settings.data;
+		const active = getActiveModelConfig(settings, 'generate');
+		if (!active.modelName) throw new Error('Configure a model in Settings.');
+		const api = new ApiFactory().createApi(active.providerId, settings.apiToken[active.providerId] ?? '');
+		return api.generateCompletion(prompt, active.modelName, active.options);
 	}
+
+	private async *readCompletionStream(stream: any): AsyncIterable<any> {
+		if (typeof stream[Symbol.asyncIterator] === 'function') {
+			for await (const chunk of stream as AsyncIterable<any>) yield chunk;
+			return;
+		}
+		if (typeof stream.getReader !== 'function') return;
+		const reader = stream.getReader();
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) return;
+			yield value;
+		}
+	}
+
+	private chunkText(chunk: any): string {
+		return chunk?.choices?.[0]?.delta?.content ?? chunk?.choices?.[0]?.text ?? chunk?.token ?? chunk?.text ?? '';
+	}
+
+	onunload() {}
+}
+
+async function pickLorebookFolder(app: App): Promise<TFolder | null> {
+	return new Promise(resolve => {
+		let done = false;
+		const modal = new Modal(app);
+		modal.titleEl.setText('Select lorebook folder');
+		const folders = app.vault.getAllLoadedFiles().filter((file): file is TFolder => file instanceof TFolder).sort((a, b) => a.path.localeCompare(b.path));
+		const search = modal.contentEl.createEl('input', { type: 'search', placeholder: 'Search folder...' });
+		search.style.width = '100%';
+		const list = modal.contentEl.createDiv();
+		list.style.maxHeight = '50vh'; list.style.overflowY = 'auto'; list.style.marginTop = '8px';
+		const render = () => {
+			list.empty();
+			const query = search.value.trim().toLowerCase();
+			const visible = folders.filter(folder => !query || folder.path.toLowerCase().includes(query));
+			if (!visible.length) { list.createEl('p', { text: 'No folders found.' }); return; }
+			for (const folder of visible) {
+				const button = list.createEl('button', { text: folder.path || '/', cls: 'mod-list-item' });
+				button.style.display = 'block'; button.style.width = '100%'; button.style.textAlign = 'left'; button.style.marginTop = '4px';
+				button.onclick = () => { done = true; resolve(folder); modal.close(); };
+			}
+		};
+		search.addEventListener('input', render);
+		render();
+		modal.onClose = () => { if (!done) resolve(null); };
+		modal.open();
+	});
+}
+
+/** Modal con Nombre (obligatorio), Autor (opcional) y Thumbnail (opcional). */
+async function promptNovel(app: App): Promise<{ nombre: string; autor: string; thumbnail: ArrayBuffer | null } | null> {
+	return new Promise((resolve) => {
+		const modal = new Modal(app);
+		modal.titleEl.setText('New novel');
+		modal.modalEl.style.width = '480px';
+
+		const wrap = modal.contentEl;
+		wrap.style.display = 'flex';
+		wrap.style.flexDirection = 'column';
+		wrap.style.gap = '14px';
+
+		let nombre = '';
+		let autor = '';
+		let thumb: ArrayBuffer | null = null;
+
+		new Setting(wrap).setName('Name*').addText(t => t.onChange(v => nombre = v).setPlaceholder('Novel name'));
+		new Setting(wrap).setName('Author').addText(t => t.onChange(v => autor = v).setPlaceholder('Author (optional)'));
+		const thumbSetting = new Setting(wrap).setName('Thumbnail');
+		const preview = thumbSetting.controlEl.createEl('img');
+		preview.style.maxWidth = '60px';
+		preview.style.maxHeight = '60px';
+		preview.style.display = 'none';
+		const input = thumbSetting.controlEl.createEl('input', { type: 'file' });
+		input.accept = 'image/*';
+		input.onchange = async () => {
+				const f = input.files?.[0];
+				if (!f) return;
+				// Cuadrado via canvas
+				const img = new Image();
+				const url = URL.createObjectURL(f);
+				img.onload = async () => {
+					const size = Math.min(img.width, img.height);
+					const canvas = document.createElement('canvas');
+					canvas.width = 256; canvas.height = 256;
+					const ctx = canvas.getContext('2d')!;
+					const sx = (img.width - size) / 2, sy = (img.height - size) / 2;
+					ctx.drawImage(img, sx, sy, size, size, 0, 0, 256, 256);
+					URL.revokeObjectURL(url);
+					preview.src = canvas.toDataURL('image/png');
+					preview.style.display = '';
+					thumb = await new Promise<ArrayBuffer>((r) => canvas.toBlob(b => { if (b) b.arrayBuffer().then(r); }, 'image/png'));
+				};
+				img.src = url;
+			};
+
+		const btnRow = wrap.createDiv();
+		btnRow.style.display = 'flex';
+		btnRow.style.justifyContent = 'flex-end';
+		btnRow.style.gap = '8px';
+		const cancel = btnRow.createEl('button', { text: 'Cancel' });
+		const ok = btnRow.createEl('button', { text: 'Create' });
+		ok.classList.add('mod-cta');
+
+		let resolved = false;
+		const done = (v: any) => { if (!resolved) { resolved = true; resolve(v); } };
+		cancel.onclick = () => { done(null); modal.close(); };
+		ok.onclick = () => { done({ nombre, autor, thumbnail: thumb }); modal.close(); };
+		modal.onClose = () => done(null);
+		modal.open();
+	});
 }

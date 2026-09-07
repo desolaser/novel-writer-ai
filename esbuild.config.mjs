@@ -17,6 +17,14 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["main.ts"],
 	bundle: true,
+	loader: {
+		".tsx": "tsx",
+		".ts": "ts",
+		".jsx": "jsx",
+		".js": "js",
+		".css": "css",
+	},
+	jsx: "automatic",
 	external: [
 		"obsidian",
 		"electron",
@@ -31,7 +39,11 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
-		...builtins],
+		// builtin-modules only lists the bare names ("fs"); the Anthropic SDK imports
+		// the prefixed variants ("node:fs"), which esbuild would otherwise try to
+		// resolve and fail on.
+		...builtins,
+		...builtins.map((name) => `node:${name}`)],
 	format: "cjs",
 	target: "es2018",
 	logLevel: "info",

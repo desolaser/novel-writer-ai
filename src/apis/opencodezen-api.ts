@@ -2,6 +2,7 @@ import { requestUrl } from 'obsidian';
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOpenCodeChatBody, type CompletionOptions } from '../utils/provider-options';
 
 /**
  * Implementación específica para la API de OpenCode Zen
@@ -36,7 +37,7 @@ export class OpenCodeZenApi extends ApiInterface {
             });
 
             if (response.status !== 200) {
-                throw new Error(`Error al obtener modelos: ${response.status}`);
+                throw new Error(`Error fetching models: ${response.status}`);
             }
 
             const data = response.json;
@@ -65,39 +66,14 @@ export class OpenCodeZenApi extends ApiInterface {
     async generateCompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
         try {
             // El modelo se almacena como "opencode/<model-id>" en la UI,
             // pero la API espera el ID sin el prefijo "opencode/"
             const apiModel = model.startsWith('opencode/') ? model.slice('opencode/'.length) : model;
 
-            // Construir el mensaje para el endpoint de chat
-            const messages = options.messages ?? [
-                { role: "system", content: "You are a helpful assistant." },
-                { role: "user", content: prompt }
-            ];
-
-            const defaultOptions = {
-                model: apiModel,
-                messages,
-                temperature: 0.7,
-                max_tokens: 1000,
-                stream: false,
-                ...options
-            };
-
-            // requestUrl no soporta streaming, así que forzamos stream=false
-            const body = JSON.stringify({
-                model: defaultOptions.model,
-                messages: defaultOptions.messages,
-                temperature: defaultOptions.temperature,
-                max_tokens: defaultOptions.max_tokens,
-                stream: false,
-                ...(options.top_p !== undefined ? { top_p: options.top_p } : {}),
-                ...(options.presence_penalty !== undefined ? { presence_penalty: options.presence_penalty } : {}),
-                ...(options.frequency_penalty !== undefined ? { frequency_penalty: options.frequency_penalty } : {})
-            });
+            const body = JSON.stringify(toOpenCodeChatBody(prompt, apiModel, options));
 
             const response = await requestUrl({
                 url: `${this.baseUrl}/chat/completions`,
@@ -113,7 +89,7 @@ export class OpenCodeZenApi extends ApiInterface {
             if (response.status !== 200) {
                 const errorData = response.json;
                 console.log({ error: errorData.error });
-                throw new Error(`Error al generar texto: ${errorData.error?.message || response.status}`);
+                throw new Error(`Error generating text: ${errorData.error?.message || response.status}`);
             }
 
             const data = response.json;

@@ -1,6 +1,7 @@
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOpenRouterBody, type CompletionOptions } from '../utils/provider-options';
 
 /**
  * Implementación específica para la API de OpenRouter
@@ -26,7 +27,7 @@ export class OpenRouterApi extends ApiInterface {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(`Error al obtener modelos: ${errorData.error?.message || response.statusText}`);
+                throw new Error(`Error fetching models: ${errorData.error?.message || response.statusText}`);
             }
 
             const data = await response.json();
@@ -37,7 +38,9 @@ export class OpenRouterApi extends ApiInterface {
                 name: model.name,
                 description: model.description || '',
                 contextLength: model.context_length || null,
-                pricing: model.pricing ? `$${model.pricing.prompt}/1K prompt, $${model.pricing.completion}/1K completion` : null
+                pricing: model.pricing ? `$${model.pricing.prompt}/1K prompt, $${model.pricing.completion}/1K completion` : null,
+                supportsImageGeneration: model.architecture?.output_modalities?.includes('image') ?? false,
+                supportsVision: model.architecture?.input_modalities?.includes('image') ?? false
             }));
         } catch (error) {
             console.error('Error en OpenRouterApi.getAvailableModels:', error);
@@ -48,17 +51,18 @@ export class OpenRouterApi extends ApiInterface {
     /**
      * Genera una respuesta usando el modelo especificado de OpenRouter
      */
-    async generateCompletion(prompt: string, model: string, options = {}): Promise<CompletionResponse> {
+    async generateCompletion(prompt: string, model: string, options: CompletionOptions = {}): Promise<CompletionResponse> {
         try {
-            const defaultOptions = {
-                temperature: 0.7,
-                max_tokens: 1000,
-                stream: false
-            };
+            // Build messages: if images are provided, use content array format for vision
+            const inputImages = options.images ?? [];
+            const userMessage = inputImages.length > 0
+                ? { role: "user" as const, content: [
+                    { type: "text" as const, text: prompt },
+                    ...inputImages.map(url => ({ type: "image_url" as const, image_url: { url } })),
+                ]}
+                : { role: "user" as const, content: prompt };
 
-            const requestOptions = { ...defaultOptions, ...options };
-
-            console.log({ requestOptions, apiKey: this.apiKey });
+            const body = toOpenRouterBody([userMessage], model, options);
 
             const response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
@@ -66,23 +70,16 @@ export class OpenRouterApi extends ApiInterface {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        { role: "user", content: prompt }
-                    ],
-                    ...requestOptions
-                })
+                body: JSON.stringify(body)
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                console.log({ error: errorData.error });
-                throw new Error(`Error al generar texto: ${errorData.error?.message || response.statusText}`);
+                throw new Error(`Error generating text: ${errorData.error?.message || response.statusText}`);
             }
 
             // Si es streaming, devolver la respuesta directamente
-            if (requestOptions.stream && response.body) {
+            if (body.stream && response.body) {
                 // Procesar el stream SSE y devolver un AsyncIterable de objetos tipo OpenAI
                 const stream = this.parseSSEStream(response.body);
                 return {
@@ -92,8 +89,16 @@ export class OpenRouterApi extends ApiInterface {
             }
 
             const data = await response.json();
+            const message = data.choices?.[0]?.message ?? {};
+            const content = message.content;
+            const contentBlocks = Array.isArray(content) ? content : content ? [content] : [];
+            // Search the entire response object for images, not just choices[0].message.
+            // OpenRouter may return generated images at the top level (data.images, data.data)
+            // or nested inside content arrays that the message-only search would miss.
+            const images = this.extractImages(data);
             return {
-                text: data.choices[0].message.content,
+                text: typeof content === 'string' ? content : contentBlocks.filter((block: any) => block?.type === 'text').map((block: any) => block.text ?? '').join(''),
+                ...(images.length ? { images } : {}),
                 usage: data.usage,
                 model: data.model
             };
@@ -101,6 +106,42 @@ export class OpenRouterApi extends ApiInterface {
             console.error('Error en OpenRouterApi.generateCompletion:', error);
             throw error;
         }
+    }
+
+    /**
+     * OpenRouter normalizes providers where possible, but image-capable models
+     * currently return their image in more than one OpenAI/Gemini-compatible
+     * shape. Normalize URL and inline-base64 variants for the chat UI.
+     */
+    private extractImages(value: any, found = new Set<string>()): string[] {
+        if (!value) return [...found];
+        if (Array.isArray(value)) {
+            value.forEach(item => this.extractImages(item, found));
+            return [...found];
+        }
+        if (typeof value !== 'object') return [...found];
+
+        const addUrl = (url: unknown) => {
+            if (typeof url === 'string' && (url.startsWith('data:image/') || /^https?:\/\//.test(url))) found.add(url);
+        };
+        const inlineData = value.inline_data ?? value.inlineData;
+        if (inlineData?.data && typeof inlineData.data === 'string') {
+            const mimeType = inlineData.mime_type ?? inlineData.mimeType ?? 'image/png';
+            found.add(`data:${mimeType};base64,${inlineData.data}`);
+        }
+        if (value.b64_json && typeof value.b64_json === 'string') found.add(`data:image/png;base64,${value.b64_json}`);
+        if (value.type === 'image_url') addUrl(typeof value.image_url === 'string' ? value.image_url : value.image_url?.url);
+        if (value.type === 'image' || value.type === 'output_image') addUrl(value.url ?? value.source?.url);
+
+        // Images can be supplied in message.images, response.data, or content blocks.
+        // "choices" and "message" are needed so that a top-level data object can
+        // be walked down into data.choices[*].message.* when extractImages
+        // receives the full response payload.
+        ['choices', 'message', 'images', 'image', 'content', 'parts', 'data', 'image_url', 'source'].forEach(key => {
+            const child = value[key];
+            if (child && typeof child === 'object') this.extractImages(child, found);
+        });
+        return [...found];
     }
 
     /**

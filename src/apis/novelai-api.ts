@@ -99,6 +99,7 @@ export class NovelAiApi extends ApiInterface {
             max_tokens: requestOptions.max_tokens,
             stream: true, // No es posible generar sin streaming, el endpoint no devuelve texto coherente en modo no streaming
             top_p: requestOptions.top_p ?? 0.9,
+            top_k: requestOptions.top_k ?? 40,
             frequency_penalty: requestOptions.frequency_penalty ?? 0,
             presence_penalty: requestOptions.presence_penalty ?? 0,
         };

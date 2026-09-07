@@ -1,6 +1,7 @@
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toOllamaOptions, toOllamaThink, type CompletionOptions } from '../utils/provider-options';
 
 export class OllamaApi extends ApiInterface {
     baseUrl: string = "http://localhost:11434";
@@ -31,31 +32,26 @@ export class OllamaApi extends ApiInterface {
     async generateCompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
         try {
-            const isStream = options.stream || false;
-            const contentTokens = options.max_tokens ?? 512;
-            const totalTokens = contentTokens * 4;
+            const isStream = options.stream ?? true;
 
             const response = await fetch(`${this.baseUrl}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model,
-                    messages: [
-                        { 
-                            role: "system", 
-                            content: `You are an assistant for creative writing. Continue the text directly without thinking, analyzing, or explaining. Write approximately ${contentTokens} tokens of content, no more than that. Just write the next part of the story.` 
+                    messages: options.messages ?? [
+                        {
+                            role: "system",
+                            content: `You are an assistant for creative writing.`
                         },
                         { role: "user", content: prompt }
                     ],
                     stream: isStream,
-                    options: {
-                        temperature: options.temperature ?? 0.7,
-                        num_predict: totalTokens,
-                        top_p: options.top_p ?? 0.9,
-                    }
+                    think: toOllamaThink(options),
+                    options: toOllamaOptions(options)
                 })
             });
 

@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { toDeepSeekBody, type CompletionOptions } from '../utils/provider-options';
 
 export class DeepseekApi extends ApiInterface {
     openai: OpenAI | null = null;
@@ -52,7 +53,7 @@ export class DeepseekApi extends ApiInterface {
     async generateCompletion(
         prompt: string,
         model: string,
-        options: Record<string, any> = {}
+        options: CompletionOptions = {}
     ): Promise<CompletionResponse> {
         if (!this.openai) {
             return {
@@ -62,26 +63,13 @@ export class DeepseekApi extends ApiInterface {
         }
 
         try {
-            // Construir el mensaje para el endpoint de chat
-            const messages = options.messages ?? [
-                { role: "system", content: "You are a helpful assistant." },
-                { role: "user", content: prompt }
-            ];
+            const body = toDeepSeekBody(prompt, model, options);
 
-            const defaultOptions = {
-                model,
-                messages,
-                temperature: 0.7,
-                max_tokens: 1000,
-                stream: false,
-                ...options
-            };
-
-            const completion: any = await this.openai.chat.completions.create(defaultOptions);
+            const completion: any = await this.openai.chat.completions.create(body as any);
 
             // Manejar streaming
             if (
-                defaultOptions.stream &&
+                body.stream &&
                 completion &&
                 typeof completion[Symbol.asyncIterator] === "function"
             ) {

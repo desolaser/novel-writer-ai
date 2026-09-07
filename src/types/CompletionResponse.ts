@@ -12,9 +12,11 @@ type Usage = {
 };
 
 type CompletionResponse = {
-    stream?: any; // AsyncIterable for streaming responses
-    text?: string;
-    usage?: Usage;
+	stream?: any; // AsyncIterable for streaming responses
+	text?: string;
+	/** Image URLs or data URLs returned by an image-capable chat model. */
+	images?: string[];
+	usage?: Usage;
     model: string;
 };
 

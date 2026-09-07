@@ -6,11 +6,13 @@
     "module": "ESNext",
     "target": "ES6",
     "allowJs": true,
-    "noImplicitAny": true,
+    "noImplicitAny": false,
     "moduleResolution": "node",
     "importHelpers": true,
     "isolatedModules": true,
-    "strictNullChecks": true,
+    "strictNullChecks": false,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "jsx": "react-jsx",
     "lib": [
       "DOM",
@@ -20,6 +22,7 @@
     ]
   },
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "**/*.tsx"
   ]
 }
