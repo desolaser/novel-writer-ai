@@ -16,6 +16,7 @@ import {
 	requestDraftCompletion,
 } from "./outlineGenerators";
 import { buildStoryBibleBlock } from "../../../context/blueprintPrompt";
+import { getActiveModelConfig } from "../../../infrastructure/settings/active-model";
 
 /** Operaciones de IA / batch del outline, desacopladas de la UI. */
 export interface OutlineActions {
@@ -131,7 +132,8 @@ export function useOutlineActions(
 	async function generateChapterOutline(chapter: Capitulo) {
 		if (!store || !chapter.archivo) return;
 		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
+		const active = getActiveModelConfig(settings, "generate");
+		if (!active.modelName) {
 			setBatchStatus("Configure a model in Settings.");
 			return;
 		}
@@ -147,13 +149,13 @@ export function useOutlineActions(
 			}
 			const prompt = buildOutlinePrompt(chapter, manuscript);
 			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
+				active.providerId,
+				settings.apiToken[active.providerId] ?? ""
 			);
 			const result = await requestDraftCompletion(
 				api,
 				prompt,
-				settings.proveedor.modelo,
+				active.modelName,
 				800,
 				settings.aiOptions.temperature,
 				settings.aiOptions.topP
@@ -175,7 +177,8 @@ export function useOutlineActions(
 	async function generateChapterOutlineByMemory(chapter: Capitulo) {
 		if (!store) return;
 		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
+		const active = getActiveModelConfig(settings, "generate");
+		if (!active.modelName) {
 			setBatchStatus("Configure a model in Settings.");
 			return;
 		}
@@ -197,13 +200,13 @@ export function useOutlineActions(
 
 			const prompt = buildOutlineByMemoryPrompt(chapter, previousOutlines, storyBible, blueprint);
 			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
+				active.providerId,
+				settings.apiToken[active.providerId] ?? ""
 			);
 			const result = await requestDraftCompletion(
 				api,
 				prompt,
-				settings.proveedor.modelo,
+				active.modelName,
 				800,
 				settings.aiOptions.temperature,
 				settings.aiOptions.topP
@@ -225,17 +228,19 @@ export function useOutlineActions(
 	async function generateChapterOutlineForBatch(chapter: Capitulo) {
 		if (!store || !chapter.archivo) return;
 		const settings = plugin.settings.data;
+		const active = getActiveModelConfig(settings, "generate");
+		if (!active.modelName) return;
 		const manuscript = await readCapituloTexto(chapter.id_capitulo);
 		if (!manuscript.trim()) return;
 		const prompt = buildOutlinePrompt(chapter, manuscript);
 		const api = new ApiFactory().createApi(
-			settings.proveedor.id,
-			settings.apiToken[settings.proveedor.id] ?? ""
+			active.providerId,
+			settings.apiToken[active.providerId] ?? ""
 		);
 		const result = await requestDraftCompletion(
 			api,
 			prompt,
-			settings.proveedor.modelo,
+			active.modelName,
 			800,
 			settings.aiOptions.temperature,
 			settings.aiOptions.topP
@@ -246,7 +251,8 @@ export function useOutlineActions(
 
 	async function generateAllOutlines() {
 		if (!store) return;
-		if (!plugin.settings.data.proveedor.modelo) {
+		const active = getActiveModelConfig(plugin.settings.data, "generate");
+		if (!active.modelName) {
 			setBatchStatus("Configure a model in Settings.");
 			return;
 		}
@@ -301,7 +307,8 @@ export function useOutlineActions(
 	async function generateDrafts() {
 		if (!store) return;
 		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
+		const active = getActiveModelConfig(settings, "generate");
+		if (!active.modelName) {
 			alert("Configure a model in Settings.");
 			return;
 		}
@@ -315,8 +322,8 @@ export function useOutlineActions(
 		let draftsGenerated = 0;
 		try {
 			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
+				active.providerId,
+				settings.apiToken[active.providerId] ?? ""
 			);
 			const list = chapters();
 			const draftSettings = buildDraftSettings(settings);
@@ -379,7 +386,7 @@ export function useOutlineActions(
 					const result = await requestDraftCompletion(
 						api,
 						prompt,
-						settings.proveedor.modelo,
+						active.modelName,
 						requestTokens,
 						settings.aiOptions.temperature,
 						settings.aiOptions.topP
@@ -410,7 +417,8 @@ export function useOutlineActions(
 	async function generateSingleDraft(chapter: Capitulo) {
 		if (!store) return;
 		const settings = plugin.settings.data;
-		if (!settings.proveedor.modelo) {
+		const active = getActiveModelConfig(settings, "generate");
+		if (!active.modelName) {
 			alert("Configure a model in Settings.");
 			return;
 		}
@@ -443,8 +451,8 @@ export function useOutlineActions(
 			const historicalContext = historyParts.join("\n\n");
 			const draftSettings = buildDraftSettings(settings);
 			const api = new ApiFactory().createApi(
-				settings.proveedor.id,
-				settings.apiToken[settings.proveedor.id] ?? ""
+				active.providerId,
+				settings.apiToken[active.providerId] ?? ""
 			);
 			let text = "";
 			let attempts = 0;
@@ -474,7 +482,7 @@ export function useOutlineActions(
 				const result = await requestDraftCompletion(
 					api,
 					prompt,
-					settings.proveedor.modelo,
+					active.modelName,
 					Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)),
 					settings.aiOptions.temperature,
 					settings.aiOptions.topP

@@ -4,7 +4,8 @@ import { OutlineView, VIEW_TYPE_OUTLINE } from './src/ui/views/OutlineView';
 import { NovelStore } from './src/infrastructure/storage/store';
 import { SettingsService } from './src/infrastructure/settings/settings-service';
 import { NovelWriterSettingsTab } from './src/ai-plugin-settings-tab-v2';
-import { prepareImport, runImport } from './src/utils/lorebookImport';
+import { prepareImport, runImportGrouped, findExistingCategoria, listExistingCategorias } from './src/utils/lorebookImport';
+import { LorebookImportReviewModal, type ImportReviewGroup } from './src/ui/react/features/codex/modals/LorebookImportReviewModal';
 import { buildScenePrompt } from './src/context/promptBuilder';
 import { ApiFactory } from './src/factories/api-factory';
 import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
@@ -157,12 +158,28 @@ export default class NovelWriterPlugin extends Plugin {
 			const plan = await prepareImport(this.app, folder.path);
 			if (plan.subfolders.length === 0 && plan.rootFiles.length === 0) { new Notice('No Markdown files found in ' + folder.path); return; }
 			new Notice(`Found ${plan.rootFiles.length} entries in the root and ${plan.subfolders.length} subfolders.`);
-			// Import the complete selected folder recursively. The old second modal
-			// made it too easy to confirm an empty selection and import nothing.
-			const selected = plan.subfolders.map(subfolder => subfolder.name);
-			new Notice(`Importing ${plan.rootFiles.length + plan.subfolders.reduce((total, subfolder) => total + subfolder.count, 0)} Markdown files...`);
+
+			const existingCategorias = await listExistingCategorias(this.app, folderPath);
+			const initialGroups: ImportReviewGroup[] = [];
+			if (plan.rootFiles.length > 0) {
+				const others = findExistingCategoria(existingCategorias, 'Others');
+				initialGroups.push({ key: '__root__', nombre: 'Others', existingCategoriaId: others?.id_categoria ?? null, entries: plan.rootFiles.map(file => ({ file, nombre: file.basename })) });
+			}
+			for (const subfolder of plan.subfolders) {
+				if (subfolder.files.length === 0) continue;
+				const match = findExistingCategoria(existingCategorias, subfolder.name);
+				initialGroups.push({ key: subfolder.path, nombre: subfolder.name, existingCategoriaId: match?.id_categoria ?? null, entries: subfolder.files.map(file => ({ file, nombre: file.basename })) });
+			}
+			if (initialGroups.length === 0) { new Notice('No Markdown files found in ' + folder.path); return; }
+
+			const reviewModal = new LorebookImportReviewModal(this.app, initialGroups, existingCategorias);
+			const resultPromise = reviewModal.waitForResult();
+			reviewModal.open();
+			const groups = await resultPromise;
+			if (!groups) { new Notice('Import canceled.'); return; }
+
 			new Notice('Importing lorebook...');
-			const res = await runImport(this.app, folderPath, this.store.activeNovelId, plan, selected);
+			const res = await runImportGrouped(this.app, folderPath, this.store.activeNovelId, groups);
 			new Notice(`Imported ${res.entradas} entries and ${res.categoriasCreadas} categories from ${folder.path}.`);
 			const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
 			await useNovelWriter.getState().reloadAll();

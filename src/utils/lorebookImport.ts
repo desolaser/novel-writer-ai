@@ -49,12 +49,13 @@ function policyFromLegacy(meta: LorebookMeta): AiContextPolicy {
 export interface ImportableSubfolder {
 	name: string;
 	path: string;
-	/** Cantidad de archivos .md dentro (recursivo plano 1 nivel). */
+	/** Archivos .md dentro, recolectados recursivamente. */
+	files: TFile[];
 	count: number;
 }
 
 export interface ImportPlan {
-	/** Subcarpetas que el usuario marco. El caller decide el checked inicial. */
+	/** Subcarpetas encontradas bajo la carpeta de lorebook. */
 	subfolders: ImportableSubfolder[];
 	/** Archivos sueltos .md en la raiz del lorebook folder. */
 	rootFiles: TFile[];
@@ -72,8 +73,8 @@ export async function prepareImport(app: App, lorebookFolder: string): Promise<I
 	const rootFiles: TFile[] = [];
 	for (const child of root.children) {
 		if (child instanceof TFolder) {
-			const mdCount = countMdRecursive(app, child);
-			subfolders.push({ name: child.name, path: child.path, count: mdCount });
+			const files = collectMdRecursive(app, child);
+			subfolders.push({ name: child.name, path: child.path, files, count: files.length });
 		} else if (child instanceof TFile && child.path.endsWith('.md')) {
 			rootFiles.push(child);
 		}
@@ -81,40 +82,58 @@ export async function prepareImport(app: App, lorebookFolder: string): Promise<I
 	return { subfolders, rootFiles, folder: lorebookFolder };
 }
 
-function countMdRecursive(app: App, folder: TFolder): number {
-	let n = 0;
+function collectMdRecursive(app: App, folder: TFolder): TFile[] {
+	const out: TFile[] = [];
 	for (const c of folder.children) {
-		if (c instanceof TFile && c.path.endsWith('.md')) n++;
-		else if (c instanceof TFolder) n += countMdRecursive(app, c);
+		if (c instanceof TFile && c.path.endsWith('.md')) out.push(c);
+		else if (c instanceof TFolder) out.push(...collectMdRecursive(app, c));
 	}
-	return n;
+	return out;
+}
+
+/** Busca una categoria existente por nombre (case-insensitive). */
+export function findExistingCategoria<T extends { nombre: string }>(cats: T[], nombre: string): T | undefined {
+	return cats.find(c => c.nombre.toLowerCase() === nombre.trim().toLowerCase());
+}
+
+/** Lista las categorias ya existentes en la novela, para que el caller arme el plan editable. */
+export async function listExistingCategorias(app: App, novelFolderPath: string) {
+	return listCategorias(app, novelFolderPath);
+}
+
+export interface ImportGroupEntry {
+	file: TFile;
+	/** Nombre final de la entrada de codex, editable por el autor en el modal de revision. */
+	nombre: string;
+}
+
+export interface ImportGroup {
+	/** Nombre de la categoria a crear. Ignorado si existingCategoriaId esta seteado. */
+	nombre: string;
+	/** Si esta seteado, los archivos se importan en esta categoria existente en vez de crear una nueva. */
+	existingCategoriaId?: EntityId;
+	entries: ImportGroupEntry[];
 }
 
 /**
- * Ejecuta la importacion dentro de una novela existente (carpeta de novela ya
- * creada con sus categorias default).
- *
- * @param selectedSubfolders Nombres de subcarpetas a importar (las otras se ignoran).
- * @param importCategoriesFromMatch Si una subcarpeta matchea con categoria
- *   existente (por nombre, case-insensitive), reusa esa categoria. Si no
- *   matchea, la crea solo si la subcarpeta esta en selectedSubfolders.
+ * Ejecuta la importacion dentro de una novela existente, usando los grupos
+ * (categoria -> archivos) que el usuario confirmo en el modal de revision.
  */
-export async function runImport(
+export async function runImportGrouped(
 	app: App,
 	novelFolderPath: string,
 	idNovela: EntityId,
-	plan: ImportPlan,
-	selectedSubfolders: string[],
+	groups: ImportGroup[],
 ): Promise<{ entradas: number; categoriasCreadas: number }> {
 	let entradas = 0;
 	let categoriasCreadas = 0;
 	const cats = await listCategorias(app, novelFolderPath);
 	const now = nowISO();
 
-	// helper para obtener o crear categoria por nombre
-	async function getOrCreateCategoria(nombreOrPath: string): Promise<EntityId> {
-		const nombre = nombreOrPath.includes('/') ? nombreOrPath.split('/').pop()! : nombreOrPath;
-		const existing = cats.find(c => c.nombre.toLowerCase() === nombre.toLowerCase());
+	async function resolveCategoria(group: ImportGroup): Promise<EntityId> {
+		if (group.existingCategoriaId) return group.existingCategoriaId;
+		const nombre = group.nombre.trim() || 'Others';
+		const existing = findExistingCategoria(cats, nombre);
 		if (existing) return existing.id_categoria;
 		const id = genId();
 		cats.push({
@@ -125,15 +144,12 @@ export async function runImport(
 		return id;
 	}
 
-	const otrosCat = cats.find(c => c.nombre.toLowerCase() === 'others');
-	const idOtros = otrosCat?.id_categoria ?? await getOrCreateCategoria('Others');
-
-	async function importFile(file: TFile, idCategoria: EntityId) {
+	async function importFile(file: TFile, nombre: string, idCategoria: EntityId) {
 		const content = await readText(app, file.path) ?? '';
 		const { meta, body } = parseLegacyMeta(content);
 		const entry: EntradaCodex = {
 			id_entrada_codex: genId(),
-			nombre: file.basename,
+			nombre,
 			alias: meta.keys.join(', '),
 			descripcion: body.trim(),
 			first_message: '',
@@ -158,36 +174,16 @@ export async function runImport(
 
 	await ensureFolder(app, joinPath(novelFolderPath, 'codex', 'entradas'));
 
-	// 1. Archivos sueltos en la raiz -> Otros
-	for (const file of plan.rootFiles) {
-		await importFile(file, idOtros);
-	}
-
-	// 2. Subcarpetas seleccionadas
-	const selected = new Set(selectedSubfolders.map(s => s.toLowerCase()));
-	for (const sub of plan.subfolders) {
-		if (!selected.has(sub.name.toLowerCase())) continue;
-		const idCat = await getOrCreateCategoria(sub.name);
-		const subFolder = app.vault.getAbstractFileByPath(sub.path);
-		if (!(subFolder instanceof TFolder)) continue;
-		const allFiles = collectMdRecursive(app, subFolder);
-		for (const file of allFiles) {
-			await importFile(file, idCat);
+	for (const group of groups) {
+		if (group.entries.length === 0) continue;
+		const idCategoria = await resolveCategoria(group);
+		for (const entry of group.entries) {
+			await importFile(entry.file, entry.nombre.trim() || entry.file.basename, idCategoria);
 		}
 	}
 
 	// Reescribir categorias.json con las nuevas creadas (preserva las existentes)
-	const { writeJson: wj } = await import('../infrastructure/storage/fsHelpers');
-	await wj(app, joinPath(novelFolderPath, 'codex', 'categorias.json'), cats);
+	await writeJson(app, joinPath(novelFolderPath, 'codex', 'categorias.json'), cats);
 
 	return { entradas, categoriasCreadas };
-}
-
-function collectMdRecursive(app: App, folder: TFolder): TFile[] {
-	const out: TFile[] = [];
-	for (const c of folder.children) {
-		if (c instanceof TFile && c.path.endsWith('.md')) out.push(c);
-		else if (c instanceof TFolder) out.push(...collectMdRecursive(app, c));
-	}
-	return out;
 }

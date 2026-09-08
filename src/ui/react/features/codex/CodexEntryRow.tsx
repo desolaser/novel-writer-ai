@@ -13,16 +13,16 @@ function CodexEntryRow({
 	entry,
 	tags,
 	onClick,
-	deleteMode,
+	selectionActive,
 	selected,
-	onToggleDeletion,
+	onToggleSelection,
 }: {
 	entry: any;
 	tags: any[];
 	onClick: () => void;
-	deleteMode: boolean;
+	selectionActive: boolean;
 	selected: boolean;
-	onToggleDeletion: () => void;
+	onToggleSelection: () => void;
 }) {
 	const entryTags = (entry.tags ?? [])
 		.map((id: string) => tags.find((t: any) => t.id_tag === id))
@@ -37,14 +37,14 @@ function CodexEntryRow({
 					? "never"
 					: "")
 			}
-			onClick={deleteMode ? onToggleDeletion : onClick}
+			onClick={selectionActive ? onToggleSelection : onClick}
 		>
-			{deleteMode && (
+			{selectionActive && (
 				<input
-					className="nw-codex-delete-checkbox"
+					className="nw-codex-select-checkbox"
 					type="checkbox"
 					checked={selected}
-					onChange={onToggleDeletion}
+					onChange={onToggleSelection}
 					onClick={(event) => event.stopPropagation()}
 					aria-label={`Select ${entry.nombre}`}
 				/>

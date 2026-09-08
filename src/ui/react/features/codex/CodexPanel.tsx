@@ -15,15 +15,18 @@ import { EMPTY_FILTERS } from './types/Filters';
 import type { Filters } from './types/Filters';
 
 
+type BatchMode = 'delete' | 'assign' | null;
+
 export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { categorias, entradas, tags, setEditingEntry, createEntry, deleteEntry } = useNovelWriter();
+	const { categorias, entradas, tags, setEditingEntry, createEntry, deleteEntry, updateEntry } = useNovelWriter();
 	const [query, setQuery] = useState('');
     const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 	const [configMenuOpen, setConfigMenuOpen] = useState(false);
 	const [importBusy, setImportBusy] = useState(false);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-	const [deleteMode, setDeleteMode] = useState(false);
-	const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+	const [batchMode, setBatchMode] = useState<BatchMode>(null);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [assignTargetCat, setAssignTargetCat] = useState('');
 	const configRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
@@ -67,25 +70,44 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const startBatchDelete = () => {
 		setConfigMenuOpen(false);
-		setSelectedForDeletion(new Set());
-		setDeleteMode(true);
+		setSelectedIds(new Set());
+		setBatchMode('delete');
 		new Notice('Select entries to delete');
 	};
 
-	const cancelBatchDelete = () => { setDeleteMode(false); setSelectedForDeletion(new Set()); };
+	const startBatchAssign = () => {
+		setConfigMenuOpen(false);
+		setSelectedIds(new Set());
+		setAssignTargetCat(categorias[0]?.id_categoria ?? '');
+		setBatchMode('assign');
+		new Notice('Select entries to assign a category');
+	};
 
-	const toggleDeletion = (id: string) => setSelectedForDeletion(previous => {
+	const cancelBatch = () => { setBatchMode(null); setSelectedIds(new Set()); };
+
+	const toggleSelection = (id: string) => setSelectedIds(previous => {
 		const next = new Set(previous);
 		if (next.has(id)) next.delete(id); else next.add(id);
 		return next;
 	});
 
 	const confirmBatchDelete = async () => {
-		const count = selectedForDeletion.size;
+		const count = selectedIds.size;
 		if (!count || !confirm(`Are you sure you want to delete ${count} entries?`)) return;
-		for (const id of selectedForDeletion) await deleteEntry(id);
-		cancelBatchDelete();
+		for (const id of selectedIds) await deleteEntry(id);
+		cancelBatch();
 		new Notice(`Deleted ${count} entries`);
+	};
+
+	const confirmBatchAssign = async () => {
+		const count = selectedIds.size;
+		if (!count || !assignTargetCat) return;
+		for (const id of selectedIds) {
+			const entry = entradas.find(e => e.id_entrada_codex === id);
+			if (entry && entry.id_categoria !== assignTargetCat) await updateEntry({ ...entry, id_categoria: assignTargetCat });
+		}
+		cancelBatch();
+		new Notice(`Assigned ${count} entries`);
 	};
 
 	const NO_CAT_KEY = '__no_cat__';
@@ -160,6 +182,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 							<hr style={{ margin: '4px 0', border: 0, borderTop: '1px solid var(--background-modifier-border)' }} />
 							<div className="nw-popover-item" onClick={openModalDetail}><span>Custom Details</span></div>
 							<div className="nw-popover-item" onClick={openModalCategories}><span>Categories</span></div>
+							<div className="nw-popover-item" onClick={startBatchAssign}><span>Assign Category</span></div>
 							<div className="nw-popover-item" onClick={startBatchDelete}><span>Delete Entries</span></div>
 							<div className="nw-popover-item" onClick={() => { 
 								setConfigMenuOpen(false); 
@@ -170,17 +193,39 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					)}
 				</div>
 			</div>
-			{deleteMode && <div className="nw-codex-batch-actions">
-				<button 
-					className="nw-btn nw-btn-danger" 
-					disabled={selectedForDeletion.size === 0} 
+			{batchMode === 'delete' && <div className="nw-codex-batch-actions">
+				<button
+					className="nw-btn nw-btn-danger"
+					disabled={selectedIds.size === 0}
 					onClick={() => void confirmBatchDelete()}>
 					Delete entries
 				</button>
-				<button 
-					className="nw-btn" 
-					onClick={cancelBatchDelete}>
+				<button
+					className="nw-btn"
+					onClick={cancelBatch}>
 					Cancel deletion
+				</button>
+			</div>}
+			{batchMode === 'assign' && <div className="nw-codex-batch-actions">
+				<select
+					className="nw-input"
+					value={assignTargetCat}
+					onChange={(e) => setAssignTargetCat(e.target.value)}
+				>
+					{categorias.map((c) => (
+						<option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>
+					))}
+				</select>
+				<button
+					className="nw-btn nw-btn-primary"
+					disabled={selectedIds.size === 0 || !assignTargetCat}
+					onClick={() => void confirmBatchAssign()}>
+					Assign category
+				</button>
+				<button
+					className="nw-btn"
+					onClick={cancelBatch}>
+					Cancel assignment
 				</button>
 			</div>}
 			<div className="nw-codex-list">
@@ -196,9 +241,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						tags={tags}
 						onEdit={(entryId) => openEntryModal(plugin, entryId)}
 						onAddInCategory={() => createAndEdit(c.id_categoria)}
-						deleteMode={deleteMode}
-						selectedForDeletion={selectedForDeletion}
-						onToggleDeletion={toggleDeletion}
+						selectionActive={batchMode !== null}
+						selectedIds={selectedIds}
+						onToggleSelection={toggleSelection}
 					/>
 				))}
 				{!filters.isArchived && noCat.length > 0 && (
@@ -212,9 +257,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						tags={tags}
 						onEdit={(entryId) => openEntryModal(plugin, entryId)}
 						onAddInCategory={() => createAndEdit('')}
-						deleteMode={deleteMode}
-						selectedForDeletion={selectedForDeletion}
-						onToggleDeletion={toggleDeletion}
+						selectionActive={batchMode !== null}
+						selectedIds={selectedIds}
+						onToggleSelection={toggleSelection}
 					/>
 				)}
 				{filtered.length === 0 && (

@@ -11,9 +11,9 @@ function CodexCategoryGroup({
 	tags,
 	onEdit,
 	onAddInCategory,
-	deleteMode,
-	selectedForDeletion,
-	onToggleDeletion,
+	selectionActive,
+	selectedIds,
+	onToggleSelection,
 }: {
 	catId: string;
 	catName: string;
@@ -24,9 +24,9 @@ function CodexCategoryGroup({
 	tags: any[];
 	onEdit: (id: string) => void;
 	onAddInCategory: () => void;
-	deleteMode: boolean;
-	selectedForDeletion: Set<string>;
-	onToggleDeletion: (id: string) => void;
+	selectionActive: boolean;
+	selectedIds: Set<string>;
+	onToggleSelection: (id: string) => void;
 }) {
 	if (entries.length === 0) return null;
 	return (
@@ -68,12 +68,12 @@ function CodexCategoryGroup({
 							entry={e}
 							tags={tags}
 							onClick={() => onEdit(e.id_entrada_codex)}
-							deleteMode={deleteMode}
-							selected={selectedForDeletion.has(
+							selectionActive={selectionActive}
+							selected={selectedIds.has(
 								e.id_entrada_codex
 							)}
-							onToggleDeletion={() =>
-								onToggleDeletion(e.id_entrada_codex)
+							onToggleSelection={() =>
+								onToggleSelection(e.id_entrada_codex)
 							}
 						/>
 					))}
