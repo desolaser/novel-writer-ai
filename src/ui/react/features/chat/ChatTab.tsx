@@ -11,7 +11,7 @@ import { isCharacterCategory } from '../../../../utils/categories';
 import { resolvePlaceholders } from '../../../../utils/roleplayPlaceholders';
 import { canvasToDataUrl, cropToCanvas } from '../../../../utils/image';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
-import type { EntradaCodex, ChatContextItem, ChatContextKind } from '../../../../domain';
+import type { EntradaCodex, ChatContextItem, ChatContextKind, Acto, Capitulo } from '../../../../domain';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { estimateTokens } from '../../../../context/promptBuilder';
 import { buildToolPrompt } from '../../../../context/toolPrompt';
@@ -46,6 +46,18 @@ const dataUrlToArrayBuffer = async (dataUrl: string): Promise<ArrayBuffer> => {
 const stripFrontmatter = (content: string) => content.replace(/^---\s*\r?\n[\s\S]*?\r?\n---\s*(?:\r?\n)?/, '');
 const includesQuery = (query: string, ...values: Array<string | null | undefined>) =>
 	values.join(' ').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+
+/**
+ * Groups chapters by act, ordered by each act's `orden`. Chapter numbering
+ * restarts inside every act, so a flat list sorted by `orden` alone would
+ * interleave "Chapter 1" of act 2 with "Chapter 1" of act 1; a divider per
+ * act keeps the order legible.
+ */
+const groupChaptersByAct = (chapters: Capitulo[], actos: Acto[]): Array<{ acto: Acto; chapters: Capitulo[] }> =>
+	[...actos]
+		.sort((a, b) => a.orden - b.orden)
+		.map(acto => ({ acto, chapters: chapters.filter(chapter => chapter.id_acto === acto.id_acto).sort((a, b) => a.orden - b.orden) }))
+		.filter(group => group.chapters.length > 0);
 
 /** Tiny markdown block renderer using Obsidian's built-in renderer. */
 function MarkdownBlock({ plugin, content }: { plugin: NovelWriterPlugin; content: string }) {
@@ -256,6 +268,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		categorias,
 		entradas,
 		capitulos,
+		actos,
 		setSidebarTab,
 		setEntryThumbnail,
 		updateMensaje,
@@ -956,11 +969,27 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const filteredFolders = folders.filter(folder => includesQuery(query, folder.name, folder.path));
 	const filteredNotes = (query ? markdownFiles : notes).filter(file => includesQuery(query, file.basename, file.path));
 	const filteredCategories = categorias.map(category => ({ category, entries: entradas.filter(entry => !entry.archivado && entry.id_categoria === category.id_categoria && includesQuery(query, entry.nombre, entry.alias, entry.descripcion)) })).filter(group => group.entries.length);
+	const groupedChaptersForContext = groupChaptersByAct(filteredChapters.filter(chapter => !!chapter.archivo), actos);
+	const groupedOutlinesForContext = groupChaptersByAct(filteredChapters, actos);
 
 	const personajeCategory = categorias.find(c => isCharacterCategory(c));
 	const characterEntries = personajeCategory
 		? entradas.filter(e => !e.archivado && e.id_categoria === personajeCategory.id_categoria && includesQuery(query, e.nombre, e.alias))
 		: [];
+
+	// Root-level search: true once the author has typed anything, at which point the
+	// dropdown switches from "pick a category" to a flat, icon-differentiated list of
+	// matches pulled from every category at once (codex, chapters, outlines, notes,
+	// folders, characters), copilot-style.
+	const isRootSearching = contextMenu === 'root' && query.trim().length > 0;
+	const activeNoteMatchesQuery = !!activeFile && includesQuery(query, activeFile.basename);
+	const hasRootSearchResults = filteredCategories.length > 0
+		|| groupedChaptersForContext.length > 0
+		|| groupedOutlinesForContext.length > 0
+		|| filteredNotes.length > 0
+		|| filteredFolders.length > 0
+		|| characterEntries.length > 0
+		|| activeNoteMatchesQuery;
 
 	const imageCodexCategories = useMemo(() => {
 		const sq = imageDropdown?.searchQuery ?? '';
@@ -1157,7 +1186,18 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				{contextOpen && <div className="nw-context-dropdown">
 					<div className="nw-context-dropdown-list">
 						{contextMenu !== 'root' && <button className="nw-context-row nw-context-back" onClick={() => setContextMenu('root')}><Icon.Back width={14} height={14} /> Back</button>}
-						{contextMenu === 'root' && <>{([['codex', 'Codex'], ['chapters', 'Chapters'], ['outlines', 'Outlines'], ['notes', 'Notes'], ['folders', 'Folders'], ['characters', 'Character']] as Array<[ContextMenu, string]>).map(([menu, label]) => <button className="nw-context-row" key={menu} onClick={() => setContextMenu(menu)}>{label}<Icon.ChevronRight width={14} height={14} /></button>)}{characterContext && <button className="nw-context-row" onClick={() => setContextMenu('impersonate')}>Impersonate<Icon.ChevronRight width={14} height={14} /></button>}<button className="nw-context-row" disabled={!activeFile} onClick={() => { refreshActiveNote(); setContextOpen(false); setContextMenu('root'); }}>{renderIcon('active-note')} Active Note</button></>}
+						{contextMenu === 'root' && !isRootSearching && <>{([['codex', 'Codex'], ['chapters', 'Chapters'], ['outlines', 'Outlines'], ['notes', 'Notes'], ['folders', 'Folders'], ['characters', 'Character']] as Array<[ContextMenu, string]>).map(([menu, label]) => <button className="nw-context-row" key={menu} onClick={() => setContextMenu(menu)}>{label}<Icon.ChevronRight width={14} height={14} /></button>)}{characterContext && <button className="nw-context-row" onClick={() => setContextMenu('impersonate')}>Impersonate<Icon.ChevronRight width={14} height={14} /></button>}<button className="nw-context-row" disabled={!activeFile} onClick={() => { refreshActiveNote(); setContextOpen(false); setContextMenu('root'); }}>{renderIcon('active-note')} Active Note</button></>}
+						{contextMenu === 'root' && isRootSearching && <>
+							{filteredCategories.length > 0 && <section className="nw-context-category"><div className="nw-context-category-title">Codex</div>{filteredCategories.flatMap(({ category, entries: categoryEntries }) => categoryEntries.map(entry => <button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => addContext({ id: `codex:${entry.id_entrada_codex}`, kind: 'codex', name: entry.nombre, content: entry.descripcion, thumbnail: entry.thumbnail, categoryColor: entry.color ?? category.color })}><span className="nw-context-category-line" style={{ backgroundColor: entry.color ?? category.color }} />{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}{entry.nombre}</button>))}</section>}
+							{groupedChaptersForContext.map(({ acto, chapters }) => <section key={`ch-${acto.id_acto}`} className="nw-context-category"><div className="nw-context-category-title">Chapters — {acto.nombre}</div>{chapters.map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => void selectChapter(chapter.id_capitulo)}>{renderIcon('chapter')}{chapter.nombre}</button>)}</section>)}
+							{groupedOutlinesForContext.map(({ acto, chapters }) => <section key={`ol-${acto.id_acto}`} className="nw-context-category"><div className="nw-context-category-title">Outlines — {acto.nombre}</div>{chapters.map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => selectOutline(chapter.id_capitulo)}>{renderIcon('outline')}{chapter.nombre}</button>)}</section>)}
+							{filteredNotes.length > 0 && <section className="nw-context-category"><div className="nw-context-category-title">Notes</div>{filteredNotes.map(file => <button key={file.path} className="nw-context-row nw-context-file" onClick={() => void addFileContext(file, 'note')}>{renderIcon('note')}<span>{file.basename}<small>{file.path}</small></span></button>)}</section>}
+							{filteredFolders.length > 0 && <section className="nw-context-category"><div className="nw-context-category-title">Folders</div>{filteredFolders.map(folder => <button key={folder.path} className="nw-context-row nw-context-file" onClick={() => void addFolderContext(folder)}>{renderIcon('folder')}<span>{folder.name}<small>{folder.path}</small></span></button>)}</section>}
+							{characterEntries.length > 0 && <section className="nw-context-category"><div className="nw-context-category-title">Characters</div>{characterEntries.map(entry => <button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => void addCharacterContext(entry)}>{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}{entry.nombre}</button>)}</section>}
+							{characterContext && characterEntries.length > 0 && <section className="nw-context-category"><div className="nw-context-category-title">Impersonate</div>{characterEntries.map(entry => <button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => addImpersonateContext(entry)}>{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}{entry.nombre}</button>)}</section>}
+							{activeNoteMatchesQuery && <button className="nw-context-row" onClick={() => { refreshActiveNote(); setContextOpen(false); setContextMenu('root'); }}>{renderIcon('active-note')} {activeFile!.basename}</button>}
+							{!hasRootSearchResults && <span className="nw-context-row" style={{ color: 'var(--text-muted)', cursor: 'default' }}>No results found.</span>}
+						</>}
 						{contextMenu === 'codex' && filteredCategories.map(({ category, entries: categoryEntries }) => <section key={category.id_categoria} className="nw-context-category"><div className="nw-context-category-title">{category.nombre}</div>{categoryEntries.map(entry => <button key={entry.id_entrada_codex} className="nw-context-row nw-context-entry" onClick={() => addContext({ id: `codex:${entry.id_entrada_codex}`, kind: 'codex', name: entry.nombre, content: entry.descripcion, thumbnail: entry.thumbnail, categoryColor: entry.color ?? category.color })}><span className="nw-context-category-line" style={{ backgroundColor: entry.color ?? category.color }} />{entry.thumbnail ? <img src={entry.thumbnail} alt="" className="nw-context-entry-thumbnail" /> : <span className="nw-context-entry-thumbnail" />}{entry.nombre}</button>)}</section>)}
 						{contextMenu === 'characters' && (
 							<>
@@ -1179,12 +1219,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								)) : <span className="nw-context-row" style={{color: 'var(--text-muted)', cursor: 'default'}}>No characters available.</span>}
 							</>
 						)}
-						{contextMenu === 'chapters' && filteredChapters.filter(chapter => !!chapter.archivo).map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => void selectChapter(chapter.id_capitulo)}>{renderIcon('chapter')}{chapter.nombre}</button>)}
-						{contextMenu === 'outlines' && filteredChapters.map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => selectOutline(chapter.id_capitulo)}>{renderIcon('outline')}{chapter.nombre}</button>)}
+						{contextMenu === 'chapters' && groupedChaptersForContext.map(({ acto, chapters }) => <section key={acto.id_acto} className="nw-context-category"><div className="nw-context-category-title">{acto.nombre}</div>{chapters.map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => void selectChapter(chapter.id_capitulo)}>{renderIcon('chapter')}{chapter.nombre}</button>)}</section>)}
+						{contextMenu === 'outlines' && groupedOutlinesForContext.map(({ acto, chapters }) => <section key={acto.id_acto} className="nw-context-category"><div className="nw-context-category-title">{acto.nombre}</div>{chapters.map(chapter => <button key={chapter.id_capitulo} className="nw-context-row" onClick={() => selectOutline(chapter.id_capitulo)}>{renderIcon('outline')}{chapter.nombre}</button>)}</section>)}
 						{contextMenu === 'notes' && filteredNotes.map(file => <button key={file.path} className="nw-context-row nw-context-file" onClick={() => void addFileContext(file, 'note')}>{renderIcon('note')}<span>{file.basename}<small>{file.path}</small></span></button>)}
 						{contextMenu === 'folders' && filteredFolders.map(folder => <button key={folder.path} className="nw-context-row nw-context-file" onClick={() => void addFolderContext(folder)}>{renderIcon('folder')}<span>{folder.name}<small>{folder.path}</small></span></button>)}
 					</div>
-					{contextMenu !== 'root' && <div className="nw-context-search"><input className="nw-input" autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Filter..." /></div>}
+					<div className="nw-context-search"><input className="nw-input" autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Search..." /></div>
 				</div>}
 			</div>
 			<div className="nw-chat-input">
