@@ -2,14 +2,13 @@ import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
 import { toLlamaCppBody, type CompletionOptions } from '../utils/provider-options';
+import { parseSSEStream } from '../utils/sseStream';
 
 export class LlamaCppApi extends ApiInterface {
-    apiKey: string = "";
     baseUrl: string = "http://127.0.0.1:8080";
 
     constructor(apiKey: string) {
         super(apiKey);
-        this.apiKey = apiKey;
     }
 
     async getAvailableModels(): Promise<Model[]> {
@@ -58,7 +57,7 @@ export class LlamaCppApi extends ApiInterface {
             }
 
             if (body.stream && response.body) {
-                const stream = this.parseSSEStream(response.body);
+                const stream = parseSSEStream(response.body);
                 return { stream, model };
             }
 
@@ -81,34 +80,6 @@ export class LlamaCppApi extends ApiInterface {
             return response.ok;
         } catch {
             return false;
-        }
-    }
-
-    private async *parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator<any, void, unknown> {
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            let lines = buffer.split('\n');
-            buffer = lines.pop()!;
-
-            for (const line of lines) {
-                if (line.startsWith('data:')) {
-                    const data = line.replace(/^data:\s*/, '');
-                    if (data === '[DONE]') return;
-                    try {
-                        const parsed = JSON.parse(data);
-                        yield parsed;
-                    } catch {
-                        // Non-JSON keep-alive or other events
-                    }
-                }
-            }
         }
     }
 }

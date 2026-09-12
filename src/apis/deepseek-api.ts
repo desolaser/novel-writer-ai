@@ -6,7 +6,6 @@ import { toDeepSeekBody, type CompletionOptions } from '../utils/provider-option
 
 export class DeepseekApi extends ApiInterface {
     openai: OpenAI | null = null;
-    apiKey: string = ""
     baseUrl: string = "https://api.deepseek.com/v1";
 
     constructor(apiKey: string) {

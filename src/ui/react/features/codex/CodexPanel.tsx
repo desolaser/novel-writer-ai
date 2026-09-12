@@ -41,15 +41,11 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		const otros = categorias.find(c => c.nombre === 'Others');
 		const finalCat = idCat || (otros?.id_categoria ?? categorias[0]?.id_categoria);
 		if (!finalCat) return;
-		await createEntry(finalCat, '');
-		setTimeout(() => {
-			const ents = useNovelWriter.getState().entradas;
-			const ultima = ents[ents.length - 1];
-			if (ultima) { 
-				setEditingEntry(ultima.id_entrada_codex);
-				openEntryModal(plugin, ultima.id_entrada_codex);
-			}
-		}, 100);
+		const created = await createEntry(finalCat, '');
+		if (created) {
+			setEditingEntry(created.id_entrada_codex);
+			openEntryModal(plugin, created.id_entrada_codex);
+		}
 	};
 
 	const openModalDetail = () => { 

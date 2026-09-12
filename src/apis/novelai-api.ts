@@ -1,12 +1,12 @@
 import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
+import { parseSSEStream } from '../utils/sseStream';
 
 /**
  * Implementación específica para la API de NovelAI
  */
 export class NovelAiApi extends ApiInterface {
-    apiKey: string = "";
     baseUrl: string = "https://api.novelai.net";
     TEXT_URL = "https://text.novelai.net";
 
@@ -26,7 +26,6 @@ export class NovelAiApi extends ApiInterface {
 
     constructor(apiKey: string) {
         super(apiKey);
-        this.apiKey = apiKey;
     }
 
     /**
@@ -241,7 +240,7 @@ export class NovelAiApi extends ApiInterface {
 
         // Si es streaming, procesar el stream SSE
         if (requestOptions.stream && response.body) {
-            const stream = this.parseSSEStream(response.body);
+            const stream = parseSSEStream(response.body);
             return {
                 stream,
                 model,
@@ -281,83 +280,20 @@ export class NovelAiApi extends ApiInterface {
      * Procesa un stream SSE para el endpoint OpenAI-compatible
      * Formato: data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"content":"text"},"index":0}]}
      */
-    private async *parseOpenAIStream(body: ReadableStream<Uint8Array>): AsyncGenerator<any, void, unknown> {
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            const lines = buffer.split('\n');
-            buffer = lines.pop()!; // La última línea puede estar incompleta
-
-            for (const line of lines) {
-                if (line.startsWith('data:')) {
-                    const data = line.replace(/^data:\s*/, '');
-                    if (data === '[DONE]') return;
-                    try {
-                        const parsed = JSON.parse(data);
-
-                        // Transformar el chunk al formato esperado por el consumidor
-                        // Extraer el texto del chunk
-                        let text = '';
-                        if (parsed.choices && parsed.choices.length > 0) {
-                            const choice = parsed.choices[0];
-                            if (choice.delta?.content) {
-                                text = choice.delta.content;
-                            }
-                            else if (choice.message?.content) {
-                                text = choice.message.content;
-                            }
-                            else if (choice.text) {
-                                text = choice.text;
-                            }
-                        }
-
-                        yield {
-                            ...parsed,
-                            text: text,
-                        };
-                    } catch (err) {
-                        throw new Error(`NovelAI API error: ${err}`);
-                    }
+    private parseOpenAIStream(body: ReadableStream<Uint8Array>): AsyncGenerator<any, void, unknown> {
+        return parseSSEStream(body, {
+            mapChunk: (parsed) => {
+                // Extraer el texto del chunk
+                let text = '';
+                if (parsed.choices && parsed.choices.length > 0) {
+                    const choice = parsed.choices[0];
+                    if (choice.delta?.content) text = choice.delta.content;
+                    else if (choice.message?.content) text = choice.message.content;
+                    else if (choice.text) text = choice.text;
                 }
-            }
-        }
-    }
-
-    /**
-     * Procesa un stream SSE (Server-Sent Events) para endpoints tradicionales
-     */
-    private async *parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator<any, void, unknown> {
-        console.log({ body })
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            const lines = buffer.split('\n');
-            buffer = lines.pop()!; // La última línea puede estar incompleta
-
-            for (const line of lines) {
-                if (line.startsWith('data:')) {
-                    const data = line.replace(/^data:\s*/, '');
-                    if (data === '[DONE]') return;
-                    try {
-                        const parsed = JSON.parse(data);
-                        yield parsed;
-                    } catch {
-                        // Puede haber keep-alive u otros eventos no JSON
-                    }
-                }
-            }
-        }
+                return { ...parsed, text };
+            },
+            onParseError: (err) => { throw new Error(`NovelAI API error: ${err}`); },
+        });
     }
 }

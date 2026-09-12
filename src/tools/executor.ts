@@ -22,8 +22,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 };
 
 /** Validates the arguments the model supplied against the tool's declared spec. */
-function missingArguments(call: ToolCall): string[] {
-	const definition = findToolDefinition(call.name);
+function missingArguments(call: ToolCall, definition: ReturnType<typeof findToolDefinition>): string[] {
 	if (!definition) return [];
 	return definition.args
 		.filter((arg) => arg.required && !(call.args[arg.name] ?? '').trim())
@@ -33,8 +32,14 @@ function missingArguments(call: ToolCall): string[] {
 /**
  * Runs one tool call. Never throws: a failure comes back as a result the model can
  * read and react to, which is what keeps the conversation going after a bad call.
+ *
+ * `approved` must be explicitly passed as `true` for a write-kind tool to run. This
+ * is a second line of defense on top of the chat UI's approve/reject cards: whatever
+ * calls this function is the one place a write can slip through without the author's
+ * consent, so the default keeps every write refused until the caller proves it got
+ * approval — never add a caller that hardcodes `true` for a tool it hasn't gated.
  */
-export async function executeToolCall(call: ToolCall, context: ToolContext): Promise<ToolResult> {
+export async function executeToolCall(call: ToolCall, context: ToolContext, approved = false): Promise<ToolResult> {
 	if (call.truncated) {
 		return {
 			callId: call.id,
@@ -50,7 +55,11 @@ export async function executeToolCall(call: ToolCall, context: ToolContext): Pro
 		const known = TOOL_DEFINITIONS.map((tool) => tool.name).join(', ');
 		return { callId: call.id, name: call.name, ok: false, output: `Unknown tool "${call.name}". Available tools: ${known}.` };
 	}
-	const missing = missingArguments(call);
+	const definition = findToolDefinition(call.name);
+	if (definition?.kind === 'write' && !approved) {
+		return { callId: call.id, name: call.name, ok: false, output: 'This is a write tool and requires the author\'s approval before it runs; this call was not approved.' };
+	}
+	const missing = missingArguments(call, definition);
 	if (missing.length) {
 		return { callId: call.id, name: call.name, ok: false, output: `Missing required argument(s): ${missing.join(', ')}.` };
 	}

@@ -2,17 +2,16 @@ import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
 import { toOpenRouterBody, type CompletionOptions } from '../utils/provider-options';
+import { parseSSEStream } from '../utils/sseStream';
 
 /**
  * Implementación específica para la API de OpenRouter
  */
 export class OpenRouterApi extends ApiInterface {
-    apiKey: string = ""
     baseUrl: string = "https://openrouter.ai/api/v1";
 
     constructor(apiKey: string) {
         super(apiKey);
-        this.apiKey = apiKey;
     }
 
     /**
@@ -81,7 +80,7 @@ export class OpenRouterApi extends ApiInterface {
             // Si es streaming, devolver la respuesta directamente
             if (body.stream && response.body) {
                 // Procesar el stream SSE y devolver un AsyncIterable de objetos tipo OpenAI
-                const stream = this.parseSSEStream(response.body);
+                const stream = parseSSEStream(response.body);
                 return {
                     stream,
                     model,
@@ -164,35 +163,6 @@ export class OpenRouterApi extends ApiInterface {
         } catch (error) {
             console.error('Error validando API key de OpenRouter:', error);
             return false;
-        }
-    }
-
-    // Añade este método a tu clase
-    private async *parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator<any, void, unknown> {
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            let lines = buffer.split('\n');
-            buffer = lines.pop()!; // La última línea puede estar incompleta
-
-            for (const line of lines) {
-                if (line.startsWith('data:')) {
-                    const data = line.replace(/^data:\s*/, '');
-                    if (data === '[DONE]') return;
-                    try {
-                        const parsed = JSON.parse(data);
-                        yield parsed;
-                    } catch (e) {
-                        // Puede haber keep-alive u otros eventos no JSON
-                    }
-                }
-            }
         }
     }
 }

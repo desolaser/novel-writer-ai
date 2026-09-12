@@ -28,12 +28,10 @@ const ANTHROPIC_MODELS = new Set([
  * Usa requestUrl de Obsidian para evitar problemas de CORS.
  */
 export class OpenCodeGoApi extends ApiInterface {
-    apiKey: string = ""
     baseUrl: string = "https://opencode.ai/zen/go/v1";
 
     constructor(apiKey: string) {
         super(apiKey);
-        this.apiKey = apiKey;
     }
 
     /**

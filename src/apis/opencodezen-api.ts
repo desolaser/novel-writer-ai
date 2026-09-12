@@ -13,12 +13,10 @@ import { toOpenCodeChatBody, type CompletionOptions } from '../utils/provider-op
  * al ejecutarse desde app://obsidian.md
  */
 export class OpenCodeZenApi extends ApiInterface {
-    apiKey: string = ""
     baseUrl: string = "https://opencode.ai/zen/v1";
 
     constructor(apiKey: string) {
         super(apiKey);
-        this.apiKey = apiKey;
     }
 
     /**

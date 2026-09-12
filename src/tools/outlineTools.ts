@@ -1,4 +1,4 @@
-import type { ToolContext } from '../interfaces/tool-context';
+import type { ChapterToolContext as ToolContext } from '../interfaces/tool-context';
 import { resolveChapter } from './chapterTools';
 
 /**

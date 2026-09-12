@@ -67,7 +67,9 @@ export function useToolRunner() {
 				}
 			}
 			patchCall(id, 'running');
-			const result = await executeToolCall(state.call, context);
+			// Reaching here means the tool is read-kind, or it is write-kind and the
+			// author just approved it above — either way `executeToolCall` can proceed.
+			const result = await executeToolCall(state.call, context, true);
 			patchCall(id, result.ok ? 'done' : 'error', result);
 			results.push(result);
 		}

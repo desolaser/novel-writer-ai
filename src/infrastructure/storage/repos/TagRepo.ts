@@ -21,9 +21,9 @@ export async function createTag(
 
 /** Crea (si no existe) o devuelve el Tag con el nombre dado (case-insensitive). */
 export async function findOrCreateTag(app: App, folderPath: string, idNovela: EntityId, nombre: string): Promise<Tag> {
+	const norm = nombre.trim();
 	const tags = await repo.readAll(app, folderPath);
-	const existing = tags.find(t => t.nombre.toLowerCase() === nombre.trim().toLowerCase());
-		const norm = nombre.trim();
+	const existing = tags.find(t => t.nombre.toLowerCase() === norm.toLowerCase());
 	if (existing) return existing;
 	return await createTag(app, folderPath, idNovela, norm, null);
 }

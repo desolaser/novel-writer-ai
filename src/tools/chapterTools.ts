@@ -1,5 +1,5 @@
 import type { Capitulo } from '../domain';
-import type { ToolContext } from '../interfaces/tool-context';
+import type { ChapterToolContext as ToolContext } from '../interfaces/tool-context';
 import { resolveByName } from '../utils/toolCallParsing';
 
 /**

@@ -18,7 +18,6 @@ export interface AiOptions {
 	temperature: number;
 	topP?: number;
 	topK?: number;
-	topA?: number;
 	repetitionPenalty?: number;
 	repetitionPenaltyRange?: number;
 	presencePenalty?: number;

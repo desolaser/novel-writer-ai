@@ -1,6 +1,6 @@
 import { TipoDetalle } from '../domain';
 import type { EntradaCodex } from '../domain';
-import type { ToolContext } from '../interfaces/tool-context';
+import type { CodexToolContext as ToolContext } from '../interfaces/tool-context';
 import { findFallbackCategory } from '../utils/categories';
 import { normalizeForMatch } from '../utils/codexAiParsing';
 import { resolveByName } from '../utils/toolCallParsing';

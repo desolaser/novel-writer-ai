@@ -2,21 +2,20 @@ import { ApiInterface } from '../interfaces/api-interface';
 import type { Model } from '../types/Model';
 import type { CompletionResponse } from '../types/CompletionResponse';
 import { toOobaBody, type CompletionOptions } from '../utils/provider-options';
+import { parseSSEStream } from '../utils/sseStream';
 
 /**
- * Implementación específica para la API de OpenRouter
+ * Implementación específica para la API de text-generation-webui (oobabooga)
  */
 export class TextGenerationWebuiApi extends ApiInterface {
-    apiKey: string = ""
     baseUrl: string = "http://127.0.0.1:5000";
 
     constructor(apiKey: string) {
         super(apiKey);
-        this.apiKey = apiKey;
     }
 
     /**
-     * Obtiene los modelos disponibles de OpenRouter
+     * Obtiene los modelos disponibles de text-generation-webui
      */
     async getAvailableModels(): Promise<Model[]> {
         try {
@@ -43,13 +42,13 @@ export class TextGenerationWebuiApi extends ApiInterface {
                 pricing: 0
             }));
         } catch (error) {
-            console.error('Error en OpenRouterApi.getAvailableModels:', error);
+            console.error('Error en TextGenerationWebuiApi.getAvailableModels:', error);
             throw error;
         }
     }
 
     /**
-     * Genera una respuesta usando el modelo especificado de OpenRouter
+     * Genera una respuesta usando el modelo especificado de text-generation-webui
      */
     async generateCompletion(prompt: string, model: string, options: CompletionOptions = {}): Promise<CompletionResponse> {
         try {
@@ -80,7 +79,7 @@ export class TextGenerationWebuiApi extends ApiInterface {
 
             if (body.stream && response.body) {
                 // Procesar el stream SSE y devolver un AsyncIterable de objetos tipo OpenAI
-                const stream = this.parseSSEStream(response.body);
+                const stream = parseSSEStream(response.body);
                 return {
                     stream,
                     model,
@@ -95,13 +94,13 @@ export class TextGenerationWebuiApi extends ApiInterface {
                 model: data.model
             };
         } catch (error) {
-            console.error('Error en OpenRouterApi.generateCompletion:', error);
+            console.error('Error en TextGenerationWebuiApi.generateCompletion:', error);
             throw error;
         }
     }
 
     /**
-     * Valida si el API token de OpenRouter es correcto
+     * Valida si el API token de text-generation-webui es correcto
      * @returns {Promise<boolean>} - True si el token es válido
      */
     async validateApiKey() {
@@ -118,37 +117,8 @@ export class TextGenerationWebuiApi extends ApiInterface {
             
             return response.ok;
         } catch (error) {
-            console.error('Error validando API key de OpenRouter:', error);
+            console.error('Error validando API key de text-generation-webui:', error);
             return false;
-        }
-    }
-
-    // Añade este método a tu clase
-    private async *parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator<any, void, unknown> {
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            let lines = buffer.split('\n');
-            buffer = lines.pop()!; // La última línea puede estar incompleta
-
-            for (const line of lines) {
-                if (line.startsWith('data:')) {
-                    const data = line.replace(/^data:\s*/, '');
-                    if (data === '[DONE]') return;
-                    try {
-                        const parsed = JSON.parse(data);
-                        yield parsed;
-                    } catch (e) {
-                        // Puede haber keep-alive u otros eventos no JSON
-                    }
-                }
-            }
         }
     }
 }
