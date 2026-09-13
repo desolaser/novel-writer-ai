@@ -1,6 +1,6 @@
-import type NovelWriterPlugin from "../../../../../main";
-import { ApiFactory } from "../../../../factories/api-factory";
-import { getActiveModelConfig } from "../../../../infrastructure/settings/active-model";
+import type NovelWriterPlugin from "../../main";
+import { ApiFactory } from "../factories/api-factory";
+import { getActiveModelConfig } from "../infrastructure/settings/active-model";
 
 /**
  * Output tokens the active model is configured for. Asking for more than this
@@ -17,10 +17,11 @@ export function activeOutputBudget(plugin: NovelWriterPlugin): number {
 }
 
 /**
- * One non-streamed completion with the active model, shared by the two blueprint
- * engines. Both need the same call and nothing else of each other.
+ * One non-streamed completion with the active model. Shared by every feature that
+ * needs a single generate-task call and nothing else of the provider — blueprint
+ * generation, outline drafting, and codex AI proposals all go through this.
  */
-export async function runBlueprintCompletion(
+export async function runModelCompletion(
 	plugin: NovelWriterPlugin,
 	prompt: string,
 	maxTokens: number,

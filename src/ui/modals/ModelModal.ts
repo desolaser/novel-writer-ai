@@ -13,6 +13,7 @@ import { ApiFactory } from "../../factories/api-factory";
 import type { Model as AvailableModel } from "../../types/Model";
 import { ModelRepository } from "../../infrastructure/settings/model-repository";
 import type { EffortLevel } from "../../utils/provider-options";
+import { formatModelOption, getFilteredAndSortedModels } from "../../utils/modelSorting";
 
 const EFFORT_LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
@@ -284,36 +285,6 @@ export class ModelModal extends Modal {
 		}
 	}
 
-	private formatTokensPerDollar(pricing: string | undefined | null): string {
-		if (!pricing) return "";
-		// Pricing format: "$0.00000014/1K prompt, $0.00000028/1K completion"
-		// The /1K label is misleading — the value is the per-TOKEN price.
-		// Real price per 1K tokens = price * 1_000.
-		// K tokens per dollar = 1 / (price * 1_000)
-		const match = pricing.match(/\$([\d.]+)\//);
-		if (!match) return "";
-		const price = parseFloat(match[1]);
-		if (Number.isNaN(price) || price <= 0) return "";
-		return `${Math.round(1 / (price * 1_000))}K/$`;
-	}
-
-	private formatModelOption(model: AvailableModel): string {
-		const icons: string[] = [];
-		if (model.supportsImageGeneration) {
-			icons.push("🖌"); // generates images (output)
-		}
-		if (model.supportsVision) {
-			icons.push("👁"); // accepts images as input (vision)
-		}
-		const parts: string[] = [];
-		if (icons.length) parts.push(icons.join(" "));
-		parts.push(model.name || model.id);
-		parts.push(`${model.contextLength} ctx`);
-		const tpd = this.formatTokensPerDollar(model.pricing);
-		if (tpd) parts.push(tpd);
-		return parts.join(" | ");
-	}
-
 	private renderModelDropdown(host?: HTMLElement): void {
 		const target =
 			host ??
@@ -328,7 +299,7 @@ export class ModelModal extends Modal {
 			: this.modelsError ||
 			  "Model available in the selected provider.";
 
-		const filtered = this.getFilteredAndSortedModels();
+		const filtered = getFilteredAndSortedModels(this.availableModels, this.searchQuery, this.sortMode);
 		new Setting(target)
 			.setName("Model")
 			.setDesc(modelDescription)
@@ -345,7 +316,7 @@ export class ModelModal extends Modal {
 				filtered.forEach((model) =>
 					dropdown.addOption(
 						model.id,
-						this.formatModelOption(model)
+						formatModelOption(model)
 					)
 				);
 				dropdown.setValue(this.form.nombre_modelo).onChange((value) => {
@@ -363,57 +334,6 @@ export class ModelModal extends Modal {
 					.setDisabled(this.loadingModels)
 					.onClick(() => void this.loadAvailableModels())
 			);
-	}
-
-	private getFilteredAndSortedModels(): AvailableModel[] {
-		let models = [...this.availableModels];
-
-		// Filter by search query
-		if (this.searchQuery.trim()) {
-			const q = this.searchQuery.trim().toLowerCase();
-			models = models.filter(
-				(m) =>
-					(m.name || m.id).toLowerCase().includes(q) ||
-					m.id.toLowerCase().includes(q)
-			);
-		}
-
-		// Sort
-		switch (this.sortMode) {
-			case "price":
-				models.sort((a, b) => {
-					const aVal = this.parseTokensPerDollarRaw(a.pricing);
-					const bVal = this.parseTokensPerDollarRaw(b.pricing);
-					return bVal - aVal; // descending: best value first
-				});
-				break;
-			case "context":
-				models.sort((a, b) => {
-					const aCtx = a.contextLength ?? 0;
-					const bCtx = b.contextLength ?? 0;
-					return bCtx - aCtx; // descending: largest context first
-				});
-				break;
-			default:
-				models.sort((a, b) =>
-					(a.name || a.id).localeCompare(b.name || b.id)
-				);
-				break;
-		}
-
-		return models;
-	}
-
-	private parseTokensPerDollarRaw(
-		pricing: string | undefined | null
-	): number {
-		if (!pricing) return 0;
-		// Same logic as formatTokensPerDollar: values are per-token prices.
-		const match = pricing.match(/\$([\d.]+)\//);
-		if (!match) return 0;
-		const price = parseFloat(match[1]);
-		if (Number.isNaN(price) || price <= 0) return 0;
-		return 1 / (price * 1_000);
 	}
 
 	onClose(): void {

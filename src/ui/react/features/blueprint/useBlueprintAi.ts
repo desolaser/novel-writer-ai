@@ -12,7 +12,7 @@ import {
 	type BlueprintPromptContext,
 } from "../../../../context/blueprintPrompt";
 import { parseBlueprintAnswer, resolveBlueprintField } from "../../../../utils/blueprintParsing";
-import { runBlueprintCompletion } from "./runCompletion";
+import { runModelCompletion } from "../../../../context/aiCompletion";
 
 type Proposals = Partial<Record<BlueprintField, BlueprintProposal>>;
 
@@ -66,7 +66,7 @@ export function useBlueprintAi(
 		setProposals((previous) => ({ ...previous, [field]: proposal }));
 
 	const runCompletion = useCallback(
-		(prompt: string, maxTokens: number) => runBlueprintCompletion(plugin, prompt, maxTokens),
+		(prompt: string, maxTokens: number) => runModelCompletion(plugin, prompt, maxTokens),
 		[plugin]
 	);
 

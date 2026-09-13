@@ -3,7 +3,6 @@ import { useNovelWriter } from "../store/novelWriterStore";
 import type NovelWriterPlugin from "../../../../main";
 import type { Capitulo } from "../../../domain";
 import { ApiFactory } from "../../../factories/api-factory";
-import { buildScenePrompt } from "../../../context/promptBuilder";
 import {
 	orderedChapters,
 	buildChapterMemory,
@@ -14,6 +13,7 @@ import {
 	isCorruptGeneration,
 	normalizeOutline,
 	requestDraftCompletion,
+	generateChapterDraftText,
 } from "./outlineGenerators";
 import { buildStoryBibleBlock } from "../../../context/blueprintPrompt";
 import { getActiveModelConfig } from "../../../infrastructure/settings/active-model";
@@ -350,27 +350,18 @@ export function useOutlineActions(
 					}
 				}
 				const historicalContext = prevContextParts.join("\n\n");
-				let text = "";
-				let attempts = 0;
-				while (
-					attempts++ < 12 &&
-					text.trim().split(/\s+/).filter(Boolean).length <
-						targetWords * 0.95
-				) {
-					const currentWords = text
-						.trim()
-						.split(/\s+/)
-						.filter(Boolean).length;
-					const remainingWords = Math.max(100, targetWords - currentWords);
-					const prompt = `${await buildScenePrompt(
-						plugin.app,
-						store.activeFolderPath!,
-						draftSettings,
-						c.outline ?? "",
-						text,
-						historicalContext,
-						targetWords
-					)}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. ${
+				const text = await generateChapterDraftText(
+					plugin.app,
+					store.activeFolderPath!,
+					api,
+					active.modelName,
+					settings.aiOptions.temperature,
+					settings.aiOptions.topP,
+					draftSettings,
+					c.outline ?? "",
+					historicalContext,
+					targetWords,
+					({ currentWords, remainingWords }) => `${
 						currentWords === 0
 							? "Write the complete chapter."
 							: `Approximately ${remainingWords} words remain. Continue exactly from the end of the draft.`
@@ -378,29 +369,9 @@ export function useOutlineActions(
 						currentWords >= targetWords * 0.8
 							? "You are close to the target: resolve the plot and finish the chapter in this response; do not add another introduction."
 							: "Do not close the chapter prematurely yet."
-					}`;
-					const requestTokens = Math.max(
-						512,
-						Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)
-					);
-					const result = await requestDraftCompletion(
-						api,
-						prompt,
-						active.modelName,
-						requestTokens,
-						settings.aiOptions.temperature,
-						settings.aiOptions.topP
-					);
-					const addition = result.text ?? "";
-					if (!addition.trim()) break;
-					if (isCorruptGeneration(addition)) {
-						setBatchStatus(
-							`The AI returned an invalid response for ${c.nombre}; the chapter was stopped.`
-						);
-						break;
-					}
-					text += `${text ? "\n\n" : ""}${addition}`;
-				}
+					}`,
+					() => setBatchStatus(`The AI returned an invalid response for ${c.nombre}; the chapter was stopped.`),
+				);
 				if (text.trim() && !isCorruptGeneration(text)) {
 					await writeCapituloTexto(c.id_capitulo, text);
 					draftsGenerated++;
@@ -454,49 +425,24 @@ export function useOutlineActions(
 				active.providerId,
 				settings.apiToken[active.providerId] ?? ""
 			);
-			let text = "";
-			let attempts = 0;
-			while (
-				attempts++ < 12 &&
-				text.trim().split(/\s+/).filter(Boolean).length <
-					targetWords * 0.95
-			) {
-				const currentWords = text
-					.trim()
-					.split(/\s+/)
-					.filter(Boolean).length;
-				const remainingWords = Math.max(100, targetWords - currentWords);
-				const prompt = `${await buildScenePrompt(
-					plugin.app,
-					store.activeFolderPath!,
-					draftSettings,
-					chapter.outline ?? "",
-					text,
-					historicalContext,
-					targetWords
-				)}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. Approximately ${remainingWords} words remain. ${
+			const text = await generateChapterDraftText(
+				plugin.app,
+				store.activeFolderPath!,
+				api,
+				active.modelName,
+				settings.aiOptions.temperature,
+				settings.aiOptions.topP,
+				draftSettings,
+				chapter.outline ?? "",
+				historicalContext,
+				targetWords,
+				({ currentWords, remainingWords }) => `Approximately ${remainingWords} words remain. ${
 					currentWords >= targetWords * 0.8
 						? "Close the plot in this response."
 						: "Keep developing the chapter without restarting it."
-				}`;
-				const result = await requestDraftCompletion(
-					api,
-					prompt,
-					active.modelName,
-					Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192)),
-					settings.aiOptions.temperature,
-					settings.aiOptions.topP
-				);
-				const addition = result.text ?? "";
-				if (!addition.trim()) break;
-				if (isCorruptGeneration(addition)) {
-					setBatchStatus(
-						`The AI returned an invalid response for ${chapter.nombre}; the chapter was stopped.`
-					);
-					break;
-				}
-				text += `${text ? "\n\n" : ""}${addition}`;
-			}
+				}`,
+				() => setBatchStatus(`The AI returned an invalid response for ${chapter.nombre}; the chapter was stopped.`),
+			);
 			await ensureCapituloArchivo(chapter.id_capitulo);
 			await writeCapituloTexto(chapter.id_capitulo, text);
 			setBatchStatus(`Draft ready: ${chapter.nombre}`);

@@ -15,7 +15,7 @@ import {
 	renderStructureMarkdown,
 	type BlueprintAct,
 } from "../../../../utils/structureMarkdown";
-import { activeOutputBudget, runBlueprintCompletion } from "./runCompletion";
+import { activeOutputBudget, runModelCompletion } from "../../../../context/aiCompletion";
 
 export interface BlueprintOutlineController {
 	busy: boolean;
@@ -188,7 +188,7 @@ export function useBlueprintOutline(
 						batchStart: first,
 						actChapters: act.capitulos.length,
 					});
-					const answer = await runBlueprintCompletion(
+					const answer = await runModelCompletion(
 						plugin,
 						prompt,
 						TOKENS_OVERHEAD + chapters.length * TOKENS_PER_CHAPTER

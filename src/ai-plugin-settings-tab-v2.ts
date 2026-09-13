@@ -1,6 +1,7 @@
 import { PluginSettingTab, Setting, App, Notice, Modal } from 'obsidian';
 import type NovelWriterPlugin from '../main';
 import { ModelRepository } from './infrastructure/settings/model-repository';
+import { CustomPromptRepository } from './infrastructure/settings/custom-prompt-repository';
 import { getProvider } from './constants/providers';
 import { ModelModal } from './ui/modals/ModelModal';
 import { CustomPromptsModal } from './ui/react/features/chat/CustomPromptsModal';
@@ -8,10 +9,12 @@ import { CustomPromptsModal } from './ui/react/features/chat/CustomPromptsModal'
 /** Plugin settings focused on selecting and managing reusable model profiles. */
 export class NovelWriterSettingsTab extends PluginSettingTab {
 	private readonly models: ModelRepository;
+	private readonly prompts: CustomPromptRepository;
 
 	constructor(app: App, private readonly plugin: NovelWriterPlugin) {
 		super(app, plugin);
 		this.models = new ModelRepository(plugin.settings);
+		this.prompts = new CustomPromptRepository(plugin.settings);
 	}
 
 	display(): void {
@@ -141,7 +144,7 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 				}
 				dropdown.onChange(async id => {
 					if (!id) return;
-					await this.plugin.settings.setDefaultPrompt('text', id);
+					await this.prompts.setDefault('text', id);
 					this.display();
 				});
 			})

@@ -6,8 +6,7 @@ import type { CodexAiField, CodexAiProgress, CodexAiProposal, CodexAiScope } fro
 import { buildCodexEntryPrompt, buildCodexFieldPrompt, type CodexAiPromptContext } from '../../../../../../context/codexEntryPrompt';
 import { buildContextItemsBlock } from '../../../../../../context/contextItems';
 import { matchFieldByHeader, parseDelimitedSections, resolveFieldValue } from '../../../../../../utils/codexAiParsing';
-import { ApiFactory } from '../../../../../../factories/api-factory';
-import { getActiveModelConfig } from '../../../../../../infrastructure/settings/active-model';
+import { runModelCompletion } from '../../../../../../context/aiCompletion';
 import { findFallbackCategory } from '../../../../../../utils/categories';
 import { useNovelWriter } from '../../../../store/novelWriterStore';
 import { ALIAS_KEY, DESCRIPTION_KEY, useCodexAiFields } from './useCodexAiFields';
@@ -93,21 +92,10 @@ export function CodexAiProvider({
 		.map((id: string) => tags.find((tag: any) => tag.id_tag === id)?.nombre)
 		.filter(Boolean) as string[];
 
-	const runCompletion = useCallback(async (prompt: string, maxTokens: number): Promise<string> => {
-		const settings = plugin.settings.data;
-		const activeModel = getActiveModelConfig(settings, 'generate');
-		if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
-		const token = settings.apiToken[activeModel.providerId] ?? '';
-		const api = new ApiFactory().createApi(activeModel.providerId, token);
-		const result = await api.generateCompletion(prompt, activeModel.modelName, {
-			...activeModel.options,
-			max_tokens: maxTokens,
-			stream: false,
-		});
-		const text = (result.text ?? '').trim();
-		if (!text) throw new Error('The model returned an empty answer.');
-		return text;
-	}, [plugin]);
+	const runCompletion = useCallback(
+		(prompt: string, maxTokens: number) => runModelCompletion(plugin, prompt, maxTokens),
+		[plugin],
+	);
 
 	/** Snapshot of the entry where pending proposals count as known values, keeping runs coherent. */
 	const snapshotWith = useCallback((pending: Record<string, CodexAiProposal>): CodexAiField[] =>

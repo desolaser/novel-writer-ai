@@ -5,11 +5,9 @@ import { CodexPanel } from "../codex/CodexPanel";
 import { ConfigPanel } from "./ConfigPanel";
 import { ChatsPanel } from "./ChatsPanel";
 import { Icon } from "../../components/Icon";
-import {
-	openNovelManagementModal,
-	openNovelEditModal,
-	openNovelDeleteModal,
-} from "./NovelManagementModal";
+import { openNovelManagementModal } from "./modals/NovelListModal";
+import { openNovelEditModal } from "./modals/NovelEditModal";
+import { openNovelDeleteModal } from "./modals/NovelDeleteModal";
 import { openNovelBlueprintModal } from "../blueprint/NovelBlueprintModal";
 
 export function NovelManagementMenu({ plugin }: { plugin: NovelWriterPlugin }) {

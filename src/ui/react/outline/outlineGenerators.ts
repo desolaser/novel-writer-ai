@@ -1,5 +1,7 @@
+import type { App } from "obsidian";
 import type { Acto, Capitulo } from "../../../domain";
 import type { NovelBlueprint } from "../../../domain/entities/NovelBlueprint";
+import { buildScenePrompt } from "../../../context/promptBuilder";
 
 /** Helpers puros del outline: sin React, sin Obsidian, sin efectos. */
 
@@ -159,4 +161,46 @@ export async function requestDraftCompletion(
 		}
 		throw error;
 	}
+}
+
+/**
+ * Generates one chapter's draft text, retrying with the remaining word count
+ * until the target length is reached (or generation stalls/corrupts). Shared by
+ * the batch ("generate all drafts") and single-chapter draft actions, which only
+ * differ in how they word the "how much is left" instruction sent on each retry —
+ * that wording is left to the caller via `buildLengthControl` so neither prompt's
+ * exact phrasing changes.
+ */
+export async function generateChapterDraftText(
+	app: App,
+	activeFolderPath: string,
+	api: any,
+	model: string,
+	temperature: number,
+	topP: number | undefined,
+	draftSettings: any,
+	outline: string,
+	historicalContext: string,
+	targetWords: number,
+	buildLengthControl: (info: { currentWords: number; remainingWords: number }) => string,
+	onCorrupt?: () => void,
+): Promise<string> {
+	let text = "";
+	let attempts = 0;
+	while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
+		const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
+		const remainingWords = Math.max(100, targetWords - currentWords);
+		const scene = await buildScenePrompt(app, activeFolderPath, draftSettings, outline, text, historicalContext, targetWords);
+		const prompt = `${scene}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. ${buildLengthControl({ currentWords, remainingWords })}`;
+		const requestTokens = Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192));
+		const result = await requestDraftCompletion(api, prompt, model, requestTokens, temperature, topP);
+		const addition = result.text ?? "";
+		if (!addition.trim()) break;
+		if (isCorruptGeneration(addition)) {
+			onCorrupt?.();
+			break;
+		}
+		text += `${text ? "\n\n" : ""}${addition}`;
+	}
+	return text;
 }
