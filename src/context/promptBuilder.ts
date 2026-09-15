@@ -26,15 +26,20 @@ function matchesEntry(text: string, entry: EntradaCodex): boolean {
 	});
 }
 
-export async function buildCodexYaml(
-	app: App, folderPath: string, out?: EntradaCodex[], currentText = '', searchRange = 1000,
-): Promise<string> {
-	const entries = out ?? await listEntries(app, folderPath);
+interface CodexFormattingMaps {
+	catMap: Map<string, string>;
+	detalleNameMap: Map<string, string>;
+	detalleTypeMap: Map<string, TipoDetalle>;
+	detalleOptionsMap: Map<string, Map<string, string>>;
+	entryNameMap: Map<string, string>;
+}
+
+async function buildCodexFormattingMaps(app: App, folderPath: string, entries: EntradaCodex[]): Promise<CodexFormattingMaps> {
 	const cats = await listCategorias(app, folderPath);
 	const catMap = new Map(cats.map(c => [c.id_categoria, c.nombre]));
 	// Load detail definitions: id → { name, type }
 	const detallesDefs = await listDetalles(app, folderPath);
-	const detalleOptionsMap = new Map();
+	const detalleOptionsMap = new Map<string, Map<string, string>>();
 	for (const detalle of detallesDefs) {
 		if (detalle.tipo_detalle === TipoDetalle.Dropdown) {
 			const options = await listOpcionesByDetalle(app, folderPath, detalle.id_detalle);
@@ -52,6 +57,42 @@ export async function buildCodexYaml(
 	const detalleTypeMap = new Map(detallesDefs.map(d => [d.id_detalle, d.tipo_detalle]));
 	// Build entry name lookup for resolving CodexRef values
 	const entryNameMap = new Map(entries.map(e => [e.id_entrada_codex, e.nombre]));
+	return { catMap, detalleNameMap, detalleTypeMap, detalleOptionsMap, entryNameMap };
+}
+
+/** Formats one codex entry (name, alias, category, description, custom details) into a plain object ready for `yaml.dump`. */
+function formatCodexEntryItem(e: EntradaCodex, maps: CodexFormattingMaps): any {
+	const item: any = { nombre: e.nombre };
+	if (e.alias) item.alias = e.alias.split(",").map(s => s.trim()).filter(Boolean);
+	const cat = maps.catMap.get(e.id_categoria);
+	if (cat) item.categoria = cat;
+	if (e.descripcion) item.descripcion = e.descripcion;
+	if (e.detalles && e.detalles.length) {
+		const detalles: Record<string, any> = {};
+		for (const d of e.detalles) {
+			if (d.valor != null) {
+				const key = maps.detalleNameMap.get(d.id_detalle) || d.id_detalle;
+				// For CodexRef details, resolve the UUID to the entry name
+				const detailType = maps.detalleTypeMap.get(d.id_detalle);
+				let value = d.valor;
+				if (detailType === TipoDetalle.CodexRef) {
+					value = maps.entryNameMap.get(d.valor as string) || d.valor;
+				} else if (detailType === TipoDetalle.Dropdown) {
+					value = maps.detalleOptionsMap.get(d.id_detalle)?.get(d.valor as string) || d.valor;
+				}
+				detalles[key] = value;
+			}
+		}
+		if (Object.keys(detalles).length) item.detalles = detalles;
+	}
+	return item;
+}
+
+export async function buildCodexYaml(
+	app: App, folderPath: string, out?: EntradaCodex[], currentText = '', searchRange = 1000,
+): Promise<string> {
+	const entries = out ?? await listEntries(app, folderPath);
+	const maps = await buildCodexFormattingMaps(app, folderPath, entries);
 	const recentText = (currentText || '').slice(-Math.max(0, searchRange));
 	const items: any[] = [];
 	for (const e of entries) {
@@ -60,33 +101,22 @@ export async function buildCodexYaml(
 		if (e.ai_context_policy === AiContextPolicy.OnDetect && !detected) continue;
 		if (e.ai_context_policy === AiContextPolicy.NeverIfDetected && detected) continue;
 		if (!e.nombre && !e.descripcion) continue;
-		const item: any = { nombre: e.nombre };
-		if (e.alias) item.alias = e.alias.split(",").map(s => s.trim()).filter(Boolean);
-		const cat = catMap.get(e.id_categoria);
-		if (cat) item.categoria = cat;
-		if (e.descripcion) item.descripcion = e.descripcion;
-		if (e.detalles && e.detalles.length) {
-			const detalles: Record<string, any> = {};
-			for (const d of e.detalles) {
-				if (d.valor != null) {
-					const key = detalleNameMap.get(d.id_detalle) || d.id_detalle;
-					// For CodexRef details, resolve the UUID to the entry name
-					const detailType = detalleTypeMap.get(d.id_detalle);
-					let value =  d.valor;
-					if (detailType === TipoDetalle.CodexRef) {
-						value = entryNameMap.get(d.valor) || d.valor;
-					} else if (detailType === TipoDetalle.Dropdown) {
-						value = detalleOptionsMap.get(d.id_detalle)?.get(d.valor) || d.valor
-					}
-					detalles[key] = value;
-				}
-			}
-			if (Object.keys(detalles).length) item.detalles = detalles;
-		}
-		items.push(item);
+		items.push(formatCodexEntryItem(e, maps));
 	}
 	if (items.length === 0) return "";
 	return yaml.dump(items, { lineWidth: 0 });
+}
+
+/**
+ * Same full formatting as `buildCodexYaml` (name, alias, category, description, custom
+ * details with resolved dropdown/CodexRef values), for one entry picked explicitly by
+ * the author — e.g. added to a chat's context. The AI context policy only governs
+ * automatic inclusion, so it is not applied here.
+ */
+export async function buildCodexEntryYaml(app: App, folderPath: string, entry: EntradaCodex): Promise<string> {
+	const entries = await listEntries(app, folderPath);
+	const maps = await buildCodexFormattingMaps(app, folderPath, entries);
+	return yaml.dump(formatCodexEntryItem(entry, maps), { lineWidth: 0 });
 }
 
 export async function buildScenePrompt(

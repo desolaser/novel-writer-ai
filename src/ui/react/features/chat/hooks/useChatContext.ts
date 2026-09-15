@@ -5,6 +5,7 @@ import type { Acto, Capitulo, Categoria, EntradaCodex } from '../../../../../dom
 import { isCharacterCategory } from '../../../../../utils/categories';
 import { openEntryModal } from '../../codex/modals/CodexEntryModal';
 import { stripFrontmatter, includesQuery, groupChaptersByAct } from '../chatContextHelpers';
+import { buildCodexEntryYaml } from '../../../../../context/promptBuilder';
 import type { ContextItem } from '../promptBuilder';
 
 export type ContextMenu = 'root' | 'codex' | 'chapters' | 'outlines' | 'notes' | 'folders' | 'characters' | 'impersonate';
@@ -110,6 +111,20 @@ export function useChatContext({
 		setContextMenu('root');
 		setQuery('');
 	}, [updateContextItems]);
+
+	/**
+	 * Adds a codex entry to the chat context with its full data — same formatting as
+	 * text-completion's codex block (alias, category, description, custom details) —
+	 * instead of just the name and description.
+	 */
+	const addCodexEntryContext = useCallback(async (entry: EntradaCodex, categoryColor?: string | null) => {
+		const folderPath = plugin.store.activeFolderPath;
+		const content = folderPath ? await buildCodexEntryYaml(plugin.app, folderPath, entry) : entry.descripcion;
+		addContext({
+			id: `codex:${entry.id_entrada_codex}`, kind: 'codex', name: entry.nombre, content,
+			thumbnail: entry.thumbnail, categoryColor: entry.color ?? categoryColor ?? undefined,
+		});
+	}, [plugin, addContext]);
 
 	const addFolderContext = useCallback(async (folder: TFolder) => {
 		try {
@@ -279,7 +294,7 @@ export function useChatContext({
 		contextItems, contextOpen, setContextOpen, contextMenu, setContextMenu, query, setQuery,
 		characterContext, impersonateContext, activeNoteItem,
 		markdownFiles, folders, activeFile, notes,
-		addContext, addFolderContext, addFileContext, selectChapter, selectOutline,
+		addContext, addCodexEntryContext, addFolderContext, addFileContext, selectChapter, selectOutline,
 		addCharacterContext, removeCharacterContext, addImpersonateContext, removeImpersonateContext,
 		openContextItem, updateContextItems, refreshActiveNote, removeActiveNote, openCharacterEntry,
 		filteredChapters, filteredFolders, filteredNotes, filteredCategories,
