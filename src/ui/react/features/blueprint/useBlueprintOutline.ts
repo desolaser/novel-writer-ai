@@ -5,9 +5,9 @@ import type { NovelBlueprint } from "../../../../domain";
 import type { PacingSuggestion } from "../../../../constants/structures";
 import {
 	buildActOutlinePrompt,
-	buildPreviouslyBlock,
 	type BlueprintPromptContext,
 } from "../../../../context/blueprintPrompt";
+import { buildChapterHistory } from "../../../../context/chapterHistory";
 import { matchChapterOutlines } from "../../../../utils/blueprintParsing";
 import {
 	countChapters,
@@ -173,18 +173,42 @@ export function useBlueprintOutline(
 				);
 				try {
 					// Continuity comes from every chapter before this batch, including
-					// the ones written moments ago in this same act.
-					const earlier = [
-						...working.slice(0, batch.actIndex).flatMap((previous) => previous.capitulos),
-						...act.capitulos.slice(0, batch.positions[0]),
-					];
+					// the ones written moments ago in this same act. These acts are
+					// still drafts with no stored ids, so positions stand in for them.
+					const earlier = working.flatMap((previous, actIndex) =>
+						previous.capitulos
+							.slice(
+								0,
+								actIndex < batch.actIndex
+									? previous.capitulos.length
+									: actIndex === batch.actIndex
+										? batch.positions[0]
+										: 0
+							)
+							.map((chapter, position) => ({
+								id_capitulo: `${actIndex}:${position}`,
+								id_acto: String(actIndex),
+								nombre: chapter.nombre,
+								outline: chapter.outline,
+							}))
+					);
+					const earlierActs = working.map((previous, actIndex) => ({
+						id_acto: String(actIndex),
+						nombre: previous.nombre,
+						// Draft acts have no summary yet, so older chapters fall back
+						// to the "omitted" notice instead of a compressed recap.
+						resumen: '',
+					}));
 					const prompt = buildActOutlinePrompt(context, {
 						actName: act.nombre,
 						actPurpose: act.purpose,
 						actIndex: batch.actIndex,
 						totalActs: working.length,
 						chapters: chapters.map((chapter) => chapter.nombre),
-						previously: buildPreviouslyBlock(earlier),
+						previously: buildChapterHistory(
+							{ acts: earlierActs, chapters: earlier },
+							plugin.settings.data.historyOptions
+						),
 						batchStart: first,
 						actChapters: act.capitulos.length,
 					});

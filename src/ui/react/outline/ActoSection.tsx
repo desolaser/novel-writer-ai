@@ -1,5 +1,6 @@
 import type { Acto, Capitulo } from "../../../domain";
 import { ActoHeader } from "./ActoHeader";
+import { ActSummary } from "./ActSummary";
 import { ChapterRow } from "./ChapterRow";
 import { AddChapter } from "./AddChapter";
 
@@ -19,6 +20,10 @@ export interface ActoSectionProps {
 	onDragStartAct: () => void;
 	onDragEndAct: () => void;
 	onDropAct: () => void;
+	// Resumen del acto
+	actSummary: string;
+	onSaveActSummary: (value: string) => void;
+	onGenerateActSummary: () => void;
 	// Estado compartido de capítulos
 	expanded: Set<string>;
 	editingCap: string | null;
@@ -70,6 +75,9 @@ export function ActoSection(props: ActoSectionProps) {
 		onDragStartAct,
 		onDragEndAct,
 		onDropAct,
+		actSummary,
+		onSaveActSummary,
+		onGenerateActSummary,
 		expanded,
 		editingCap,
 		openChapterMenu,
@@ -120,6 +128,14 @@ export function ActoSection(props: ActoSectionProps) {
 				onDragEnd={onDragEndAct}
 				onDrop={onDropAct}
 			/>
+			{!collapsed && (
+				<ActSummary
+					value={actSummary}
+					busy={batchBusy}
+					onChange={onSaveActSummary}
+					onGenerate={onGenerateActSummary}
+				/>
+			)}
 			{!collapsed && chapters.map((chapter) => {
 				const isExpanded = expanded.has(chapter.id_capitulo);
 				const isEditing = editingCap === chapter.id_capitulo;

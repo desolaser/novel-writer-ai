@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
 import type { Acto, Capitulo } from "../../../domain";
+import type { PluginSettings } from "../../../infrastructure/settings/plugin-settings";
 import type { NovelBlueprint } from "../../../domain/entities/NovelBlueprint";
 import { buildScenePrompt } from "../../../context/promptBuilder";
 
@@ -10,22 +11,6 @@ export function orderedChapters(actos: Acto[], capitulos: Capitulo[]): Capitulo[
 	return actos.flatMap((acto) =>
 		capitulos.filter((c) => c.id_acto === acto.id_acto)
 	);
-}
-
-/**
- * Construye la "memoria" acumulada de los capítulos anteriores a `chapter`.
- * Solo incluye capítulos que ya tienen outline redactado.
- */
-export function buildChapterMemory(
-	chapter: Capitulo,
-	chapters: Capitulo[]
-): string {
-	const index = chapters.findIndex((c) => c.id_capitulo === chapter.id_capitulo);
-	return chapters
-		.slice(0, Math.max(0, index))
-		.filter((c) => c.outline?.trim())
-		.map((c) => `${c.nombre}:\n${c.outline.trim()}`)
-		.join("\n\n===\n\n");
 }
 
 /** Prompt de resumen de un capítulo ya escrito (generación de outline). */
@@ -70,12 +55,42 @@ export function buildOutlineByMemoryPrompt(
 	return parts.join('\n');
 }
 
-/** Limpia y recorta un texto para usarlo como contexto histórico. */
-export function makeContextExcerpt(text: string): string {
-	const clean = text.replace(/\s+/g, " ").trim();
-	if (clean.length <= 700) return clean;
-	const boundary = clean.slice(0, 700).lastIndexOf(". ");
-	return `${clean.slice(0, boundary > 250 ? boundary + 1 : 700).trim()} …`;
+/**
+ * Prompt del resumen de un acto completo, a partir de los outlines de sus
+ * capítulos. Es el contexto que representa a los capítulos ya lejanos, así que
+ * pide el arco del acto y no una lista de lo que pasa en cada capítulo.
+ */
+export function buildActSummaryPrompt(
+	act: Acto,
+	chapterOutlines: string,
+	storyBible: string,
+	blueprint: NovelBlueprint | null,
+): string {
+	const parts: string[] = [];
+	parts.push('You are helping an author keep track of a long novel.');
+	if (storyBible) {
+		parts.push('');
+		parts.push(storyBible);
+	}
+	parts.push('');
+	parts.push(`--- CHAPTERS OF THE ACT "${act.nombre}" ---`);
+	parts.push(chapterOutlines);
+	parts.push('--- END CHAPTERS ---');
+	parts.push('');
+	parts.push(`TASK: summarize the act "${act.nombre}" as a whole.`);
+	parts.push('');
+	parts.push('Rules:');
+	parts.push('- One single paragraph, between 120 and 180 words.');
+	parts.push('- Continuous prose: no bullets, no lists, no headings, no markdown, no dialogue.');
+	parts.push('- Tell the arc of the act: what changes between its beginning and its end.');
+	parts.push('- Keep the facts a later chapter still needs: what the characters learned, what they decided, who died, what is left unresolved.');
+	parts.push('- Do not summarize chapter by chapter, and do not invent anything that is not in the outlines.');
+	parts.push('- Prioritize a complete and finished response; do not cut it off in the middle of a sentence.');
+	parts.push('- Return only that paragraph, without any introduction or additional comments.');
+	if (!storyBible && blueprint?.language?.trim()) {
+		parts.push(`- Write the summary in ${blueprint.language.trim()}, regardless of the language of these instructions.`);
+	}
+	return parts.join('\n');
 }
 
 /** Detecta respuestas corruptas de la IA (tokens gigantes, basura de encoding). */
@@ -96,19 +111,6 @@ export function isCorruptGeneration(text: string): boolean {
 		replacementChars > 3 ||
 		/(?:#u-hc|pí\d+Lm|u#u-hc)/i.test(compact)
 	);
-}
-
-/** Settings para drafts con el bloque de contexto generado por la IA removido. */
-export function buildDraftSettings(settings: any): any {
-	return {
-		...settings,
-		memoryContent: settings.memoryContent
-			.replace(
-				/\n?\[Novel Writer AI - Generated Story Context\][\s\S]*?\[End Novel Writer AI - Generated Story Context\]\n?/g,
-				""
-			)
-			.trim(),
-	};
 }
 
 /** Normaliza el outline devuelto por la IA a un único párrafo compacto. */
@@ -178,9 +180,8 @@ export async function generateChapterDraftText(
 	model: string,
 	temperature: number,
 	topP: number | undefined,
-	draftSettings: any,
+	settings: PluginSettings,
 	outline: string,
-	historicalContext: string,
 	targetWords: number,
 	buildLengthControl: (info: { currentWords: number; remainingWords: number }) => string,
 	onCorrupt?: () => void,
@@ -190,7 +191,7 @@ export async function generateChapterDraftText(
 	while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
 		const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
 		const remainingWords = Math.max(100, targetWords - currentWords);
-		const scene = await buildScenePrompt(app, activeFolderPath, draftSettings, outline, text, historicalContext, targetWords);
+		const scene = await buildScenePrompt(app, activeFolderPath, settings, outline, text, targetWords);
 		const prompt = `${scene}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. ${buildLengthControl({ currentWords, remainingWords })}`;
 		const requestTokens = Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192));
 		const result = await requestDraftCompletion(api, prompt, model, requestTokens, temperature, topP);

@@ -4,6 +4,11 @@ import { EntityId, ISODate } from '../types';
 export interface Acto {
 	id_acto: EntityId;
 	nombre: string;
+	/**
+	 * Resumen del acto completo. Es el contexto comprimido que representa a los
+	 * capitulos ya lejanos, cuando enviar el outline de cada uno saldria caro.
+	 */
+	resumen: string;
 	/** Orden de aparicion. */
 	orden: number;
 	id_novela: EntityId;

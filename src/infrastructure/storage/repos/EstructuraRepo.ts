@@ -21,14 +21,18 @@ export {
 // ---- Actos ----
 
 export async function listActos(app: App, fp: string): Promise<Acto[]> {
-	return (await readEstructuraFile(app, fp)).actos.sort((a, b) => a.orden - b.orden);
+	// `resumen` is newer than the file format, so acts written by earlier versions
+	// lack it. Normalising here lets every caller treat it as a plain string.
+	return (await readEstructuraFile(app, fp)).actos
+		.map(a => ({ ...a, resumen: a.resumen ?? '' }))
+		.sort((a, b) => a.orden - b.orden);
 }
 
 export async function createActo(app: App, folderPath: string, idNovela: EntityId, nombre: string): Promise<Acto> {
 	const data = await readEstructuraFile(app, folderPath);
 	const orden = data.actos.length;
 	const acto: Acto = {
-		id_acto: genId(), nombre, orden, id_novela: idNovela,
+		id_acto: genId(), nombre, resumen: '', orden, id_novela: idNovela,
 		created_at: nowISO(), updated_at: nowISO(),
 	};
 	data.actos.push(acto);
@@ -137,12 +141,21 @@ export async function replaceEstructura(
 		const key = matchKey(cap.nombre);
 		if (key && !previous.has(key)) previous.set(key, cap);
 	}
+	const previousActs = new Map<string, Acto>();
+	for (const acto of data.actos) {
+		const key = matchKey(acto.nombre);
+		if (key && !previousActs.has(key)) previousActs.set(key, acto);
+	}
 	const now = nowISO();
 	const actos: Acto[] = [];
 	const capitulos: Capitulo[] = [];
 	drafts.forEach((draft, index) => {
+		// An act whose name survives keeps its summary: regenerating the structure
+		// should not silently throw away context the author already produced.
+		const keptAct = previousActs.get(matchKey(draft.nombre));
 		const acto: Acto = {
-			id_acto: genId(), nombre: draft.nombre, orden: index, id_novela: idNovela,
+			id_acto: genId(), nombre: draft.nombre, resumen: keptAct?.resumen ?? '',
+			orden: index, id_novela: idNovela,
 			created_at: now, updated_at: now,
 		};
 		actos.push(acto);

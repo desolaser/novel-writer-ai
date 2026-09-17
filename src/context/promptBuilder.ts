@@ -119,9 +119,15 @@ export async function buildCodexEntryYaml(app: App, folderPath: string, entry: E
 	return yaml.dump(formatCodexEntryItem(entry, maps), { lineWidth: 0 });
 }
 
+/**
+ * Builds the autocomplete / draft prompt. The history of previous chapters is not
+ * a parameter: it reaches the model through the memory block, written into the
+ * chapter's own frontmatter by the outline view, so there is exactly one channel
+ * for it and the author can read what was sent.
+ */
 export async function buildScenePrompt(
 	app: App, folderPath: string, settings: PluginSettings,
-	outline: string, currentText: string, historicalContext = '', targetWords?: number,
+	outline: string, currentText: string, targetWords?: number,
 ): Promise<string> {
 	// Callers may provide the raw Markdown note. Frontmatter is metadata and
 	// must never be sent as story context to the model.
@@ -139,7 +145,6 @@ export async function buildScenePrompt(
 	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());
 	if (authorNote) parts.push("Author note: " + authorNote);
-	if (historicalContext) parts.push("Context of previous chapters:\n" + historicalContext);
 	if (outline) {
 		parts.push("Chapter outline: " + outline);
 		if (storyText) {

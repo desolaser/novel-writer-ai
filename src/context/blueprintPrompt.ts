@@ -262,31 +262,6 @@ export interface ActOutlineRequest {
 }
 
 /**
- * Recap of what has been outlined so far, newest first until the budget runs
- * out. Outlines are the only continuity the model gets, and sending all of them
- * for a forty-chapter novel would cost more than the request it feeds.
- */
-export function buildPreviouslyBlock(
-	chapters: { nombre: string; outline: string }[],
-	maxChars = 1800,
-): string {
-	const written = chapters.filter((chapter) => chapter.outline.trim());
-	if (!written.length) return '';
-	const kept: string[] = [];
-	let total = 0;
-	for (let index = written.length - 1; index >= 0; index -= 1) {
-		const entry = `${written[index].nombre}: ${written[index].outline.trim()}`;
-		if (total + entry.length > maxChars && kept.length) break;
-		kept.unshift(entry);
-		total += entry.length;
-	}
-	const skipped = written.length - kept.length;
-	return [skipped > 0 ? `(${skipped} earlier chapters omitted)` : '', ...kept]
-		.filter(Boolean)
-		.join('\n');
-}
-
-/**
  * Prompt for one batch of chapters of an act. Batching keeps every answer inside
  * the output limit of the provider, which is what stops a long act from coming
  * back half written, and turns a failure into one lost batch.

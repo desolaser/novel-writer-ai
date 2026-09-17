@@ -24,7 +24,50 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 		this.renderModels(containerEl);
 		this.renderGlobalPrompts(containerEl);
 		this.renderChatOptions(containerEl);
+		this.renderHistoryOptions(containerEl);
 		this.renderCodexOptions(containerEl);
+	}
+
+	private renderHistoryOptions(host: HTMLElement): void {
+		const settings = this.plugin.settings.data;
+		host.createEl('h3', { text: 'Chapter History' });
+		host.createEl('p', {
+			text: 'Context the AI gets about what happened before the current chapter. Only summaries are sent: each chapter\'s outline, and the act summary that stands in for chapters too old to send one by one.',
+			cls: 'setting-item-description',
+		});
+		new Setting(host)
+			.setName('Recent chapters in full detail')
+			.setDesc('How many chapters keep their own outline, counting back from the current one.')
+			.addText(text => text.setValue(String(settings.historyOptions.recentChapters)).onChange(async value => {
+				const parsed = Number(value);
+				if (Number.isInteger(parsed) && parsed >= 0) {
+					settings.historyOptions.recentChapters = parsed;
+					await this.plugin.settings.save();
+				}
+			}));
+		new Setting(host)
+			.setName('History token limit')
+			.setDesc('Hard ceiling for the whole history block. 0 means no limit, and the chapter count above is the only bound.')
+			.addText(text => text.setValue(String(settings.historyOptions.maxTokens)).onChange(async value => {
+				const parsed = Number(value);
+				if (Number.isInteger(parsed) && parsed >= 0) {
+					settings.historyOptions.maxTokens = parsed;
+					await this.plugin.settings.save();
+				}
+			}));
+		new Setting(host)
+			.setName('Older chapters')
+			.setDesc('What happens to chapters beyond the recent window. Act summaries are written or generated from the outline view.')
+			.addDropdown(dropdown => {
+				dropdown.addOption('manual-summary', 'Use act summaries (never generate on its own)');
+				dropdown.addOption('ai-summary', 'Use act summaries, generating missing ones with AI');
+				dropdown.addOption('omit', 'Leave them out');
+				dropdown.setValue(settings.historyOptions.olderChapters);
+				dropdown.onChange(async value => {
+					settings.historyOptions.olderChapters = value as typeof settings.historyOptions.olderChapters;
+					await this.plugin.settings.save();
+				});
+			});
 	}
 
 	private renderModels(host: HTMLElement): void {

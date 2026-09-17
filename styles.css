@@ -868,6 +868,10 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-act-name { flex: 1; display: block; justify-content: flex-start; text-align: left !important; border: 0; background: none; color: var(--text-normal); font-weight: 600; cursor: pointer; padding: 4px; }
 .nw-outline-chapter-row .nw-inline-rename, .nw-outline-act-header .nw-inline-rename { flex: 1; text-align: left !important; }
 .nw-outline-inline-editor { display: block; width: calc(100% - 27px); margin: 0 0 8px 27px; min-height: 72px; resize: vertical; box-sizing: border-box; }
+.nw-outline-act-summary { margin: 6px 0 4px; }
+.nw-outline-act-summary-head { display: flex; align-items: center; gap: 8px; margin-left: 27px; margin-bottom: 4px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.nw-outline-act-summary-head button { margin-left: auto; }
+.nw-outline-act-summary .nw-outline-inline-editor { min-height: 56px; }
 .nw-outline-single-column .nw-btn-icon { opacity: .65; }
 .nw-outline-single-column .nw-btn-icon:hover { opacity: 1; }
 .nw-outline-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-start; }

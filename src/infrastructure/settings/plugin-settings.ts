@@ -39,6 +39,23 @@ export interface CodexOptions {
 	lorebookPrompt: string;
 }
 
+/** How chapters older than the recent window are represented in the history. */
+export type OlderChaptersMode = 'ai-summary' | 'manual-summary' | 'omit';
+
+/**
+ * Opciones del historial de capitulos previos. El historial crece con la novela,
+ * asi que los capitulos recientes conservan su outline completo y los anteriores
+ * se colapsan en el resumen de su acto.
+ */
+export interface HistoryOptions {
+	/** Chapters that keep their full outline, counting back from the current one. */
+	recentChapters: number;
+	/** Token ceiling for the whole history block. 0 means no limit. */
+	maxTokens: number;
+	/** How chapters older than the recent window are collapsed. */
+	olderChapters: OlderChaptersMode;
+}
+
 /** Configuracion global del plugin (persistida en loadData/saveData). */
 export interface PluginSettings {
 	proveedor: {
@@ -67,6 +84,8 @@ export interface PluginSettings {
 	aiOptions: AiOptions;
 	/** Opciones de codex. */
 	codexOptions: CodexOptions;
+	/** Opciones del historial de capitulos previos. */
+	historyOptions: HistoryOptions;
 	/** Id de la ultima novela activa (para restaurar al abrir). */
 	lastActiveNovelId: string | null;
 	/** Preferencias de UI. */
@@ -114,6 +133,16 @@ After the keys, write a concise but detailed definition or description for the c
 Do not include anything except the codex entry.`,
 };
 
+export const DEFAULT_HISTORY_OPTIONS: HistoryOptions = {
+	recentChapters: 20,
+	// No ceiling unless the author sets one: the chapter window already bounds the
+	// usual case, and a silent token cut is worse than a long prompt the author chose.
+	maxTokens: 0,
+	// Never spends a request on its own; act summaries are written or generated
+	// deliberately from the outline view.
+	olderChapters: 'manual-summary',
+};
+
 export const DEFAULT_SETTINGS: PluginSettings = {
 	proveedor: { id: 'openrouter', modelo: '' },
 	apiToken: {},
@@ -126,6 +155,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	draftWordCount: 2000,
 	aiOptions: DEFAULT_AI_OPTIONS,
 	codexOptions: DEFAULT_CODEX_OPTIONS,
+	historyOptions: DEFAULT_HISTORY_OPTIONS,
 	lastActiveNovelId: null,
 	uiPrefs: {
 		activeSidebarTab: 'codex',

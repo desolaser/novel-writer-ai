@@ -1,22 +1,31 @@
 import { useState } from "react";
 import { useNovelWriter } from "../store/novelWriterStore";
 import type NovelWriterPlugin from "../../../../main";
-import type { Capitulo } from "../../../domain";
+import type { Acto, Capitulo } from "../../../domain";
 import { ApiFactory } from "../../../factories/api-factory";
 import {
 	orderedChapters,
-	buildChapterMemory,
+	buildActSummaryPrompt,
 	buildOutlinePrompt,
 	buildOutlineByMemoryPrompt,
-	buildDraftSettings,
-	makeContextExcerpt,
 	isCorruptGeneration,
 	normalizeOutline,
 	requestDraftCompletion,
 	generateChapterDraftText,
 } from "./outlineGenerators";
 import { buildStoryBibleBlock } from "../../../context/blueprintPrompt";
+import { buildChapterHistory } from "../../../context/chapterHistory";
+import { runModelCompletion } from "../../../context/aiCompletion";
 import { getActiveModelConfig } from "../../../infrastructure/settings/active-model";
+
+/**
+ * El historial generado vive dentro del `memoryContent` del capítulo, entre estos
+ * marcadores: así se puede regenerar sin borrar la memoria que escribió el autor.
+ */
+const MEMORY_MARKER_START = "[Novel Writer AI - Generated Story Context]";
+const MEMORY_MARKER_END = "[End Novel Writer AI - Generated Story Context]";
+const GENERATED_MEMORY_BLOCK =
+	/\n?\[Novel Writer AI - Generated Story Context\][\s\S]*?\[End Novel Writer AI - Generated Story Context\]\n?/g;
 
 /** Operaciones de IA / batch del outline, desacopladas de la UI. */
 export interface OutlineActions {
@@ -24,6 +33,7 @@ export interface OutlineActions {
 	batchStatus: string;
 	generateAllMemory: () => Promise<void>;
 	generateChapterMemory: (chapter: Capitulo) => Promise<void>;
+	generateActSummary: (act: Acto) => Promise<void>;
 	generateChapterOutline: (chapter: Capitulo) => Promise<void>;
 	generateChapterOutlineByMemory: (chapter: Capitulo) => Promise<void>;
 	generateAllOutlines: () => Promise<void>;
@@ -41,6 +51,7 @@ export function useOutlineActions(
 		actos,
 		capitulos,
 		store,
+		updateActo,
 		updateCapitulo,
 		ensureCapituloArchivo,
 		writeCapituloTexto,
@@ -51,7 +62,23 @@ export function useOutlineActions(
 
 	const chapters = () => orderedChapters(actos, capitulos);
 
-	/** Escribe la memoria de un capítulo en el frontmatter de su manuscrito. */
+	/** Historial de capítulos previos, con los límites configurados. */
+	function historyFor(chapter: Capitulo | null): string {
+		return buildChapterHistory(
+			{
+				acts: actos,
+				chapters: chapters(),
+				upTo: chapter?.id_capitulo ?? null,
+			},
+			plugin.settings.data.historyOptions
+		);
+	}
+
+	/**
+	 * Escribe el historial en el frontmatter del manuscrito, que es el único canal
+	 * por el que llega al modelo: `buildScenePrompt` lo recoge como memoria. Va
+	 * entre marcadores para no pisar lo que el autor haya escrito él mismo ahí.
+	 */
 	async function writeChapterMemory(chapter: Capitulo, memory: string) {
 		const relativePath = await ensureCapituloArchivo(chapter.id_capitulo);
 		if (!relativePath || !store?.activeFolderPath) return;
@@ -66,35 +93,117 @@ export function useOutlineActions(
 			relativePath
 		);
 		if (!file) return;
-		const yamlValue = memory.trim()
-			? `memoryContent: |-\n${memory
-					.split("\n")
-					.map((line) => `  ${line}`)
-					.join("\n")}`
-			: 'memoryContent: ""';
+		const generated = memory.trim()
+			? `${MEMORY_MARKER_START}\n${memory.trim()}\n${MEMORY_MARKER_END}`
+			: "";
+		const toYaml = (value: string) =>
+			value.trim()
+				? `memoryContent: |-\n${value
+						.trim()
+						.split("\n")
+						.map((line) => `  ${line}`)
+						.join("\n")}`
+				: 'memoryContent: ""';
 		// vault.process() para read-modify-write atómico y no corromper el
 		// estado del editor cuando el capítulo está abierto en Obsidian.
 		await plugin.app.vault.process(file, (raw) => {
 			const match = raw.match(/^---\s*[\s\S]*?---/);
 			if (!match) {
-				return `---\n${yamlValue}\n---\n\n${raw}`;
+				return `---\n${toYaml(generated)}\n---\n\n${raw}`;
 			}
 			const body = match[0].replace(/^---\s*/, "").replace(/---\s*$/, "");
 			const lines = body.split("\n");
 			const kept: string[] = [];
+			const previous: string[] = [];
 			for (let i = 0; i < lines.length; i++) {
-				if (/^\s*memoryContent\s*:/.test(lines[i])) {
-					while (i + 1 < lines.length && /^\s{2,}/.test(lines[i + 1]))
+				const inline = lines[i].match(/^\s*memoryContent\s*:\s*(.*)$/);
+				if (inline) {
+					// Un valor en la misma línea es texto del autor; un bloque `|-`
+					// se continúa en las líneas indentadas que vienen detrás.
+					const head = inline[1].trim().replace(/^["']|["']$/g, "");
+					if (head && head !== "|-" && head !== "|" && head !== ">-")
+						previous.push(head);
+					while (i + 1 < lines.length && /^\s{2,}/.test(lines[i + 1])) {
 						i++;
+						previous.push(lines[i].replace(/^\s{2}/, ""));
+					}
 					continue;
 				}
 				kept.push(lines[i]);
 			}
+			const authored = previous
+				.join("\n")
+				.replace(GENERATED_MEMORY_BLOCK, "")
+				.trim();
+			const nextValue = [authored, generated].filter(Boolean).join("\n\n");
 			const nextFrontmatter = `---\n${kept
 				.join("\n")
-				.replace(/\n+$/, "")}\n${yamlValue}\n---`;
+				.replace(/\n+$/, "")}\n${toYaml(nextValue)}\n---`;
 			return raw.replace(match[0], nextFrontmatter);
 		});
+	}
+
+	/** Resume un acto entero a partir de los outlines de sus capítulos. */
+	async function generateActSummary(act: Acto) {
+		if (!store) return;
+		setBatchBusy(true);
+		setBatchStatus(`Summarizing act: ${act.nombre}`);
+		try {
+			await summarizeAct(act);
+			setBatchStatus(`Act summary ready: ${act.nombre}`);
+		} catch (e: any) {
+			setBatchStatus("Error: " + (e?.message ?? String(e)));
+		} finally {
+			setBatchBusy(false);
+		}
+	}
+
+	/** Cuerpo compartido por la acción manual y la generación automática. */
+	async function summarizeAct(act: Acto) {
+		const own = chapters().filter(
+			(c) => c.id_acto === act.id_acto && c.outline?.trim()
+		);
+		if (!own.length)
+			throw new Error(
+				`The act "${act.nombre}" has no chapter outlines to summarize yet.`
+			);
+		const blueprint = await store!.readBlueprint();
+		const outlines = own
+			.map((c) => `${c.nombre}: ${c.outline.trim()}`)
+			.join("\n\n");
+		const prompt = buildActSummaryPrompt(
+			act,
+			outlines,
+			buildStoryBibleBlock(blueprint),
+			blueprint
+		);
+		const text = await runModelCompletion(plugin, prompt, 800);
+		if (isCorruptGeneration(text))
+			throw new Error(`The AI returned an invalid summary for ${act.nombre}.`);
+		await updateActo(act.id_acto, { resumen: normalizeOutline(text) });
+	}
+
+	/**
+	 * En modo `ai-summary` los actos que caen fuera de la ventana reciente deben
+	 * tener resumen, o sus capítulos desaparecen del contexto. Se generan aquí,
+	 * una sola vez, justo antes de gastar el presupuesto grande de los drafts.
+	 */
+	async function ensureActSummaries() {
+		const options = plugin.settings.data.historyOptions;
+		if (options.olderChapters !== "ai-summary") return;
+		const written = chapters().filter((c) => c.outline?.trim());
+		const older = written.slice(
+			0,
+			Math.max(0, written.length - Math.max(0, options.recentChapters))
+		);
+		const pending = actos.filter(
+			(act) =>
+				!act.resumen?.trim() && older.some((c) => c.id_acto === act.id_acto)
+		);
+		for (const act of pending) {
+			setBatchStatus(`Summarizing act: ${act.nombre}`);
+			await summarizeAct(act);
+		}
 	}
 
 	async function generateAllMemory() {
@@ -103,8 +212,7 @@ export function useOutlineActions(
 		try {
 			const list = chapters();
 			for (let i = 0; i < list.length; i++) {
-				const memory = buildChapterMemory(list[i], list);
-				await writeChapterMemory(list[i], memory);
+				await writeChapterMemory(list[i], historyFor(list[i]));
 				setBatchStatus(`Memory: ${i + 1}/${list.length}`);
 			}
 			setBatchStatus(`Memory generated for ${list.length} chapters.`);
@@ -119,8 +227,7 @@ export function useOutlineActions(
 		setBatchBusy(true);
 		setBatchStatus(`Generating memory: ${chapter.nombre}`);
 		try {
-			const memory = buildChapterMemory(chapter, chapters());
-			await writeChapterMemory(chapter, memory);
+			await writeChapterMemory(chapter, historyFor(chapter));
 			setBatchStatus(`Memory updated: ${chapter.nombre}`);
 		} catch (e: any) {
 			setBatchStatus("Error: " + (e?.message ?? String(e)));
@@ -187,14 +294,7 @@ export function useOutlineActions(
 		setBatchStatus(`Generating outline by memory: ${chapter.nombre}`);
 
 		try {
-			const list = chapters();
-			const chapterIndex = list.findIndex((c) => c.id_capitulo === chapter.id_capitulo);
-			const previousOutlines = list
-				.slice(0, Math.max(0, chapterIndex))
-				.filter((c) => c.outline?.trim())
-				.map((c) => `${c.nombre}:\n${c.outline.trim()}`)
-				.join("\n\n===\n\n");
-
+			const previousOutlines = historyFor(chapter);
 			const blueprint = await store.readBlueprint();
 			const storyBible = buildStoryBibleBlock(blueprint);
 
@@ -326,7 +426,7 @@ export function useOutlineActions(
 				settings.apiToken[active.providerId] ?? ""
 			);
 			const list = chapters();
-			const draftSettings = buildDraftSettings(settings);
+			await ensureActSummaries();
 			for (let i = 0; i < list.length; i++) {
 				const c = list[i];
 				setBatchStatus(
@@ -335,21 +435,9 @@ export function useOutlineActions(
 				await ensureCapituloArchivo(c.id_capitulo);
 				const existing = await readCapituloTexto(c.id_capitulo);
 				if (existing.trim()) continue;
-				// Memoria de capítulos anteriores para dar contexto.
-				const chapterMemory = buildChapterMemory(c, list);
-				await writeChapterMemory(c, chapterMemory);
-				// Contexto histórico: outlines y contenido real de capítulos previos.
-				const prevContextParts: string[] = [];
-				for (let j = 0; j < i; j++) {
-					const prev = list[j];
-					const prevText = await readCapituloTexto(prev.id_capitulo);
-					if (prevText.trim() && !isCorruptGeneration(prevText)) {
-						prevContextParts.push(
-							`Chapter ${prev.nombre}: ${makeContextExcerpt(prevText)}`
-						);
-					}
-				}
-				const historicalContext = prevContextParts.join("\n\n");
+				// El historial llega al prompt por la memoria del frontmatter, que es
+				// su único canal; escribirlo aquí es lo que le da contexto al capítulo.
+				await writeChapterMemory(c, historyFor(c));
 				const text = await generateChapterDraftText(
 					plugin.app,
 					store.activeFolderPath!,
@@ -357,9 +445,8 @@ export function useOutlineActions(
 					active.modelName,
 					settings.aiOptions.temperature,
 					settings.aiOptions.topP,
-					draftSettings,
+					settings,
 					c.outline ?? "",
-					historicalContext,
 					targetWords,
 					({ currentWords, remainingWords }) => `${
 						currentWords === 0
@@ -405,22 +492,10 @@ export function useOutlineActions(
 				)
 			)
 				return;
-			const list = chapters();
-			// Memoria de capítulos anteriores para dar contexto.
-			const chapterMemory = buildChapterMemory(chapter, list);
-			await writeChapterMemory(chapter, chapterMemory);
-			// Contexto histórico del contenido real de capítulos previos.
-			const historyParts: string[] = [];
-			for (const c of list) {
-				if (c.id_capitulo === chapter.id_capitulo) break;
-				const prevText = await readCapituloTexto(c.id_capitulo);
-				if (prevText.trim() && !isCorruptGeneration(prevText))
-					historyParts.push(
-						`Chapter ${c.nombre}: ${makeContextExcerpt(prevText)}`
-					);
-			}
-			const historicalContext = historyParts.join("\n\n");
-			const draftSettings = buildDraftSettings(settings);
+			await ensureActSummaries();
+			// El historial llega al prompt por la memoria del frontmatter, que es
+			// su único canal; escribirlo aquí es lo que le da contexto al capítulo.
+			await writeChapterMemory(chapter, historyFor(chapter));
 			const api = new ApiFactory().createApi(
 				active.providerId,
 				settings.apiToken[active.providerId] ?? ""
@@ -432,9 +507,8 @@ export function useOutlineActions(
 				active.modelName,
 				settings.aiOptions.temperature,
 				settings.aiOptions.topP,
-				draftSettings,
+				settings,
 				chapter.outline ?? "",
-				historicalContext,
 				targetWords,
 				({ currentWords, remainingWords }) => `Approximately ${remainingWords} words remain. ${
 					currentWords >= targetWords * 0.8
@@ -458,6 +532,7 @@ export function useOutlineActions(
 		batchStatus,
 		generateAllMemory,
 		generateChapterMemory,
+		generateActSummary,
 		generateChapterOutline,
 		generateChapterOutlineByMemory,
 		generateAllOutlines,

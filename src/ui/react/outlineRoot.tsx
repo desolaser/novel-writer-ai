@@ -33,6 +33,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [addingTo, setAddingTo] = useState<string | null>(null);
 	const [capName, setCapName] = useState("");
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
+	const [actDrafts, setActDrafts] = useState<Record<string, string>>({});
 	const [openChapterMenu, setOpenChapterMenu] = useState<string | null>(null);
 	const [reorderingChapter, setReorderingChapter] = useState<string | null>(null);
 	const [draggedChapter, setDraggedChapter] = useState<string | null>(null);
@@ -45,12 +46,15 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 	/** Chapters whose outline has an unsaved edit; their draft survives a reload. */
 	const dirtyOutlines = useRef<Set<string>>(new Set());
+	/** Acts whose summary has an unsaved edit; same protection as the outlines. */
+	const dirtyActSummaries = useRef<Set<string>>(new Set());
 
 	const {
 		batchBusy,
 		batchStatus,
 		generateAllMemory,
 		generateChapterMemory,
+		generateActSummary,
 		generateChapterOutline,
 		generateChapterOutlineByMemory,
 		generateAllOutlines,
@@ -75,6 +79,20 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			return next;
 		});
 	}, [capitulos]);
+
+	// Same protection for act summaries, which the AI can also rewrite under the
+	// author while they type.
+	useEffect(() => {
+		setActDrafts((current) => {
+			const next: Record<string, string> = {};
+			actos.forEach((a) => {
+				next[a.id_acto] = dirtyActSummaries.current.has(a.id_acto)
+					? current[a.id_acto] ?? a.resumen ?? ""
+					: a.resumen ?? "";
+			});
+			return next;
+		});
+	}, [actos]);
 
 	useEffect(() => {
 		const openChapter = (event: Event) => {
@@ -113,6 +131,19 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			n.has(id) ? n.delete(id) : n.add(id);
 			return n;
 		});
+
+	const saveActSummary = (id: string, value: string) => {
+		dirtyActSummaries.current.add(id);
+		setActDrafts((d) => ({ ...d, [id]: value }));
+		const old = timers.current[id];
+		if (old) clearTimeout(old);
+		timers.current[id] = setTimeout(() => {
+			delete timers.current[id];
+			void updateActo(id, { resumen: value }).then(() => {
+				if (!timers.current[id]) dirtyActSummaries.current.delete(id);
+			});
+		}, 600);
+	};
 
 	const saveOutline = (id: string, value: string) => {
 		dirtyOutlines.current.add(id);
@@ -319,6 +350,9 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 							if (draggedAct) void reorderActs(draggedAct, a.id_acto);
 							setDraggedAct(null);
 						}}
+						actSummary={actDrafts[a.id_acto] ?? ""}
+						onSaveActSummary={(value) => saveActSummary(a.id_acto, value)}
+						onGenerateActSummary={() => void generateActSummary(a)}
 						expanded={expanded}
 						editingCap={editingCap}
 						openChapterMenu={openChapterMenu}
