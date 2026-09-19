@@ -25,6 +25,8 @@ export interface Modelo {
 	presence_penalty?: number;
 	/** Reasoning-effort level, for providers with an extended-thinking / reasoning-effort control. */
 	effort?: EffortLevel;
+	/** Provider-advertised effort levels for this exact model. */
+	supported_reasoning_efforts?: EffortLevel[];
 	/** Whether to enable extended thinking / reasoning, for providers that support toggling it. */
 	thinking?: boolean;
 	/** Whether this saved model profile can generate images. */

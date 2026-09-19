@@ -26,9 +26,11 @@ Proveedores soportados
 - Opencode Zen
 - Opencode Go
 - Anthropic => API Pay as you GO.
-- Anthropic - Claude Code (No sirve en mobile) => Para usar con suscripción
+- Anthropic - Claude Code (No sirve en mobile) => Para usar con suscripción Claude Pro
 - Novel AI
 - Oobabooga text generation web-ui
+- Llama.cpp
+- OpenAI - Codex CLI (No sirve en mobile) => Para usar con suscripción OpenAI Plus
 
 ## Tools del Chat
 La IA del chat puede llamar funciones para consultar y editar la novela.
@@ -76,6 +78,26 @@ Aplicar estos estándares.
 4. Principio de Inversión de la Dependencia (DIP): Los módulos de alto nivel no deben depender de módulos de bajo nivel, sino ambos deben depender de abstracciones
 
 5. Lenguaje Ingles: Si bien el modelo y algunas funciones pueden estar en español, por favor hacer todo en inglés de ahora en adelante. Igual el texto de las opciones y configuraciones.
+
+6. Evitar one-liners: Escribir el código identado correctamente y evitar one-liners muy largos de más de 80 letras de largo.
+Mal: 
+  
+	try { return await action(client); }
+	finally { await client.close(); try { fs.rmSync(cwd, { recursive: true, force: true }); } catch (_error) {} }
+
+Bien:
+  
+	try { 
+    return await action(client); 
+  }
+	finally { 
+    await client.close(); 
+    try { 
+      fs.rmSync(cwd, { recursive: true, force: true }); 
+    } 
+    catch (_error) {} 
+  }
+
 
 ## Carpetas
 src/apis => Aqui solo van las API's nada más. No poner utils, ni types, ni nada raro.

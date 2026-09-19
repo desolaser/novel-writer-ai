@@ -4,6 +4,7 @@ const providers = {
 	openrouter: 'openrouter', deepseek: 'deepseek', ooba: 'ooba', ollama: 'ollama',
 	opencodezen: 'opencodezen', opencodego: 'opencodego', novelai: 'novelai',
 	anthropic: 'anthropic', claudecode: 'claudecode', llamacpp: 'llamacpp',
+	codex: 'codex',
 };
 
 type ApiProvider = AiProviderId;
@@ -33,20 +34,21 @@ export const PROVIDERS: Provider[] = [
 	{ id_proveedor: 8, nombre: 'anthropic', nombre_display: 'Anthropic API', tipo_endpoint: 'anthropic-compatible' },
 	{ id_proveedor: 9, nombre: 'claudecode', nombre_display: 'Claude Code (CLI)', tipo_endpoint: 'anthropic-compatible' },
 	{ id_proveedor: 10, nombre: 'llamacpp', nombre_display: 'llama.cpp', tipo_endpoint: 'openai-compatible' },
+	{ id_proveedor: 11, nombre: 'codex', nombre_display: 'ChatGPT (Codex CLI)', tipo_endpoint: 'openai-compatible' },
 ];
 
 export const getProvider = (id: number) => PROVIDERS.find(provider => provider.id_proveedor === id);
 export const getProviderByName = (name: string) => PROVIDERS.find(provider => provider.nombre === name);
 
 /**
- * Providers that don't need an API Key: Ollama runs locally and Claude Code uses the
- * CLI's local OAuth session (there, the field doubles as an optional executable path).
+ * Providers that don't need an API Key: local servers run locally and CLI providers use
+ * their local OAuth session (there, the field doubles as an optional executable path).
  */
 export const providerRequiresApiKey = (name: AiProviderId) =>
-	name !== 'ollama' && name !== 'claudecode' && name !== 'llamacpp';
+	name !== 'ollama' && name !== 'claudecode' && name !== 'llamacpp' && name !== 'codex';
 
 /** Providers that only work on desktop (they spawn a local subprocess). */
-export const providerIsDesktopOnly = (name: AiProviderId) => name === 'claudecode';
+export const providerIsDesktopOnly = (name: AiProviderId) => name === 'claudecode' || name === 'codex';
 
 /**
  * Which generation parameters a provider's endpoint actually reads. Drives two things:
@@ -191,6 +193,7 @@ const PROVIDER_CAPABILITIES: Record<AiProviderId, ProviderCapabilities> = {
 		frequencyPenalty: true,
 		presencePenalty: true,
 	},
+	codex: { ...NO_CAPABILITIES, effort: true },
 };
 
 export const getProviderCapabilities = (name: AiProviderId): ProviderCapabilities =>

@@ -16,6 +16,10 @@ import type { EffortLevel } from "../../utils/provider-options";
 import { formatModelOption, getFilteredAndSortedModels } from "../../utils/modelSorting";
 
 const EFFORT_LEVELS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
+const ALTERNATE_API_KEY_NAMES = {
+	"claudecode": "Claude CLI path",
+	"codex": "Codex CLI path"
+}
 
 type ModelInput = Omit<Modelo, "id_modelo" | "created_at" | "updated_at"> &
 	Partial<Pick<Modelo, "id_modelo">>;
@@ -83,7 +87,7 @@ export class ModelModal extends Modal {
 				})
 			);
 		new Setting(contentEl).setName("Provider").addDropdown((dropdown) => {
-			// Claude Code spawns a local subprocess: no point offering it on mobile.
+			// CLI providers spawn local subprocesses: no point offering them on mobile.
 			PROVIDERS.filter(
 				(provider) =>
 					!providerIsDesktopOnly(provider.nombre) || Platform.isDesktopApp
@@ -106,9 +110,7 @@ export class ModelModal extends Modal {
 		});
 		const provider = getProvider(this.form.id_proveedor)!;
 		new Setting(contentEl)
-			.setName(
-				provider.nombre === "claudecode" ? "Claude CLI path" : "API Key"
-			)
+			.setName(ALTERNATE_API_KEY_NAMES[provider.nombre] ?? "API Key")
 			.setDesc(apiKeyDescription(provider.nombre))
 			.addText((text) => {
 				if (providerRequiresApiKey(provider.nombre)) {
@@ -170,8 +172,11 @@ export class ModelModal extends Modal {
 		}
 		if (capabilities.maxContext)
 			this.numberSetting(contentEl, "Max Context", "max_context");
-		this.numberSetting(contentEl, "Max Output (Generation)", "max_output");
-		this.numberSetting(contentEl, "Max Output (Chat)", "max_output_chat");
+		const outputDescription = provider.nombre === "codex"
+			? "Approximate local limit. Generation is cancelled when the streamed text reaches this budget."
+			: undefined;
+		this.numberSetting(contentEl, "Max Output (Generation)", "max_output", outputDescription);
+		this.numberSetting(contentEl, "Max Output (Chat)", "max_output_chat", outputDescription);
 		new Setting(contentEl).setName("Stream").addToggle((toggle) =>
 			toggle.setValue(this.form.stream).onChange((value) => {
 				this.form.stream = value;
@@ -193,18 +198,22 @@ export class ModelModal extends Modal {
 			this.numberSetting(contentEl, "Presence Penalty", "presence_penalty");
 		if (capabilities.minP)
 			this.numberSetting(contentEl, "Min P", "min_p");
-		if (capabilities.effort)
+		if (capabilities.effort) {
+			const effortLevels = this.form.supported_reasoning_efforts?.length
+				? this.form.supported_reasoning_efforts
+				: EFFORT_LEVELS;
 			new Setting(contentEl)
 				.setName("Effort")
 				.setDesc("Reasoning depth. Higher levels think more before answering, at the cost of latency and tokens.")
 				.addDropdown((dropdown) => {
-					EFFORT_LEVELS.forEach((level) => dropdown.addOption(level, level));
+					effortLevels.forEach((level) => dropdown.addOption(level, level));
 					dropdown
-						.setValue(this.form.effort ?? "low")
+						.setValue(effortLevels.includes(this.form.effort as EffortLevel) ? this.form.effort as EffortLevel : effortLevels[0])
 						.onChange((value) => {
 							this.form.effort = value as EffortLevel;
 						});
 				});
+		}
 		if (capabilities.thinking)
 			new Setting(contentEl)
 				.setName("Thinking")
@@ -275,10 +284,11 @@ export class ModelModal extends Modal {
 			if (!this.availableModels.length)
 				this.modelsError =
 					"No models found for this API Key.";
-		} catch (_error) {
+		} catch (error) {
 			this.availableModels = [];
-			this.modelsError =
-				"Could not load the models. Verify that the API Key is valid.";
+			this.modelsError = error instanceof Error
+				? error.message
+				: "Could not load the models. Verify the provider configuration.";
 		} finally {
 			this.loadingModels = false;
 			await this.render();
@@ -319,13 +329,18 @@ export class ModelModal extends Modal {
 						formatModelOption(model)
 					)
 				);
-				dropdown.setValue(this.form.nombre_modelo).onChange((value) => {
+				dropdown.setValue(this.form.nombre_modelo).onChange(async (value) => {
 					this.form.nombre_modelo = value;
 					const selected = this.availableModels.find((model) => model.id === value);
 					this.form.supports_image_generation =
 						selected?.supportsImageGeneration ?? false;
 					this.form.supports_vision =
 						selected?.supportsVision ?? false;
+					this.form.supported_reasoning_efforts = selected?.supportedReasoningEfforts
+						?.filter((effort): effort is EffortLevel => EFFORT_LEVELS.includes(effort as EffortLevel));
+					if (this.form.supported_reasoning_efforts?.length && !this.form.supported_reasoning_efforts.includes(this.form.effort as EffortLevel))
+						this.form.effort = this.form.supported_reasoning_efforts[0];
+					await this.render();
 				});
 			})
 			.addButton((button) =>
@@ -356,9 +371,12 @@ export class ModelModal extends Modal {
 			| "frecuence_penalty"
 			| "presence_penalty"
 			| "min_p"
-		>
+		>,
+		description?: string
 	): void {
-		new Setting(host).setName(label).addText((text) =>
+		const setting = new Setting(host).setName(label);
+		if (description) setting.setDesc(description);
+		setting.addText((text) =>
 			text.setValue(String(this.form[field] ?? "")).onChange((value) => {
 				const number = Number(value);
 				if (!Number.isNaN(number)) (this.form as any)[field] = number;
@@ -367,7 +385,7 @@ export class ModelModal extends Modal {
 	}
 }
 
-/** This field doubles as the executable path for Claude Code, hence the per-provider text. */
+/** CLI providers reuse the token field as an optional executable path. */
 function apiKeyDescription(provider: string): string {
 	switch (provider) {
 		case "ollama":
@@ -378,6 +396,12 @@ function apiKeyDescription(provider: string): string {
 			return (
 				"Optional: full path to the Claude Code executable. Leave empty to use the one on " +
 				"PATH. This provider uses your local Claude Code session (subscription), not an API Key."
+			);
+		case "codex":
+			return (
+				"Optional: full path to the Codex CLI executable. Leave empty to detect it on PATH. " +
+				"Install Codex CLI and run `codex login` with ChatGPT first. API-key sessions are rejected " +
+				"because this provider is intended to use your ChatGPT subscription."
 			);
 		case "anthropic":
 			return (

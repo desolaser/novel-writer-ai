@@ -9,6 +9,7 @@ import { NovelAiApi } from '../apis/novelai-api';
 import { AnthropicApi } from '../apis/anthropic-api';
 import { ClaudeCodeApi } from '../apis/claude-code-api';
 import { LlamaCppApi } from '../apis/llamacpp-api';
+import { CodexApi } from '../apis/codex-api';
 
 export class ApiFactory {
     createApi(provider: string, apiKey: string): ApiInterface {
@@ -33,6 +34,8 @@ export class ApiFactory {
                 return new NovelAiApi(apiKey);
             case 'llamacpp':
                 return new LlamaCppApi(apiKey);
+            case 'codex':
+                return new CodexApi(apiKey);
             default:
                 throw new Error(`Unsupported API provider: ${provider}`);
         }
