@@ -238,8 +238,7 @@ export default class NovelWriterPlugin extends Plugin {
 		// Frontmatter is metadata, never story context. Keep it in the note but
 		// exclude it from the prompt sent to the model and from Codex detection.
 		const storyBeforeCursor = beforeCursor.replace(/^---\s*[\s\S]*?---\s*/, '');
-		const fullText = target.getValue();
-		const afterCursor = fullText.slice(beforeCursor.length);
+		let insertionOffset = target.posToOffset(cursor);
 		try {
 			const settings = this.settings.data;
 			let chapterOutline = '';
@@ -259,18 +258,20 @@ export default class NovelWriterPlugin extends Plugin {
 			}
 			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, chapterOutline, storyBeforeCursor);
 			const result = await this.requestCompletion(prompt, 'Generating text');
-			let generated = '';
+			// Insert only new text. Replacing the document on every token resets
+			// the editor's viewport; setting the cursor also forces it to scroll.
+			const insertText = (text: string) => {
+				const position = target.offsetToPos(insertionOffset);
+				target.replaceRange(text, position);
+				insertionOffset += text.length;
+			};
 			if (result.text) {
-				generated = result.text;
-				target.setValue(beforeCursor + generated + afterCursor);
-				target.setCursor(target.offsetToPos(beforeCursor.length + generated.length));
+				insertText(result.text);
 			} else if (result.stream) {
 				for await (const chunk of this.readCompletionStream(result.stream)) {
 					const piece = this.chunkText(chunk);
 					if (!piece) continue;
-					generated += piece;
-					target.setValue(beforeCursor + generated + afterCursor);
-					target.setCursor(target.offsetToPos(beforeCursor.length + generated.length));
+					insertText(piece);
 				}
 			}
 		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
