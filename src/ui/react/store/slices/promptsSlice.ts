@@ -14,10 +14,10 @@ export const createPromptsSlice: SliceCreator<PromptsSlice> = (_set, get) => ({
 		const s = get().settings;
 		return s ? new CustomPromptRepository(s).getDefault('text') : undefined;
 	},
-	createCustomPrompt: async (tipo, nombre, texto) => {
+	createCustomPrompt: async (tipo, nombre, texto, plantilla) => {
 		const s = get().settings;
 		if (!s) throw new Error('Settings not bound');
-		return new CustomPromptRepository(s).create(tipo, nombre, texto);
+		return new CustomPromptRepository(s).create(tipo, nombre, texto, plantilla);
 	},
 	updateCustomPrompt: async (id, patch) => {
 		const s = get().settings;

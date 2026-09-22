@@ -3,6 +3,8 @@ import type { Acto, Capitulo } from "../../../domain";
 import type { PluginSettings } from "../../../infrastructure/settings/plugin-settings";
 import type { NovelBlueprint } from "../../../domain/entities/NovelBlueprint";
 import { buildScenePrompt } from "../../../context/promptBuilder";
+import type { CompletionOptions } from "../../../utils/provider-options";
+import { chapterOutputBudget } from "../../../utils/chapterOutputBudget";
 
 /** Helpers puros del outline: sin React, sin Obsidian, sin efectos. */
 
@@ -130,14 +132,12 @@ export async function requestDraftCompletion(
 	prompt: string,
 	model: string,
 	maxTokens: number,
-	temperature: number,
-	topP?: number
+	options: CompletionOptions
 ): Promise<{ text?: string }> {
 	try {
 		return await api.generateCompletion(prompt, model, {
+			...options,
 			max_tokens: maxTokens,
-			temperature,
-			top_p: topP,
 			stream: false,
 		});
 	} catch (error: any) {
@@ -152,9 +152,8 @@ export async function requestDraftCompletion(
 			if (fallback >= maxTokens) continue;
 			try {
 				return await api.generateCompletion(prompt, model, {
+					...options,
 					max_tokens: fallback,
-					temperature,
-					top_p: topP,
 					stream: false,
 				});
 			} catch {
@@ -178,14 +177,15 @@ export async function generateChapterDraftText(
 	activeFolderPath: string,
 	api: any,
 	model: string,
-	temperature: number,
-	topP: number | undefined,
+	options: CompletionOptions,
 	settings: PluginSettings,
 	outline: string,
 	targetWords: number,
 	buildLengthControl: (info: { currentWords: number; remainingWords: number }) => string,
 	onCorrupt?: () => void,
 ): Promise<string> {
+	// Validate before building prompts or making a paid request.
+	chapterOutputBudget(targetWords);
 	let text = "";
 	let attempts = 0;
 	while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
@@ -193,8 +193,10 @@ export async function generateChapterDraftText(
 		const remainingWords = Math.max(100, targetWords - currentWords);
 		const scene = await buildScenePrompt(app, activeFolderPath, settings, outline, text, targetWords);
 		const prompt = `${scene}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. ${buildLengthControl({ currentWords, remainingWords })}`;
-		const requestTokens = Math.max(512, Math.min(Math.ceil(remainingWords * 1.5) + 200, 8192));
-		const result = await requestDraftCompletion(api, prompt, model, requestTokens, temperature, topP);
+		const requestTokens = chapterOutputBudget(remainingWords);
+		const result = await requestDraftCompletion(
+			api, prompt, model, requestTokens, options
+		);
 		const addition = result.text ?? "";
 		if (!addition.trim()) break;
 		if (isCorruptGeneration(addition)) {

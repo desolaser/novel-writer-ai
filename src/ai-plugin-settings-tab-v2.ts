@@ -5,6 +5,7 @@ import { CustomPromptRepository } from './infrastructure/settings/custom-prompt-
 import { getProvider } from './constants/providers';
 import { ModelModal } from './ui/modals/ModelModal';
 import { CustomPromptsModal } from './ui/react/features/chat/CustomPromptsModal';
+import { renderModelPurposeSettings } from './ui/modelPurposeSettings';
 
 /** Plugin settings focused on selecting and managing reusable model profiles. */
 export class NovelWriterSettingsTab extends PluginSettingTab {
@@ -74,8 +75,8 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 		host.createEl('h3', { text: 'Models' });
 		const saved = this.models.list();
 		new Setting(host)
-			.setName('Active Model')
-			.setDesc('This profile is used for generations and chats. 🖌 = generates images. 👁 = accepts images (vision).')
+			.setName('Default model')
+			.setDesc('Used by purposes set to Use default model. 🖌 = generates images. 👁 = accepts images (vision).')
 			.addDropdown(dropdown => {
 				dropdown.addOption('', saved.length ? 'Select a model' : 'No models created');
 				saved.forEach(model => dropdown.addOption(model.id_modelo, `${model.supports_image_generation ? '🖌 ' : ''}${model.supports_vision ? '👁 ' : ''}${model.nombre_listado}`));
@@ -86,6 +87,7 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 			})
 			.addButton(button => button.setIcon('settings').setTooltip('Manage models').onClick(() => this.openManager()));
 		if (!saved.length) host.createEl('p', { text: 'Create a model to start using the AI.' });
+		renderModelPurposeSettings(host, this.plugin.settings);
 	}
 
 	private openManager(): void {
@@ -103,13 +105,17 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 				if (deletionTarget) {
 					const warning = listHost.createDiv('nw-model-delete-confirm');
 					warning.createEl('strong', { text: `Delete "${deletionTarget.nombre_listado}"?` });
-					warning.createEl('p', { text: 'This action cannot be undone.' });
+					warning.createEl('p', {
+						text: 'Assigned purposes will use the default model. '
+							+ 'Deleting the default selects the first remaining profile.',
+					});
 					const cancel = warning.createEl('button', { text: 'Cancel' });
 					cancel.onclick = () => { pendingDeletion = undefined; render(); };
 					const confirm = warning.createEl('button', { text: 'Delete', cls: 'mod-warning' });
 					confirm.onclick = async () => {
 						await this.models.remove(deletionTarget.id_modelo); pendingDeletion = undefined;
-						new Notice('Model deleted.'); render(); this.display();
+						new Notice('Model deleted. Assigned purposes now use the default.');
+						render(); this.display();
 					};
 				}
 				if (!models.length) listHost.createEl('p', { text: 'No saved models.' });
@@ -117,7 +123,11 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 					const provider = getProvider(model.id_proveedor);
 					new Setting(listHost).setName(`${model.supports_image_generation ? '🖌 ' : ''}${model.supports_vision ? '👁 ' : ''}${model.nombre_listado}`).setDesc(`${provider?.nombre_display ?? 'Unknown provider'} · ${model.nombre_modelo}`)
 						.addToggle(toggle => toggle.setTooltip('Default model').setValue(this.plugin.settings.data.modeloPredeterminadoId === model.id_modelo).onChange(async value => {
-							if (value) { await this.models.setDefault(model.id_modelo); render(); }
+							if (value) {
+								await this.models.setDefault(model.id_modelo);
+								render();
+								this.display();
+							}
 						}))
 						.addButton(button => button.setIcon('pencil').setTooltip('Edit').onClick(() => {
 							new ModelModal(this.plugin, model, () => { render(); this.display(); }).open();
@@ -142,7 +152,7 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 			.setDesc('How to generate a name for new chats after the first message.')
 			.addDropdown(dropdown => {
 				dropdown.addOption('local', 'Local heuristic');
-				dropdown.addOption('active_model', 'Active model');
+				dropdown.addOption('active_model', 'Utilities model');
 				dropdown.setValue(settings.chatNameGeneration ?? 'active_model');
 				dropdown.onChange(async value => {
 					settings.chatNameGeneration = value as 'local' | 'active_model';

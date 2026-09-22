@@ -1,6 +1,7 @@
 import type { NovelSlice, SliceCreator } from "../types";
 
 export const createNovelSlice: SliceCreator<NovelSlice> = (set, get) => ({
+	settingsRevision: 0,
 	store: null,
 	settings: null,
 	novels: [],

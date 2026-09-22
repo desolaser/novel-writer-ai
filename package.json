@@ -4,6 +4,7 @@
 	"description": "A novel AI like plugin for Obsidian that helps you write better and faster. It can generate text, summarize, and even help you brainstorm ideas.",
 	"main": "main.js",
 	"scripts": {
+		"test:models": "node --test --test-isolation=none src/infrastructure/settings/model-purposes.test.cjs",
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"

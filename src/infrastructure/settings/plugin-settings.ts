@@ -2,6 +2,7 @@ import { DEFAULT_COLORS } from '../../constants/novel';
 import type { Modelo } from '../../domain/entities/Modelo';
 import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 import type { EffortLevel } from '../../utils/provider-options';
+import type { ModelAssignments } from '../../types/ModelPurpose';
 
 /** Proveedor de IA seleccionado. */
 export type AiProviderId =
@@ -70,6 +71,8 @@ export interface PluginSettings {
 	modelos: Modelo[];
 	/** Identificador del modelo activo por defecto. */
 	modeloPredeterminadoId: string;
+	/** Empty assignments inherit the default profile. */
+	modelAssignments: ModelAssignments;
 	/** Numerar capitulos automaticamente. */
 	numerarCapitulosAuto: boolean;
 	/** Prefix prompt global. */
@@ -148,6 +151,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	apiToken: {},
 	modelos: [],
 	modeloPredeterminadoId: '',
+	modelAssignments: { chat: '', writing: '', utilities: '' },
 	numerarCapitulosAuto: true,
 	prefix: 'Continue the text following the narration style of the user: ',
 	memoryContent: '',

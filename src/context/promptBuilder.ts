@@ -8,6 +8,9 @@ import { PluginSettings } from '../infrastructure/settings/plugin-settings';
 import { getPromptMetaCascading } from './promptMeta';
 import { readBlueprint } from '../infrastructure/storage/repos/BlueprintRepo';
 import { buildStoryBibleBlock } from './blueprintPrompt';
+import {
+	renderTemplateWithBlocks, type ResolvedTemplateBlock,
+} from './promptTemplates';
 
 export function estimateTokens(text: string): number { return Math.ceil((text || '').length / 4); }
 
@@ -161,4 +164,49 @@ export async function buildScenePrompt(
 	parts.push(storyText ? "Continue the manuscript narration:" : "Begin the new chapter:");
 	parts.push(storyText);
 	return parts.join("\n\n");
+}
+
+/** Builds only the Markdown editor's generate-at-cursor request. */
+export async function buildEditorPrompt(
+	app: App, folderPath: string, settings: PluginSettings,
+	outline: string, currentText: string,
+): Promise<string> {
+	const result = await buildEditorPromptDetails(
+		app, folderPath, settings, outline, currentText,
+	);
+	return result.prompt;
+}
+
+export async function buildEditorPromptDetails(
+	app: App, folderPath: string, settings: PluginSettings,
+	outline: string, currentText: string,
+): Promise<{ prompt: string; blocks: ResolvedTemplateBlock[] }> {
+	const manuscript = (currentText || '').replace(/^---\s*[\s\S]*?---\s*/, '');
+	const codex = await buildCodexYaml(
+		app, folderPath, undefined, manuscript,
+		settings.codexOptions.searchRange,
+	);
+	const storyBible = buildStoryBibleBlock(await readBlueprint(app, folderPath));
+	const memory = await getPromptMetaCascading(app, settings, 'memoryContent');
+	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
+	const id = settings.defaultTextPromptId;
+	const selected = settings.customPrompts?.find(prompt => {
+		return prompt.id_prompt === id && prompt.tipo === 'text';
+	}) ?? settings.customPrompts?.find(prompt => prompt.tipo === 'text');
+	const outlineBlock = outline.trim()
+		? `Chapter outline: ${outline.trim()}`
+		: '';
+	const blocks = {
+		instructions: selected?.texto ?? settings.prefix,
+		codex: `--- Codex ---\n${codex || '(empty)'}\n--- End Codex ---`,
+		story_bible: storyBible,
+		memory: memory.trim() ? `Memory content: ${memory.trim()}` : '',
+		author_note: authorNote.trim()
+			? `Author note: ${authorNote.trim()}` : '',
+		chapter_outline: outlineBlock,
+		manuscript: manuscript
+			? manuscript
+			: 'Begin the new chapter:',
+	};
+	return renderTemplateWithBlocks('text', selected?.plantilla, blocks);
 }

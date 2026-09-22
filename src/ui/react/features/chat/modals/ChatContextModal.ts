@@ -31,22 +31,37 @@ export class ChatContextModal extends Modal {
 		pre.setText(this.prompt);
 
 		const section = contentEl.createDiv('token-table-section');
-		section.createEl('h5', { text: 'Token Breakdown' });
+		section.createEl('h5', { text: 'Template Blocks' });
 		const table = section.createEl('table', { cls: 'token-table' });
 		const head = table.createEl('thead').createEl('tr');
-		head.createEl('th', { text: 'Identifier' });
+		head.createEl('th', { text: 'Block' });
 		head.createEl('th', { text: 'Tokens', cls: 'token-column' });
 		const body = table.createEl('tbody');
-		const rows = this.breakdown.map(({ label, content }) => [label, content] as [string, string]);
-		rows.forEach(([label, value]) => {
-			const row = body.createEl('tr');
-			row.createEl('td', { text: label });
-			row.createEl('td', { text: String(estimateTokens(value)), cls: 'token-column' });
+		const visibleBlocks = this.breakdown.filter(({ content }) => {
+			return content.trim().length > 0;
 		});
-		const total = rows.reduce((sum, [, value]) => sum + estimateTokens(value), 0);
+		visibleBlocks.forEach(({ label, content }) => {
+			const row = body.createEl('tr');
+			const blockCell = row.createEl('td');
+			const details = blockCell.createEl('details');
+			details.createEl('summary', { text: label });
+			const blockPreview = details.createEl('pre');
+			blockPreview.style.whiteSpace = 'pre-wrap';
+			blockPreview.style.wordBreak = 'break-word';
+			blockPreview.style.maxHeight = '30vh';
+			blockPreview.style.overflow = 'auto';
+			blockPreview.setText(content);
+			row.createEl('td', {
+				text: String(estimateTokens(content)),
+				cls: 'token-column',
+			});
+		});
 		const totalRow = body.createEl('tr', { cls: 'total-row' });
-		totalRow.createEl('td', { text: 'Total' });
-		totalRow.createEl('td', { text: String(total), cls: 'token-column' });
+		totalRow.createEl('td', { text: 'Full prompt' });
+		totalRow.createEl('td', {
+			text: String(estimateTokens(this.prompt)),
+			cls: 'token-column',
+		});
 
 		const btnRow = contentEl.createDiv();
 		btnRow.style.display = 'flex';

@@ -6,7 +6,7 @@ import { SettingsService } from './src/infrastructure/settings/settings-service'
 import { NovelWriterSettingsTab } from './src/ai-plugin-settings-tab-v2';
 import { prepareImport, runImportGrouped, findExistingCategoria, listExistingCategorias } from './src/utils/lorebookImport';
 import { LorebookImportReviewModal, type ImportReviewGroup } from './src/ui/react/features/codex/modals/LorebookImportReviewModal';
-import { buildScenePrompt } from './src/context/promptBuilder';
+import { buildEditorPrompt } from './src/context/promptBuilder';
 import { ApiFactory } from './src/factories/api-factory';
 import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
 import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
@@ -57,6 +57,11 @@ export default class NovelWriterPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => { window.setTimeout(() => { void this.openWorkingViews(); }, 1000); });
 
 		void import('./src/ui/react/store/novelWriterStore').then(({ useNovelWriter }) => {
+			this.register(this.settings.subscribe(() => {
+				useNovelWriter.setState((state) => ({
+					settingsRevision: state.settingsRevision + 1,
+				}));
+			}));
 			const initial = useNovelWriter.getState();
 			let prevEntradas = initial.entradas;
 			let prevCategorias = initial.categorias;
@@ -256,7 +261,12 @@ export default class NovelWriterPlugin extends Plugin {
 					if (match?.outline?.trim()) chapterOutline = match.outline;
 				}
 			}
-			const prompt = await buildScenePrompt(this.app, this.store.activeFolderPath ?? (this.app.workspace.getActiveFile()?.parent?.path ?? ''), settings, chapterOutline, storyBeforeCursor);
+			const prompt = await buildEditorPrompt(
+				this.app,
+				this.store.activeFolderPath ??
+					(this.app.workspace.getActiveFile()?.parent?.path ?? ''),
+				settings, chapterOutline, storyBeforeCursor,
+			);
 			const result = await this.requestCompletion(prompt, 'Generating text');
 			// Insert only new text. Replacing the document on every token resets
 			// the editor's viewport; setting the cursor also forces it to scroll.
@@ -315,7 +325,7 @@ export default class NovelWriterPlugin extends Plugin {
 		new Notice(action + '…');
 		const settings = this.settings.data;
 		try {
-			const active = getActiveModelConfig(settings, 'generate');
+			const active = getActiveModelConfig(settings, 'writing');
 			if (!active.modelName) throw new Error('Configure a model in Settings.');
 			const token = settings.apiToken[active.providerId] ?? '';
 			const api = new ApiFactory().createApi(active.providerId, token);
@@ -343,7 +353,7 @@ export default class NovelWriterPlugin extends Plugin {
 		this.operationStatusBarItem.setText(action + '…');
 		new Notice(action + '…');
 		const settings = this.settings.data;
-		const active = getActiveModelConfig(settings, 'generate');
+		const active = getActiveModelConfig(settings, 'writing');
 		if (!active.modelName) throw new Error('Configure a model in Settings.');
 		const api = new ApiFactory().createApi(active.providerId, settings.apiToken[active.providerId] ?? '');
 		return api.generateCompletion(prompt, active.modelName, active.options);

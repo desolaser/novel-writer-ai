@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
 import { Modal, App, MarkdownView } from 'obsidian';
-import { buildScenePrompt, buildCodexYaml, estimateTokens } from '../../../../context/promptBuilder';
+import { buildEditorPromptDetails, estimateTokens } from '../../../../context/promptBuilder';
 import { getPromptMetaCascading, writePromptMeta } from '../../../../context/promptMeta';
 import { buildStoryBibleBlock } from '../../../../context/blueprintPrompt';
+import type { ResolvedTemplateBlock } from '../../../../context/promptTemplates';
 
 export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const { store } = useNovelWriter();
@@ -62,39 +63,72 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		}, 600);
 	}, [plugin]);
 
-	const openContextModal = useCallback(() => {
+	const openContextModal = useCallback(async () => {
 		if (!store?.activeFolderPath) return;
 		setContextBusy(true);
-		const settings = plugin.settings.data;
-		const leaf = plugin.app.workspace.getMostRecentLeaf();
-		const view = leaf?.view instanceof MarkdownView ? leaf.view : null;
-		const currentText = view?.editor?.getValue() ?? '';
-		const storyText = currentText.replace(/^---\s*[\s\S]*?---\s*/, '');
-		const resolveOutline = async (): Promise<string> => {
-			if (!settings.includeOutlineInContext) return '';
+		try {
+			const settings = plugin.settings.data;
 			const activeFile = plugin.app.workspace.getActiveFile();
-			if (!activeFile) return '';
-			const chapters = await store.listCapitulos();
-			const match = chapters.find(c => {
-				if (!c.archivo) return false;
-				const resolved = c.archivo.startsWith('escritura/')
-					? `${store.activeFolderPath}/${c.archivo}`
-					: c.archivo;
-				return resolved === activeFile.path;
-			});
-			return match?.outline?.trim() ?? '';
-		};
-		resolveOutline()
-			.then(outline =>
-				Promise.all([buildScenePrompt(plugin.app, store.activeFolderPath!, settings, outline, storyText), buildCodexYaml(plugin.app, store.activeFolderPath!, undefined, storyText, settings.codexOptions.searchRange), getPromptMetaCascading(plugin.app, settings, 'memoryContent'), getPromptMetaCascading(plugin.app, settings, 'authorNote')])
-			)
-			.then(([prompt, codex, resolvedMemory, resolvedAuthor]) => {
-				new ContextModal(plugin.app, prompt, storyText, codex, resolvedMemory, resolvedAuthor).open();
-			})
-			.catch(e => {
-				new ContextModal(plugin.app, 'Error building context: ' + (e?.message ?? String(e))).open();
-			})
-			.finally(() => setContextBusy(false));
+			const markdownViews = plugin.app.workspace.getLeavesOfType('markdown')
+				.map(leaf => leaf.view)
+				.filter((candidate): candidate is MarkdownView => {
+					return candidate instanceof MarkdownView;
+				});
+			const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
+				?? markdownViews.find(candidate => {
+					return candidate.file?.path === activeFile?.path;
+				})
+				?? markdownViews.find(candidate => {
+					return candidate.file?.path.startsWith(
+						`${store.activeFolderPath}/`,
+					);
+				});
+			const contextFile = view?.file ?? activeFile;
+			if (!contextFile) {
+				throw new Error('Open a Markdown manuscript to view its context.');
+			}
+			const fullText = view?.editor?.getValue()
+				|| await plugin.app.vault.read(contextFile);
+			const beforeCursor = view?.editor?.getRange(
+				{ line: 0, ch: 0 }, view.editor.getCursor(),
+			) ?? '';
+			const hasManuscriptBeforeCursor = beforeCursor
+				.replace(/^---\s*[\s\S]*?---\s*/, '').trim().length > 0;
+			// Sidebar focus can reset the editor cursor. Fall back to the
+			// manuscript rather than showing an empty chapter preview.
+			const currentText = hasManuscriptBeforeCursor
+				? beforeCursor : fullText;
+			const usedFullDocument = !hasManuscriptBeforeCursor &&
+				fullText.trim().length > 0;
+			const storyText = currentText.replace(/^---\s*[\s\S]*?---\s*/, '');
+			let outline = '';
+			if (settings.includeOutlineInContext) {
+				const chapters = await store.listCapitulos();
+				const match = chapters.find(chapter => {
+					if (!chapter.archivo) return false;
+					const path = chapter.archivo.startsWith('escritura/')
+						? `${store.activeFolderPath}/${chapter.archivo}`
+						: chapter.archivo;
+					return path === contextFile.path;
+				});
+				outline = match?.outline?.trim() ?? '';
+			}
+			const details = await buildEditorPromptDetails(
+				plugin.app, store.activeFolderPath, settings,
+				outline, storyText,
+			);
+			new ContextModal(
+				plugin.app, details.prompt, details.blocks,
+				usedFullDocument,
+			).open();
+		} catch (error: any) {
+			new ContextModal(
+				plugin.app,
+				'Error building context: ' + (error?.message ?? String(error)),
+			).open();
+		} finally {
+			setContextBusy(false);
+		}
 	}, [plugin, store?.activeFolderPath]);
 
 	const openMemoryModal = useCallback(() => {
@@ -262,12 +296,17 @@ class StoryBibleModal extends Modal {
 /** Modal to display the full AI prompt context. */
 class ContextModal extends Modal {
 	private prompt: string;
-	private story: string; private codex: string; private memory: string; private authorNote: string;
+	private blocks: ResolvedTemplateBlock[];
+	private usedFullDocument: boolean;
 
-	constructor(app: App, prompt: string, story = '', codex = '', memory = '', authorNote = '') {
+	constructor(
+		app: App, prompt: string, blocks: ResolvedTemplateBlock[] = [],
+		usedFullDocument = false,
+	) {
 		super(app);
 		this.prompt = prompt;
-		this.story = story; this.codex = codex; this.memory = memory; this.authorNote = authorNote;
+		this.blocks = blocks;
+		this.usedFullDocument = usedFullDocument;
 	}
 
 	onOpen() {
@@ -275,6 +314,12 @@ class ContextModal extends Modal {
 		contentEl.empty();
 		contentEl.addClass('options-view-container'); this.modalEl.addClass('context-modal-large');
 		contentEl.createEl('h4', { text: 'Current Context' });
+		if (this.usedFullDocument) {
+			contentEl.createEl('p', {
+				text: 'Previewing the full open manuscript because no text was found before the editor cursor.',
+				cls: 'setting-item-description',
+			});
+		}
 
 		const pre = contentEl.createEl('pre');
 		pre.style.maxHeight = '70vh';
@@ -286,11 +331,36 @@ class ContextModal extends Modal {
 		pre.style.background = 'var(--background-secondary)';
 		pre.style.borderRadius = '6px';
 		pre.setText(this.prompt);
-		const section = contentEl.createDiv('token-table-section'); section.createEl('h5', { text: 'Token Breakdown' });
-		const table = section.createEl('table', { cls: 'token-table' }); const head = table.createEl('thead').createEl('tr'); head.createEl('th', { text: 'Identifier' }); head.createEl('th', { text: 'Tokens', cls: 'token-column' });
-		const body = table.createEl('tbody'); const rows = [['Story', this.story], ['Memory', this.memory], ["Author's Note", this.authorNote], ['Lorebook', this.codex]];
-		rows.forEach(([label, value]) => { const row = body.createEl('tr'); row.createEl('td', { text: label }); row.createEl('td', { text: String(estimateTokens(value)), cls: 'token-column' }); });
-		const total = rows.reduce((sum, [, value]) => sum + estimateTokens(value), 0); const totalRow = body.createEl('tr', { cls: 'total-row' }); totalRow.createEl('td', { text: 'Total' }); totalRow.createEl('td', { text: String(total), cls: 'token-column' });
+		const section = contentEl.createDiv('token-table-section');
+		section.createEl('h5', { text: 'Template Blocks' });
+		const table = section.createEl('table', { cls: 'token-table' });
+		const head = table.createEl('thead').createEl('tr');
+		head.createEl('th', { text: 'Block' });
+		head.createEl('th', { text: 'Tokens', cls: 'token-column' });
+		const body = table.createEl('tbody');
+		for (const block of this.blocks) {
+			if (!block.content.trim()) continue;
+			const row = body.createEl('tr');
+			const blockCell = row.createEl('td');
+			const details = blockCell.createEl('details');
+			details.createEl('summary', { text: `{{${block.key}}}` });
+			const blockPreview = details.createEl('pre');
+			blockPreview.style.whiteSpace = 'pre-wrap';
+			blockPreview.style.wordBreak = 'break-word';
+			blockPreview.style.maxHeight = '30vh';
+			blockPreview.style.overflow = 'auto';
+			blockPreview.setText(block.content);
+			row.createEl('td', {
+				text: String(estimateTokens(block.content)),
+				cls: 'token-column',
+			});
+		}
+		const totalRow = body.createEl('tr', { cls: 'total-row' });
+		totalRow.createEl('td', { text: 'Full prompt' });
+		totalRow.createEl('td', {
+			text: String(estimateTokens(this.prompt)),
+			cls: 'token-column',
+		});
 
 		const btnRow = contentEl.createDiv();
 		btnRow.style.display = 'flex';

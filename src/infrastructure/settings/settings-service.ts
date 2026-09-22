@@ -17,6 +17,7 @@ export class SettingsService {
 	private plugin: Plugin;
 	data: PluginSettings;
 	readonly prompts: CustomPromptRepository;
+	private readonly listeners = new Set<() => void>();
 
 	constructor(plugin: Plugin) {
 		this.plugin = plugin;
@@ -34,6 +35,13 @@ export class SettingsService {
 
 	async save(): Promise<void> {
 		await this.plugin.saveData(this.data);
+		this.listeners.forEach((listener) => listener());
+	}
+
+	/** Subscribers observe persisted settings without coupling storage to React. */
+	subscribe(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => { this.listeners.delete(listener); };
 	}
 
 	/** Helper patch en memoria + persistir. */
@@ -54,10 +62,14 @@ export class SettingsService {
 			id_proveedor: provider.id_proveedor,
 			max_context: this.data.aiOptions.maxContext,
 			max_output: this.data.aiOptions.maxOutput,
+			max_output_chat: this.data.aiOptions.maxOutputChat,
 			stream: this.data.aiOptions.streaming,
 			temperature: this.data.aiOptions.temperature,
 			top_p: this.data.aiOptions.topP,
 			top_k: this.data.aiOptions.topK,
+			min_p: this.data.aiOptions.minP,
+			effort: this.data.aiOptions.effort,
+			thinking: this.data.aiOptions.thinking,
 			repetition_penalty: this.data.aiOptions.repetitionPenalty,
 			repetition_penalty_range:
 				this.data.aiOptions.repetitionPenaltyRange,
@@ -73,7 +85,7 @@ export class SettingsService {
 
 /** Merge profundo (1 nivel de subobjetos) sobre defaults. */
 function mergeSettings(defaults: PluginSettings, loaded: any): PluginSettings {
-	const out: any = { ...defaults };
+	const out: any = structuredCloneSafe(defaults);
 	for (const k of Object.keys(loaded)) {
 		const v = loaded[k];
 		if (v && typeof v === "object" && !Array.isArray(v)) {

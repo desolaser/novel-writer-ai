@@ -1,30 +1,45 @@
 import type { PluginSettings } from "./plugin-settings";
 import { getProvider } from "../../constants/providers";
-import type { ModelContext } from "../../domain/entities/Modelo";
+import type { ModelPurpose } from "../../types/ModelPurpose";
+
+/** Missing assignments inherit; invalid references must not spend on another model. */
+export function getActiveModelProfile(
+	settings: PluginSettings,
+	purpose: ModelPurpose
+) {
+	const id = settings.modelAssignments?.[purpose]
+		|| settings.modeloPredeterminadoId;
+	const model = settings.modelos.find((item) => item.id_modelo === id);
+	if (id && !model) {
+		throw new Error(`The ${purpose} model no longer exists. Check Settings.`);
+	}
+	return model;
+}
 
 /**
  * Resolves the selected saved profile into the provider and request options used by APIs.
- * @param context Determines which max_output to use: 'chat' uses max_output_chat (falls back to max_output), 'generate' uses max_output.
+ * Chat keeps its existing output budget. Task-specific overrides are applied
+ * by callers after resolving the complete profile.
  */
 export function getActiveModelConfig(
 	settings: PluginSettings,
-	context: ModelContext = "generate"
+	purpose: ModelPurpose
 ) {
-	const model = settings.modelos.find(
-		(item) => item.id_modelo === settings.modeloPredeterminadoId
-	);
+	const model = getActiveModelProfile(settings, purpose);
 
 	if (!model) {
 		// When no saved model exists, use the legacy AiOptions fallback, respecting context.
 		const fallbackMaxTokens =
-			context === "chat"
+			purpose === "chat"
 				? settings.aiOptions.maxOutputChat ??
 				  settings.aiOptions.maxOutput
 				: settings.aiOptions.maxOutput;
 		return {
+			profile: model,
 			providerId: settings.proveedor.id,
 			modelName: settings.proveedor.modelo,
 			options: {
+				max_context: settings.aiOptions.maxContext,
 				max_tokens: fallbackMaxTokens,
 				temperature: settings.aiOptions.temperature,
 				top_p: settings.aiOptions.topP,
@@ -46,10 +61,11 @@ export function getActiveModelConfig(
 	if (!provider) throw new Error("The provider of the active model does not exist.");
 	// For chat context, prefer max_output_chat; fall back to max_output if not set.
 	const maxTokens =
-		context === "chat"
+		purpose === "chat"
 			? model.max_output_chat ?? model.max_output
 			: model.max_output;
 	return {
+		profile: model,
 		providerId: provider.nombre,
 		modelName: model.nombre_modelo,
 		options: {

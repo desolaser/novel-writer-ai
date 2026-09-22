@@ -15,7 +15,7 @@ import {
 	renderStructureMarkdown,
 	type BlueprintAct,
 } from "../../../../utils/structureMarkdown";
-import { activeOutputBudget, runModelCompletion } from "../../../../context/aiCompletion";
+import { createUtilityCompletion } from "../../../../context/aiCompletion";
 
 export interface BlueprintOutlineController {
 	busy: boolean;
@@ -144,11 +144,18 @@ export function useBlueprintOutline(
 			confirm("Every chapter already has an outline. Generate all of them again?");
 		if (missing === 0 && !rewriteAll) return;
 
-		const budget = activeOutputBudget(plugin);
+		let completion: ReturnType<typeof createUtilityCompletion>;
+		try {
+			completion = createUtilityCompletion(plugin);
+		} catch (error) {
+			new Notice(String(error));
+			return;
+		}
+		const budget = completion.outputBudget;
 		const batchSize = batchSizeFor(budget);
 		if (batchSize < 3)
 			new Notice(
-				`The active model allows ${budget} output tokens, so outlines go ${batchSize} chapter(s) per request. Raising its max output makes this faster.`
+				`The utilities model is configured for ${budget} output tokens, so outlines go ${batchSize} chapter(s) per request. Raising its max output makes this faster.`
 			);
 
 		const context: BlueprintPromptContext = { blueprint, pacing, instructions };
@@ -212,8 +219,7 @@ export function useBlueprintOutline(
 						batchStart: first,
 						actChapters: act.capitulos.length,
 					});
-					const answer = await runModelCompletion(
-						plugin,
+					const answer = await completion.complete(
 						prompt,
 						TOKENS_OVERHEAD + chapters.length * TOKENS_PER_CHAPTER
 					);

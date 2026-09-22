@@ -13,7 +13,7 @@ function localHeuristic(text: string): string {
 
 async function aiGenerated(text: string, plugin: NovelWriterPlugin): Promise<string> {
 	const settings = plugin.settings.data;
-	const activeModel = getActiveModelConfig(settings, 'chat');
+	const activeModel = getActiveModelConfig(settings, 'utilities');
 	if (!activeModel.modelName) return localHeuristic(text);
 	const token = settings.apiToken[activeModel.providerId] ?? '';
 	const api = new ApiFactory().createApi(activeModel.providerId, token);

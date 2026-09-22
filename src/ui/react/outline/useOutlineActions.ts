@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNovelWriter } from "../store/novelWriterStore";
 import type NovelWriterPlugin from "../../../../main";
+import type { ModelPurpose } from "../../../types/ModelPurpose";
 import type { Acto, Capitulo } from "../../../domain";
 import { ApiFactory } from "../../../factories/api-factory";
 import {
@@ -61,6 +62,19 @@ export function useOutlineActions(
 	const [batchStatus, setBatchStatus] = useState("");
 
 	const chapters = () => orderedChapters(actos, capitulos);
+
+	function modelFor(purpose: ModelPurpose) {
+		try {
+			const active = getActiveModelConfig(plugin.settings.data, purpose);
+			if (!active.modelName) {
+				throw new Error(`Configure a ${purpose} model in Settings.`);
+			}
+			return active;
+		} catch (error) {
+			setBatchStatus(String(error));
+			return null;
+		}
+	}
 
 	/** Historial de capítulos previos, con los límites configurados. */
 	function historyFor(chapter: Capitulo | null): string {
@@ -239,11 +253,8 @@ export function useOutlineActions(
 	async function generateChapterOutline(chapter: Capitulo) {
 		if (!store || !chapter.archivo) return;
 		const settings = plugin.settings.data;
-		const active = getActiveModelConfig(settings, "generate");
-		if (!active.modelName) {
-			setBatchStatus("Configure a model in Settings.");
-			return;
-		}
+		const active = modelFor("utilities");
+		if (!active) return;
 
 		setBatchBusy(true);
 		setBatchStatus(`Generating outline: ${chapter.nombre}`);
@@ -264,8 +275,7 @@ export function useOutlineActions(
 				prompt,
 				active.modelName,
 				800,
-				settings.aiOptions.temperature,
-				settings.aiOptions.topP
+				active.options
 			);
 			const outline = normalizeOutline(result.text ?? "");
 			if (!outline) {
@@ -284,11 +294,8 @@ export function useOutlineActions(
 	async function generateChapterOutlineByMemory(chapter: Capitulo) {
 		if (!store) return;
 		const settings = plugin.settings.data;
-		const active = getActiveModelConfig(settings, "generate");
-		if (!active.modelName) {
-			setBatchStatus("Configure a model in Settings.");
-			return;
-		}
+		const active = modelFor("utilities");
+		if (!active) return;
 
 		setBatchBusy(true);
 		setBatchStatus(`Generating outline by memory: ${chapter.nombre}`);
@@ -308,8 +315,7 @@ export function useOutlineActions(
 				prompt,
 				active.modelName,
 				800,
-				settings.aiOptions.temperature,
-				settings.aiOptions.topP
+				active.options
 			);
 			const outline = normalizeOutline(result.text ?? "");
 			if (!outline) {
@@ -328,8 +334,8 @@ export function useOutlineActions(
 	async function generateChapterOutlineForBatch(chapter: Capitulo) {
 		if (!store || !chapter.archivo) return;
 		const settings = plugin.settings.data;
-		const active = getActiveModelConfig(settings, "generate");
-		if (!active.modelName) return;
+		const active = modelFor("utilities");
+		if (!active) return;
 		const manuscript = await readCapituloTexto(chapter.id_capitulo);
 		if (!manuscript.trim()) return;
 		const prompt = buildOutlinePrompt(chapter, manuscript);
@@ -342,8 +348,7 @@ export function useOutlineActions(
 			prompt,
 			active.modelName,
 			800,
-			settings.aiOptions.temperature,
-			settings.aiOptions.topP
+			active.options
 		);
 		const outline = normalizeOutline(result.text ?? "");
 		if (outline) await updateCapitulo(chapter.id_capitulo, { outline });
@@ -351,11 +356,8 @@ export function useOutlineActions(
 
 	async function generateAllOutlines() {
 		if (!store) return;
-		const active = getActiveModelConfig(plugin.settings.data, "generate");
-		if (!active.modelName) {
-			setBatchStatus("Configure a model in Settings.");
-			return;
-		}
+		const active = modelFor("utilities");
+		if (!active) return;
 		setBatchBusy(true);
 		try {
 			const list = chapters();
@@ -407,11 +409,8 @@ export function useOutlineActions(
 	async function generateDrafts() {
 		if (!store) return;
 		const settings = plugin.settings.data;
-		const active = getActiveModelConfig(settings, "generate");
-		if (!active.modelName) {
-			alert("Configure a model in Settings.");
-			return;
-		}
+		const active = modelFor("writing");
+		if (!active) return;
 		if (
 			!confirm(
 				"Drafts will be generated only for chapters without content. Continue?"
@@ -443,8 +442,7 @@ export function useOutlineActions(
 					store.activeFolderPath!,
 					api,
 					active.modelName,
-					settings.aiOptions.temperature,
-					settings.aiOptions.topP,
+					active.options,
 					settings,
 					c.outline ?? "",
 					targetWords,
@@ -475,11 +473,8 @@ export function useOutlineActions(
 	async function generateSingleDraft(chapter: Capitulo) {
 		if (!store) return;
 		const settings = plugin.settings.data;
-		const active = getActiveModelConfig(settings, "generate");
-		if (!active.modelName) {
-			alert("Configure a model in Settings.");
-			return;
-		}
+		const active = modelFor("writing");
+		if (!active) return;
 		setBatchBusy(true);
 		setBatchStatus(`Generating draft: ${chapter.nombre}`);
 		try {
@@ -505,8 +500,7 @@ export function useOutlineActions(
 				store.activeFolderPath!,
 				api,
 				active.modelName,
-				settings.aiOptions.temperature,
-				settings.aiOptions.topP,
+				active.options,
 				settings,
 				chapter.outline ?? "",
 				targetWords,

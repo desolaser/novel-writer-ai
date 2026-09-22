@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Notice } from 'obsidian';
 import { useNovelWriter } from '../../store/novelWriterStore';
@@ -22,6 +22,8 @@ import { useChatContext, type ContextMenu } from './hooks/useChatContext';
 import { useChatMessages } from './hooks/useChatMessages';
 import { useChatImages } from './hooks/useChatImages';
 import { useChatAiTurn, composeReply } from './hooks/useChatAiTurn';
+import { ChatModelSelector } from './ChatModelSelector';
+import { useChatModel } from './hooks/useChatModel';
 import { useStoryBible } from './hooks/useStoryBible';
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -46,8 +48,6 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	} = useNovelWriter();
 	const [input, setInput] = useState('');
 	const [busy, setBusy] = useState(false);
-	const [modelMenuOpen, setModelMenuOpen] = useState(false);
-	const [modelVersion, setModelVersion] = useState(0);
 	const [promptMenuOpen, setPromptMenuOpen] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const promptRef = useRef<HTMLDivElement | null>(null);
@@ -81,10 +81,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const roleplayNames = { user: chatContext.impersonateContext?.name, char: chatContext.characterContext?.name };
 	const resolveText = (text: string) => resolvePlaceholders(text ?? '', roleplayNames);
 
-	const supportsVision = useMemo(() => {
-		const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId);
-		return model?.supports_vision ?? false;
-	}, [plugin, modelVersion]);
+	const chatModel = useChatModel(plugin.settings);
+	const supportsVision = chatModel.profile?.supports_vision ?? false;
 
 	const images = useChatImages({ plugin, categorias, entradas, setSidebarTab, setEntryThumbnail, supportsVision });
 
@@ -129,6 +127,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 				userText: lastUserMsg.mensaje,
 				images: currentUploadedImagesRegen,
 				chatPrompt: chatPromptText,
+				chatTemplate: currentPrompt?.plantilla,
 			});
 			const reply = composeReply(turn.text, turn.log) || (turn.images.length ? '' : '(no response)');
 			await appendMensaje('assistant', reply, turn.images);
@@ -169,7 +168,11 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		runner.reset();
 		aiTurn.resetLiveText();
 		try {
-			const turn = await aiTurn.runAiTurn({ history: messages.mensajes, userText: t, images: currentUploadedImages, chatPrompt: chatPromptText });
+			const turn = await aiTurn.runAiTurn({
+				history: messages.mensajes, userText: t,
+				images: currentUploadedImages, chatPrompt: chatPromptText,
+				chatTemplate: currentPrompt?.plantilla,
+			});
 			const reply = composeReply(turn.text, turn.log) || (turn.images.length ? '' : '(no response)');
 			await appendMensaje('assistant', reply, turn.images);
 			messages.setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: turn.images, created_at: '' }]);
@@ -201,8 +204,13 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const resolvedPromptId = messages.currentPromptId || defaultChatPrompt?.id_prompt || null;
 	const currentPrompt = chatPrompts.find(p => p.id_prompt === resolvedPromptId);
 	const chatPromptText = currentPrompt?.texto;
+	const chatTemplate = currentPrompt?.plantilla;
 
 	const openContextModal = useCallback(() => {
+		if (chatModel.error) {
+			new Notice(chatModel.error);
+			return;
+		}
 		// Mirrors what a real request sends, tool instructions included.
 		const previewModel = getActiveModelConfig(plugin.settings.data, 'chat');
 		const toolsBlock = chatContext.characterContext || !toolsEnabled
@@ -210,11 +218,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			: buildToolPrompt(TOOL_DEFINITIONS, previewModel.options.max_tokens);
 		const { prompt, breakdown } = buildPromptBreakdown(
 			messages.mensajes, chatContext.contextItems, '', chatContext.characterContext, chatContext.impersonateContext,
-			chatContext.activeNoteItem, chatPromptText, toolsBlock, activeStoryBible,
+			chatContext.activeNoteItem, chatPromptText, toolsBlock,
+			activeStoryBible, chatTemplate,
 		);
 		new ChatContextModal(plugin.app, prompt, breakdown).open();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [messages.mensajes, chatContext.contextItems, chatContext.characterContext, chatContext.impersonateContext, chatContext.activeNoteItem, chatPromptText, plugin, toolsEnabled, activeStoryBible]);
+	}, [messages.mensajes, chatContext.contextItems, chatContext.characterContext, chatContext.impersonateContext, chatContext.activeNoteItem, chatPromptText, chatTemplate, plugin, toolsEnabled, activeStoryBible, chatModel.error]);
 
 	const handlePromptSelect = async (promptId: string) => {
 		messages.setCurrentPromptId(promptId);
@@ -506,36 +515,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 						/>
 						Story bible
 					</label>
-					<div className="nw-chat-model-selector" key={modelVersion}>
-						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setModelMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModelMenuOpen(open => !open); } }}>
-							{(() => { const model = plugin.settings.data.modelos.find(item => item.id_modelo === plugin.settings.data.modeloPredeterminadoId); return <>{model?.nombre_listado ?? 'No active model'}{model?.supports_image_generation && <Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />}{model?.supports_vision && <Icon.Eye width={14} height={14} className="nw-model-image-capability" />}</>; })()}
-							<Icon.ChevronDown width={14} height={14} className={modelMenuOpen ? 'nw-chat-model-chevron-open' : 'nw-chat-model-chevron-closed'} />
-						</span>
-						{modelMenuOpen && (
-							<div className="nw-chat-model-dropdown">
-								{plugin.settings.data.modelos.length ? (
-									plugin.settings.data.modelos.map(model =>
-										<button key={model.id_modelo} className="nw-context-row" onClick={() => {
-											plugin.settings.data.modeloPredeterminadoId = model.id_modelo;
-											void plugin.settings.save();
-											setModelMenuOpen(false);
-											setModelVersion(version => version + 1);
-										}}>
-											{model.nombre_listado}
-											{model.supports_image_generation && (
-												<Icon.Paintbrush width={14} height={14} className="nw-model-image-capability" />
-											)}
-											{model.supports_vision && (
-												<Icon.Eye width={14} height={14} className="nw-model-image-capability" />
-											)}
-										</button>
-									)) : (
-										<span>No models created.</span>
-									)
-								}
-							</div>
-						)}
-					</div>
+					<ChatModelSelector settings={plugin.settings} />
 					<div className="nw-chat-prompt-selector" ref={promptRef}>
 						<span className="nw-chat-model-label" role="button" tabIndex={0} onClick={() => setPromptMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPromptMenuOpen(open => !open); } }}>
 							{currentPrompt?.nombre ?? defaultChatPrompt?.nombre ?? 'No prompt'}

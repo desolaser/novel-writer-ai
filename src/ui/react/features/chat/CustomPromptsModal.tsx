@@ -2,6 +2,9 @@ import { Modal, App, Notice } from 'obsidian';
 import type NovelWriterPlugin from '../../../../../main';
 import type { CustomPrompt } from '../../../../domain/entities/CustomPrompt';
 import { useNovelWriter } from '../../store/novelWriterStore';
+import {
+	defaultTemplate, templateKeys, validateTemplate,
+} from '../../../../context/promptTemplates';
 
 /** Prevents Obsidian Modal from intercepting keystrokes inside inputs/textareas. */
 function allowTyping(el: HTMLElement) {
@@ -51,6 +54,35 @@ export class CustomPromptsModal extends Modal {
 			el.style.width = '100%';
 			el.rows = 6;
 			return el;
+		}
+
+		function addTemplateEditor(
+			parent: HTMLElement,
+			type: 'chat' | 'text',
+			value?: string,
+		): HTMLTextAreaElement {
+			parent.createEl('label', { text: 'Prompt layout' });
+			parent.createEl('p', {
+				text: 'Arrange the blocks below. Empty blocks are skipped.',
+				cls: 'nw-muted',
+			});
+			const input = makeTextarea(parent);
+			input.rows = 14;
+			input.value = value ?? defaultTemplate(type);
+			const keys = parent.createDiv('nw-prompt-template-keys');
+			keys.createEl('p', { text: 'Available blocks:' });
+			for (const key of templateKeys(type)) {
+				keys.createEl('button', {
+					text: `{{${key}}}`,
+					cls: 'nw-btn nw-btn-small',
+				}).onclick = () => {
+					const start = input.selectionStart;
+					const marker = `{{${key}}}`;
+					input.setRangeText(marker, start, input.selectionEnd, 'end');
+					input.focus();
+				};
+			}
+			return input;
 		}
 
 		const renderList = (tipo: 'chat' | 'text') => {
@@ -118,9 +150,10 @@ export class CustomPromptsModal extends Modal {
 			const nameInput = makeInput(form);
 			nameInput.style.marginBottom = '8px';
 
-			form.createEl('label', { text: 'Prompt text' });
+			form.createEl('label', { text: 'Instructions' });
 			const textInput = makeTextarea(form);
 			textInput.style.marginBottom = '12px';
+			const templateInput = addTemplateEditor(form, tipo);
 
 			const btnRow = form.createDiv();
 			btnRow.style.display = 'flex';
@@ -134,7 +167,13 @@ export class CustomPromptsModal extends Modal {
 					new Notice('Name and text are required.');
 					return;
 				}
-				await store.createCustomPrompt(tipo, name, text);
+				const template = templateInput.value;
+				const error = validateTemplate(tipo, template);
+				if (error) {
+					new Notice(error);
+					return;
+				}
+				await store.createCustomPrompt(tipo, name, text, template);
 				new Notice('Prompt created.');
 				renderList(tipo);
 			};
@@ -154,10 +193,13 @@ export class CustomPromptsModal extends Modal {
 			nameInput.value = prompt.nombre;
 			nameInput.style.marginBottom = '8px';
 
-			form.createEl('label', { text: 'Prompt text' });
+			form.createEl('label', { text: 'Instructions' });
 			const textInput = makeTextarea(form);
 			textInput.value = prompt.texto;
 			textInput.style.marginBottom = '12px';
+			const templateInput = addTemplateEditor(
+				form, prompt.tipo, prompt.plantilla,
+			);
 
 			const btnRow = form.createDiv();
 			btnRow.style.display = 'flex';
@@ -171,7 +213,15 @@ export class CustomPromptsModal extends Modal {
 					new Notice('Name and text are required.');
 					return;
 				}
-				await store.updateCustomPrompt(prompt.id_prompt, { nombre: name, texto: text });
+				const template = templateInput.value;
+				const error = validateTemplate(prompt.tipo, template);
+				if (error) {
+					new Notice(error);
+					return;
+				}
+				await store.updateCustomPrompt(prompt.id_prompt, {
+					nombre: name, texto: text, plantilla: template,
+				});
 				new Notice('Prompt updated.');
 				renderList(prompt.tipo);
 			};

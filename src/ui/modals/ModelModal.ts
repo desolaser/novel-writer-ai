@@ -175,7 +175,14 @@ export class ModelModal extends Modal {
 		const outputDescription = provider.nombre === "codex"
 			? "Approximate local limit. Generation is cancelled when the streamed text reaches this budget."
 			: undefined;
-		this.numberSetting(contentEl, "Max Output (Generation)", "max_output", outputDescription);
+		this.numberSetting(
+			contentEl, "Max Output (Generation)", "max_output",
+			[outputDescription,
+				'Default for editor actions and utility batch sizing. '
+				+ 'Chapter drafts calculate output from the target word count; '
+				+ 'other utilities use task-specific budgets.']
+				.filter(Boolean).join(' ')
+		);
 		this.numberSetting(contentEl, "Max Output (Chat)", "max_output_chat", outputDescription);
 		new Setting(contentEl).setName("Stream").addToggle((toggle) =>
 			toggle.setValue(this.form.stream).onChange((value) => {

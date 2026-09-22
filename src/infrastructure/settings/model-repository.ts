@@ -1,6 +1,7 @@
 import type { Modelo } from '../../domain/entities/Modelo';
 import type { SettingsService } from './settings-service';
 import { genId } from '../../utils/ids';
+import type { ModelPurpose } from '../../types/ModelPurpose';
 
 /** Storage abstraction for saved models, backed by the plugin settings for now. */
 export class ModelRepository {
@@ -42,10 +43,35 @@ export class ModelRepository {
 	}
 
 	async remove(id: string): Promise<void> {
+		for (const purpose of Object.keys(
+			this.settings.data.modelAssignments
+		) as ModelPurpose[]) {
+			if (this.settings.data.modelAssignments[purpose] === id) {
+				this.settings.data.modelAssignments[purpose] = '';
+			}
+		}
 		this.settings.data.modelos = this.settings.data.modelos.filter(model => model.id_modelo !== id);
 		if (this.settings.data.modeloPredeterminadoId === id) {
 			this.settings.data.modeloPredeterminadoId = this.settings.data.modelos[0]?.id_modelo ?? '';
 		}
+		if (!this.settings.data.modelos.length) {
+			// Do not resurrect the last deleted profile from legacy settings.
+			this.settings.data.proveedor = {
+				...this.settings.data.proveedor,
+				modelo: '',
+			};
+		}
+		await this.settings.save();
+	}
+
+	async setForPurpose(purpose: ModelPurpose, id: string): Promise<void> {
+		if (id && !this.get(id)) {
+			throw new Error('The selected model does not exist.');
+		}
+		this.settings.data.modelAssignments = {
+			...this.settings.data.modelAssignments,
+			[purpose]: id,
+		};
 		await this.settings.save();
 	}
 }

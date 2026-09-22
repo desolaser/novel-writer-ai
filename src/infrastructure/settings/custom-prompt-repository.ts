@@ -2,6 +2,7 @@ import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 import type { SettingsService } from './settings-service';
 import { createDefaultPrompts } from './plugin-settings';
 import { genId } from '../../utils/ids';
+import { validateTemplate } from '../../context/promptTemplates';
 
 /** Storage abstraction for custom chat/text prompts, backed by the plugin settings. */
 export class CustomPromptRepository {
@@ -25,22 +26,39 @@ export class CustomPromptRepository {
 		return this.list().find(p => p.tipo === tipo);
 	}
 
-	async create(tipo: 'chat' | 'text', nombre: string, texto: string): Promise<CustomPrompt> {
+	async create(
+		tipo: 'chat' | 'text', nombre: string, texto: string,
+		plantilla?: string,
+	): Promise<CustomPrompt> {
+		if (plantilla !== undefined) {
+			const error = validateTemplate(tipo, plantilla);
+			if (error) throw new Error(error);
+		}
 		if (!this.settings.data.customPrompts) {
 			this.settings.data.customPrompts = createDefaultPrompts();
 		}
 		const now = new Date().toISOString();
-		const prompt: CustomPrompt = { id_prompt: genId(), tipo, nombre, texto, created_at: now, updated_at: now };
+		const prompt: CustomPrompt = {
+			id_prompt: genId(), tipo, nombre, texto, plantilla,
+			created_at: now, updated_at: now,
+		};
 		this.settings.data.customPrompts.push(prompt);
 		await this.settings.save();
 		return prompt;
 	}
 
-	async update(id: string, patch: Partial<Pick<CustomPrompt, 'nombre' | 'texto'>>): Promise<void> {
+	async update(
+		id: string,
+		patch: Partial<Pick<CustomPrompt, 'nombre' | 'texto' | 'plantilla'>>,
+	): Promise<void> {
 		const prompts = this.settings.data.customPrompts;
 		if (!prompts) return;
 		const idx = prompts.findIndex(p => p.id_prompt === id);
 		if (idx < 0) return;
+		if (patch.plantilla !== undefined) {
+			const error = validateTemplate(prompts[idx].tipo, patch.plantilla);
+			if (error) throw new Error(error);
+		}
 		prompts[idx] = { ...prompts[idx], ...patch, updated_at: new Date().toISOString() };
 		await this.settings.save();
 	}

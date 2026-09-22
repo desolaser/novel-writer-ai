@@ -10,6 +10,8 @@ export interface CustomPrompt {
 	tipo: PromptType;
 	nombre: string;
 	texto: string;
+	/** Optional layout. Existing prompts use the default layout for their type. */
+	plantilla?: string;
 	created_at: ISODate;
 	updated_at: ISODate;
 }

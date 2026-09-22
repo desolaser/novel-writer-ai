@@ -46,18 +46,19 @@ export function useChatAiTurn({
 	const [liveText, setLiveText] = useState('');
 	const resetLiveText = useCallback(() => setLiveText(''), []);
 
-	const runAiTurn = useCallback(async ({ history, userText, images, chatPrompt }: {
+	const runAiTurn = useCallback(async ({ history, userText, images, chatPrompt, chatTemplate }: {
 		history: any[];
 		userText: string;
 		images: string[];
 		chatPrompt?: string;
+		chatTemplate?: string;
 	}): Promise<{ text: string; images: string[]; log: string[] }> => {
 		const settings = plugin.settings.data;
 		const activeModel = getActiveModelConfig(settings, 'chat');
 		if (!activeModel.modelName) throw new Error('Configure an active model in Settings.');
 		const token = settings.apiToken[activeModel.providerId] ?? '';
 		const api = new ApiFactory().createApi(activeModel.providerId, token);
-		const savedModel = settings.modelos.find(model => model.id_modelo === settings.modeloPredeterminadoId);
+		const savedModel = activeModel.profile;
 		// Tools stay off while roleplaying: a character must not step out of persona to edit the vault.
 		const toolsBlock = characterContext || !toolsEnabled
 			? ''
@@ -71,7 +72,11 @@ export function useChatAiTurn({
 		let collectedImages: string[] = [];
 
 		for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-			const prompt = buildPrompt(turns, contextItems, pendingUser, characterContext, impersonateContext, activeNoteItem, chatPrompt, toolsBlock, activeStoryBible);
+			const prompt = buildPrompt(
+				turns, contextItems, pendingUser, characterContext,
+				impersonateContext, activeNoteItem, chatPrompt, toolsBlock,
+				activeStoryBible, chatTemplate,
+			);
 			const result = await api.generateCompletion(prompt, activeModel.modelName, {
 				...activeModel.options,
 				stream: false,

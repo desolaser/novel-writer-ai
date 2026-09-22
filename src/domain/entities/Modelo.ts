@@ -1,8 +1,5 @@
 import type { EffortLevel } from '../../utils/provider-options';
 
-/** Contexto en el que se usa un modelo, determina qué max_output aplicar. */
-export type ModelContext = 'chat' | 'generate';
-
 /** A saved, reusable AI model configuration. */
 export interface Modelo {
 	id_modelo: string;

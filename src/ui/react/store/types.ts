@@ -22,6 +22,7 @@ import type { ActoDraft } from "../../../infrastructure/storage/repos/Estructura
 import type { SettingsService } from "../../../infrastructure/settings/settings-service";
 
 export interface UIState {
+	settingsRevision: number;
 	activeSidebarTab: "codex" | "config" | "chats";
 }
 
@@ -125,8 +126,14 @@ export interface PromptsSlice {
 	getCustomPrompts: () => CustomPrompt[];
 	getDefaultChatPrompt: () => CustomPrompt | undefined;
 	getDefaultTextPrompt: () => CustomPrompt | undefined;
-	createCustomPrompt: (tipo: 'chat' | 'text', nombre: string, texto: string) => Promise<CustomPrompt>;
-	updateCustomPrompt: (id: string, patch: Partial<Pick<CustomPrompt, 'nombre' | 'texto'>>) => Promise<void>;
+	createCustomPrompt: (
+		tipo: 'chat' | 'text', nombre: string, texto: string,
+		plantilla?: string,
+	) => Promise<CustomPrompt>;
+	updateCustomPrompt: (
+		id: string,
+		patch: Partial<Pick<CustomPrompt, 'nombre' | 'texto' | 'plantilla'>>,
+	) => Promise<void>;
 	deleteCustomPrompt: (id: string) => Promise<boolean>;
 	setDefaultPrompt: (tipo: 'chat' | 'text', id: string) => Promise<void>;
 }
