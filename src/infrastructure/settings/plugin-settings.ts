@@ -3,6 +3,8 @@ import type { Modelo } from '../../domain/entities/Modelo';
 import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 import type { EffortLevel } from '../../utils/provider-options';
 import type { ModelAssignments } from '../../types/ModelPurpose';
+import type { EditorAction } from '../../types/EditorAction';
+import { DEFAULT_EDITOR_ACTIONS } from '../../constants/editorActions';
 
 /** Proveedor de IA seleccionado. */
 export type AiProviderId =
@@ -97,6 +99,8 @@ export interface PluginSettings {
 	};
 	/** Prompts custom del sistema (chat y texto). */
 	customPrompts: CustomPrompt[];
+	/** Configurable Markdown editor operations. Generate text remains separate. */
+	editorActions: EditorAction[];
 	/** ID del prompt de chat por defecto. */
 	defaultChatPromptId: string;
 	/** ID del prompt de texto por defecto. */
@@ -165,6 +169,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 		activeSidebarTab: 'codex',
 	},
 	customPrompts: createDefaultPrompts(),
+	editorActions: DEFAULT_EDITOR_ACTIONS,
 	defaultChatPromptId: '',
 	defaultTextPromptId: '',
 	chatNameGeneration: 'active_model',

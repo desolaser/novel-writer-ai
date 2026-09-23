@@ -1220,6 +1220,44 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 	box-sizing: border-box;
 }
 /* --- Custom Prompts Modal --- */
+.nw-editor-actions-modal {
+	width: min(720px, 94vw);
+	max-height: 90vh;
+}
+
+.nw-editor-actions-modal .modal-content {
+	max-height: 80vh;
+	overflow-y: auto;
+}
+
+.nw-editor-action-instructions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.nw-editor-action-instructions label {
+	font-weight: var(--font-semibold);
+}
+
+.nw-editor-action-instructions textarea {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 220px;
+	max-height: 50vh;
+	resize: vertical;
+	font-family: var(--font-monospace);
+	line-height: 1.5;
+}
+
+.nw-editor-action-instructions p {
+	margin: 0;
+	color: var(--text-muted);
+	font-size: var(--font-smaller);
+}
+
 .nw-custom-prompts-modal {
 	max-width: 600px;
 	max-height: 80vh;

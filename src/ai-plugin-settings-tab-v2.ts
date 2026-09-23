@@ -6,6 +6,7 @@ import { getProvider } from './constants/providers';
 import { ModelModal } from './ui/modals/ModelModal';
 import { CustomPromptsModal } from './ui/react/features/chat/CustomPromptsModal';
 import { renderModelPurposeSettings } from './ui/modelPurposeSettings';
+import { EditorActionsModal } from './ui/modals/EditorActionsModal';
 
 /** Plugin settings focused on selecting and managing reusable model profiles. */
 export class NovelWriterSettingsTab extends PluginSettingTab {
@@ -24,9 +25,20 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 		containerEl.createEl('h1', { text: 'Novel Writer AI' });
 		this.renderModels(containerEl);
 		this.renderGlobalPrompts(containerEl);
+		this.renderEditorActions(containerEl);
 		this.renderChatOptions(containerEl);
 		this.renderHistoryOptions(containerEl);
 		this.renderCodexOptions(containerEl);
+	}
+
+	private renderEditorActions(host: HTMLElement): void {
+		host.createEl('h3', { text: 'Editor actions' });
+		new Setting(host)
+			.setName('Custom actions')
+			.setDesc('Create AI actions for the command palette and Markdown editor context menu. Generate text uses Custom Prompts above.')
+			.addButton(button => button
+				.setButtonText('Manage actions')
+				.onClick(() => new EditorActionsModal(this.app, this.plugin).open()));
 	}
 
 	private renderHistoryOptions(host: HTMLElement): void {

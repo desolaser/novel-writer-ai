@@ -11,6 +11,10 @@ import { ApiFactory } from './src/factories/api-factory';
 import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
 import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
 import { openEntryModal } from './src/ui/react/features/codex/modals/CodexEntryModal';
+import type { EditorAction } from './src/types/EditorAction';
+import { validateEditorAction } from './src/infrastructure/settings/editor-action-repository';
+import { resolveEditorActionContext } from './src/context/editorActionPrompt';
+import { buildEditorActionPrompt } from './src/context/editorActionTemplate';
 
 // onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
 // callbacks left by the previous instance. Keep the lock outside the class so
@@ -24,6 +28,7 @@ export default class NovelWriterPlugin extends Plugin {
 	private openingWorkingViews = false;
 	private operationStatusBarItem: HTMLElement | null = null;
 	private codexHighlighter: CodexHighlighterControl | null = null;
+	private registeredEditorActions = new Map<string, string>();
 
 	async onload() {
 		this.settings = new SettingsService(this);
@@ -86,13 +91,8 @@ export default class NovelWriterPlugin extends Plugin {
 		this.addCommand({ id: 'create-novel', name: 'Create new novel', callback: async () => { await this.createNovel(); } });
 		this.addCommand({ id: 'import-legacy-lorebook', name: 'Import legacy lorebook', callback: async () => { await this.importLorebook(); } });
 		this.addCommand({ id: 'generate-text', name: 'Generate text', editorCallback: async (_editor) => { await this.generateEditorText(_editor); } });
-		this.addCommand({ id: 'summarize-selection', name: 'Summarize', editorCallback: async (editor) => { await this.transformSelection(editor, 'Summarize the selected text. Return only the summary.'); } });
-		this.addCommand({ id: 'expand-selection', name: 'Expand', editorCallback: async (editor) => { await this.transformSelection(editor, 'Expand the selected text with useful detail while preserving its meaning and style. Return only the expanded text.'); } });
-		this.addCommand({ id: 'shorten-selection', name: 'Shorten', editorCallback: async (editor) => { await this.transformSelection(editor, 'Shorten the selected text without losing its essential meaning. Return only the shortened text.'); } });
-		this.addCommand({ id: 'rephrase-selection', name: 'Rephrase', editorCallback: async (editor) => { await this.transformSelection(editor, 'Rephrase the selected text clearly and naturally. Return only the rephrased text.'); } });
-		this.addCommand({ id: 'correct-selection', name: 'Correct', editorCallback: async (editor) => { await this.correctEditorText(editor); } });
-		this.addCommand({ id: 'translate-selection-spanish', name: 'Translate to Spanish', editorCallback: async (editor) => { await this.transformSelection(editor, 'Translate the selected text to Spanish. Return only the translation.'); } });
-		this.addCommand({ id: 'translate-selection-english', name: 'Translate to English', editorCallback: async (editor) => { await this.transformSelection(editor, 'Translate the selected text to English. Return only the translation.'); } });
+		this.syncEditorActionCommands();
+		this.register(this.settings.subscribe(() => this.syncEditorActionCommands()));
 
 		this.addSettingTab(new NovelWriterSettingsTab(this.app, this)); //
 	}
@@ -193,45 +193,144 @@ export default class NovelWriterPlugin extends Plugin {
 
 	private addEditorMenuItems(menu: Menu, editor: Editor) {
 		menu.addItem(item => item.setTitle('Generate text').setIcon('sparkles').onClick(() => { void this.generateEditorText(editor); }));
-		menu.addSeparator();
-		const actions: Array<[string, string]> = [
-			['Summarize', 'summarize-selection'], ['Expand', 'expand-selection'], ['Shorten', 'shorten-selection'],
-			['Rephrase', 'rephrase-selection'], ['Correct', 'correct-selection'],
-		];
-		for (const [title, id] of actions) menu.addItem(item => item.setTitle(title).onClick(() => { void this.runEditorCommand(id, editor); }));
-		menu.addItem(item => {
-			// setSubmenu is available in current Obsidian builds but is not present in
-			// older versions of the bundled type declarations.
-			const submenu = (item as unknown as MenuItemWithSubmenu).setSubmenu?.();
-			if (!submenu) {
-				item.setTitle('Translate to Spanish').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to Spanish. Return only the translation.'); });
-				menu.addItem(child => child.setTitle('Translate to English').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to English. Return only the translation.'); }));
+		const actions = this.settings.data.editorActions.filter(action =>
+			this.showsInMenu(action) && !validateEditorAction(action)
+		);
+		if (actions.length) menu.addSeparator();
+		const groups = new Set<string>();
+		for (const action of actions) {
+			if (!action.menuGroup) {
+				this.addActionMenuItem(menu, action, editor);
+				continue;
+			}
+			if (groups.has(action.menuGroup)) continue;
+			groups.add(action.menuGroup);
+			const children = actions.filter(candidate =>
+				candidate.menuGroup === action.menuGroup
+			);
+			menu.addItem(item => {
+				const submenu = (item as MenuItemWithSubmenu).setSubmenu?.();
+				item.setTitle(action.menuGroup);
+				if (submenu) {
+					for (const child of children) {
+						this.addActionMenuItem(submenu, child, editor);
+					}
+				} else {
+					item.setTitle(children[0].name).onClick(() => {
+						void this.runEditorAction(children[0], editor);
+					});
+					for (const child of children.slice(1)) {
+						this.addActionMenuItem(menu, child, editor);
+					}
+				}
+			});
+		}
+	}
+
+	private showsInMenu(action: EditorAction): boolean {
+		return action.placement === 'context-menu' || action.placement === 'both';
+	}
+
+	private addActionMenuItem(menu: Menu, action: EditorAction, editor: Editor) {
+		const title = action.menuGroup
+			? action.name.replace(`${action.menuGroup} `, '')
+			: action.name;
+		menu.addItem(item => item.setTitle(title).onClick(() => {
+			void this.runEditorAction(action, editor);
+		}));
+	}
+
+	private syncEditorActionCommands(): void {
+		const desired = new Map<string, EditorAction>();
+		for (const action of this.settings.data.editorActions) {
+			if (validateEditorAction(action)) continue;
+			if (action.placement === 'command' || action.placement === 'both') {
+				desired.set(action.id, action);
+			}
+		}
+		for (const [id, previousName] of this.registeredEditorActions) {
+			if (desired.get(id)?.name === previousName) continue;
+			this.removeCommand(id);
+			this.registeredEditorActions.delete(id);
+		}
+		for (const [id, action] of desired) {
+			if (this.registeredEditorActions.has(id)) continue;
+			this.addCommand({
+				id,
+				name: action.name,
+				editorCallback: editor => {
+					const current = this.settings.data.editorActions.find(
+						item => item.id === id
+					);
+					if (current) void this.runEditorAction(current, editor);
+				},
+			});
+			this.registeredEditorActions.set(id, action.name);
+		}
+	}
+
+	private async runEditorAction(action: EditorAction, editor: Editor): Promise<void> {
+		const note = editor.getValue();
+		const selection = editor.getSelection();
+		const from = editor.getCursor('from');
+		const to = editor.getCursor('to');
+		const cursor = editor.getCursor();
+		const beforeCursor = editor.getRange({ line: 0, ch: 0 }, cursor);
+		const input = action.input === 'before-cursor'
+			? beforeCursor
+			: action.input === 'selection-or-note' && !selection.trim()
+				? note
+				: selection;
+		if (!input.trim()) {
+			new Notice(action.input === 'selection'
+				? 'Select text first.' : 'There is no text to process.');
+			return;
+		}
+		try {
+			let chapterOutline = '';
+			const activeFile = this.app.workspace.getActiveFile();
+			const folderPath = this.store.activeFolderPath
+				?? activeFile?.parent?.path ?? '';
+			if (activeFile && this.store.activeFolderPath
+				&& /{{\s*chapter_outline\s*}}/.test(action.instruction)) {
+				const chapters = await this.store.listCapitulos();
+				const chapter = chapters.find(item => {
+					if (!item.archivo) return false;
+					const path = item.archivo.startsWith('escritura/')
+						? `${this.store.activeFolderPath}/${item.archivo}`
+						: item.archivo;
+					return path === activeFile.path;
+				});
+				chapterOutline = chapter?.outline ?? '';
+			}
+			const storyBeforeCursor = beforeCursor.replace(
+				/^---\s*[\s\S]*?---\s*/, ''
+			);
+			const extra = await resolveEditorActionContext(
+				this.app, this.settings.data, folderPath, action,
+				storyBeforeCursor, chapterOutline,
+			);
+			const prompt = buildEditorActionPrompt(action, {
+				input, selection, note, before_cursor: beforeCursor, ...extra,
+			});
+			const result = await this.complete(prompt, action.name);
+			if (!result) return;
+			if (editor.getValue() !== note) {
+				new Notice('The note changed during generation. No text was replaced.');
 				return;
 			}
-			item.setTitle('Translate to');
-			submenu.addItem(child => child.setTitle('Spanish').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to Spanish. Return only the translation.'); }));
-			submenu.addItem(child => child.setTitle('English').onClick(() => { void this.transformSelection(editor, 'Translate the selected text to English. Return only the translation.'); }));
-		});
-	}
-
-	private async runEditorCommand(id: string, editor: Editor) {
-		const action: Record<string, (e: Editor) => Promise<void>> = {
-			'summarize-selection': e => this.transformSelection(e, 'Summarize the selected text. Return only the summary.'),
-			'expand-selection': e => this.transformSelection(e, 'Expand the selected text with useful detail while preserving its meaning and style. Return only the expanded text.'),
-			'shorten-selection': e => this.transformSelection(e, 'Shorten the selected text without losing its essential meaning. Return only the shortened text.'),
-			'rephrase-selection': e => this.transformSelection(e, 'Rephrase the selected text clearly and naturally. Return only the rephrased text.'),
-			'correct-selection': e => this.correctEditorText(e),
-		};
-		if (action[id]) await action[id](editor);
-	}
-
-	private async correctEditorText(editor: Editor) {
-		const text = editor.getSelection() || editor.getValue();
-		if (!text.trim()) { new Notice('No text to correct.'); return; }
-		try {
-			const result = await this.complete('Correct all spelling, grammar, punctuation, and orthographic errors in the following text. Preserve its meaning and return only the corrected text.\n\nText:\n' + text, 'Correcting text');
-			if (result) editor.getSelection() ? editor.replaceSelection(result) : editor.setValue(result);
-		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
+			if (action.output === 'insert-at-cursor') {
+				editor.replaceRange(result, cursor);
+			} else if (action.input === 'selection-or-note' && !selection.trim()) {
+				editor.setValue(result);
+			} else if (action.input === 'before-cursor') {
+				editor.replaceRange(result, { line: 0, ch: 0 }, cursor);
+			} else {
+				editor.replaceRange(result, from, to);
+			}
+		} catch (error: any) {
+			new Notice('AI error: ' + (error?.message ?? String(error)));
+		}
 	}
 
 	private async generateEditorText(editor?: Editor) {
@@ -288,37 +387,7 @@ export default class NovelWriterPlugin extends Plugin {
 		finally { this.operationStatusBarItem?.remove(); this.operationStatusBarItem = null; }
 	}
 
-	private async transformSelection(editor: Editor, instruction: string) {
-		const selected = editor.getSelection();
-		if (!selected.trim()) { new Notice('Select text first.'); return; }
-		try {
-			let replaced = false;
-			let insertionOffset = editor.posToOffset(editor.getCursor('from'));
-			await this.complete(`${instruction}\n\nText:\n${selected}`, this.operationLabel(instruction), chunk => {
-				if (!replaced) {
-					editor.replaceSelection(chunk);
-					replaced = true;
-					insertionOffset += chunk.length;
-				} else {
-					const position = editor.offsetToPos(insertionOffset);
-					editor.replaceRange(chunk, position);
-					insertionOffset += chunk.length;
-				}
-			});
-		} catch (error: any) { new Notice('AI error: ' + (error?.message ?? String(error))); }
-	}
-
-	private operationLabel(instruction: string): string {
-		if (/summarize/i.test(instruction)) return 'Summarizing selection';
-		if (/expand/i.test(instruction)) return 'Expanding selection';
-		if (/shorten/i.test(instruction)) return 'Shortening selection';
-		if (/rephrase/i.test(instruction)) return 'Rewriting selection';
-		if (/Spanish/i.test(instruction)) return 'Translating to Spanish';
-		if (/English/i.test(instruction)) return 'Translating to English';
-		return 'Processing selection';
-	}
-
-	private async complete(prompt: string, action: string, onChunk?: (chunk: string) => void): Promise<string> {
+	private async complete(prompt: string, action: string): Promise<string> {
 		this.operationStatusBarItem?.remove();
 		this.operationStatusBarItem = this.addStatusBarItem();
 		this.operationStatusBarItem.setText(action + '…');
@@ -334,12 +403,11 @@ export default class NovelWriterPlugin extends Plugin {
 				let text = '';
 				for await (const chunk of result.stream as AsyncIterable<any>) {
 					const piece = this.chunkText(chunk);
-					if (piece) { text += piece; onChunk?.(piece); }
+					if (piece) text += piece;
 				}
 				return text.trim();
 			}
 			const text = result.text?.trim() ?? '';
-			if (text) onChunk?.(text);
 			return text;
 		} finally {
 			this.operationStatusBarItem?.remove();
