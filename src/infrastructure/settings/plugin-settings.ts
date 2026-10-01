@@ -109,6 +109,8 @@ export interface PluginSettings {
 	chatNameGeneration: 'local' | 'active_model';
 	/** Whether to include the current chapter's outline in the autocomplete context. */
 	includeOutlineInContext: boolean;
+	/** Safety net against a model that keeps calling tools instead of answering. */
+	maxToolRounds: number;
 }
 
 /** Paleta de colores predeterminada. */
@@ -174,6 +176,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	defaultTextPromptId: '',
 	chatNameGeneration: 'active_model',
 	includeOutlineInContext: true,
+	maxToolRounds: 4
 };
 
 /** Crea los dos prompts por defecto y retorna el array inicial. */

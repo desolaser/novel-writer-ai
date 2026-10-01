@@ -171,6 +171,16 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 					await this.plugin.settings.save();
 				});
 			});
+		new Setting(host)
+			.setName('Max Tool Rounds')
+			.setDesc('Safety net against a model that keeps calling tools instead of answering.')
+			.addText(text => text.setValue(String(settings.maxToolRounds)).onChange(async value => {
+				const parsed = Number(value);
+				if (Number.isInteger(parsed) && parsed >= 0) {
+					settings.maxToolRounds = parsed;
+					await this.plugin.settings.save();
+				}
+			}));
 	}
 
 	private renderCodexOptions(host: HTMLElement): void {

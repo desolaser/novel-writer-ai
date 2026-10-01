@@ -9,9 +9,6 @@ import { parseToolAnswer } from '../../../../../tools/parseToolAnswer';
 import type { useToolRunner } from '../tools/useToolRunner';
 import { buildPrompt, type ContextItem } from '../promptBuilder';
 
-/** Safety net against a model that keeps calling tools instead of answering. */
-const MAX_TOOL_ROUNDS = 4;
-
 const extractImageUrls = (result: { images?: string[] }): string[] =>
 	result.images?.filter(url => typeof url === 'string' && url.trim()) ?? [];
 
@@ -71,7 +68,7 @@ export function useChatAiTurn({
 		const log: string[] = [];
 		let collectedImages: string[] = [];
 
-		for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+		for (let round = 0; round <= settings.maxToolRounds; round++) {
 			const prompt = buildPrompt(
 				turns, contextItems, pendingUser, characterContext,
 				impersonateContext, activeNoteItem, chatPrompt, toolsBlock,
@@ -93,8 +90,8 @@ export function useChatAiTurn({
 				setLiveText(visible.join('\n\n'));
 			}
 			if (!parsed.calls.length) break;
-			if (round === MAX_TOOL_ROUNDS) {
-				log.push(`Stopped after ${MAX_TOOL_ROUNDS} rounds of tool calls.`);
+			if (round === settings.maxToolRounds) {
+				log.push(`Stopped after ${settings.maxToolRounds} rounds of tool calls.`);
 				break;
 			}
 			const results = await runner.runCalls(parsed.calls);
