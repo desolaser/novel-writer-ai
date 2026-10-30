@@ -2,6 +2,7 @@ import { Modal, App, Notice } from 'obsidian';
 import type NovelWriterPlugin from '../../../../../main';
 import type { CustomPrompt } from '../../../../domain/entities/CustomPrompt';
 import { useNovelWriter } from '../../store/novelWriterStore';
+import { confirmDialog } from '../../../modals/ConfirmModal';
 import {
 	defaultTemplate, templateKeys, validateTemplate,
 } from '../../../../context/promptTemplates';
@@ -122,7 +123,8 @@ export class CustomPromptsModal extends Modal {
 				const sameTypeCount = settings.data.customPrompts.filter(p => p.tipo === tipo).length;
 				deleteBtn.disabled = sameTypeCount <= 1;
 				deleteBtn.onclick = async () => {
-					if (!confirm(`Delete the prompt "${prompt.nombre}"?`)) return;
+					const question = `Delete the prompt "${prompt.nombre}"?`;
+					if (!(await confirmDialog(this.app, question))) return;
 					const success = await store.deleteCustomPrompt(prompt.id_prompt);
 					if (!success) {
 						new Notice('Cannot delete the last prompt of this type.');

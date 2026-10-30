@@ -16,6 +16,7 @@ import {
 	type BlueprintAct,
 } from "../../../../utils/structureMarkdown";
 import { createUtilityCompletion } from "../../../../context/aiCompletion";
+import { confirmDialog } from "../../../modals/ConfirmModal";
 
 export interface BlueprintOutlineController {
 	busy: boolean;
@@ -141,7 +142,10 @@ export function useBlueprintOutline(
 		// so redoing one chapter means clearing its text and pressing again.
 		const rewriteAll =
 			missing === 0 &&
-			confirm("Every chapter already has an outline. Generate all of them again?");
+			(await confirmDialog(
+				plugin.app,
+				"Every chapter already has an outline. Generate all of them again?"
+			));
 		if (missing === 0 && !rewriteAll) return;
 
 		let completion: ReturnType<typeof createUtilityCompletion>;

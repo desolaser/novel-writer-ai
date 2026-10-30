@@ -20,6 +20,7 @@ import { ThreeDotsMenu } from './ThreeDotsMenu';
 import { DetallesFields } from './DetallesFields';
 import { RefFavicon } from './RefFavicon';
 import { capitalize } from './codexEntryHelpers';
+import { confirmDialog } from '../../../../modals/ConfirmModal';
 
 type Tab = 'detalles' | 'investigacion' | 'relaciones' | 'menciones' | 'tracking';
 
@@ -108,7 +109,14 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); setEditingEntry(null); onClose?.(); };
 	const onSelectCopy = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await storeState.copyEntryToNovel(entry.id_entrada_codex, targetNovelId); };
 	const onArchive = async () => { setMenuOpen(false); await archiveEntry(entry.id_entrada_codex, !entry.archivado); setEditingEntry(null); };
-	const onDelete = async () => { setMenuOpen(false); if (confirm('Delete entry permanently?')) { await deleteEntry(entry.id_entrada_codex); setEditingEntry(null); onClose?.(); } };
+	const onDelete = async () => {
+		setMenuOpen(false);
+		const question = 'Delete entry permanently?';
+		if (!(await confirmDialog(plugin.app, question))) return;
+		await deleteEntry(entry.id_entrada_codex);
+		setEditingEntry(null);
+		onClose?.();
+	};
 
 	const otherNovels = ((novels ?? []) as any[]).filter((n: any) => n.novela && n.novela.id_novela !== entry.id_novela);
 

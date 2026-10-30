@@ -18,6 +18,7 @@ import {
 	parseStructureMarkdown,
 	renderStructureMarkdown,
 } from "../../../../utils/structureMarkdown";
+import { confirmDialog } from "../../../modals/ConfirmModal";
 
 /** Turns the stored structure into the shape the markdown renderer expects. */
 function toBlueprintActs(actos: Acto[], capitulos: Capitulo[]): BlueprintAct[] {
@@ -57,7 +58,7 @@ export interface BlueprintController {
 	setChapterCount: (count: number) => void;
 	setStructureMarkdown: (markdown: string) => void;
 	useSuggestedLength: () => void;
-	rebuildStructure: () => void;
+	rebuildStructure: () => Promise<void>;
 	apply: () => Promise<void>;
 }
 
@@ -246,15 +247,18 @@ export function useBlueprint(plugin: NovelWriterPlugin, close: () => void): Blue
 	 * Explicit rebuild. Safe to confirm here: it runs from a button click, not
 	 * from a blur, so no pending focus change is lost to the dialog.
 	 */
-	const rebuildStructure = useCallback(() => {
+	const rebuildStructure = useCallback(async () => {
 		if (!blueprint) return;
 		if (
 			blueprint.structureEdited &&
-			!confirm("The structure was edited by hand. Rebuild it and discard those edits?")
+			!(await confirmDialog(
+				plugin.app,
+				"The structure was edited by hand. Rebuild it and discard those edits?"
+			))
 		)
 			return;
 		commit(rebuild(blueprint));
-	}, [blueprint, commit, rebuild]);
+	}, [blueprint, commit, rebuild, plugin]);
 
 	const suggestion = useMemo(
 		() => suggestChapterLength(blueprint?.audience ?? "undefined", blueprint?.genre ?? ""),
@@ -285,7 +289,8 @@ export function useBlueprint(plugin: NovelWriterPlugin, close: () => void): Blue
 		}
 		if (
 			hasAuthoredStructure(actos, capitulos) &&
-			!confirm(
+			!await confirmDialog(
+				plugin.app,
 				`This replaces the current structure (${actos.length} acts, ${capitulos.length} chapters) with ${parsed.length} acts and ${countChapters(parsed)} chapters.\n\nManuscript files are not deleted, and chapters that keep their name keep their file. Continue?`
 			)
 		)

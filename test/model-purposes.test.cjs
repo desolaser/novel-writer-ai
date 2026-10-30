@@ -55,25 +55,28 @@ Module._load = function (name, parent, isMain) {
 	if (name.endsWith('/repos/EstructuraRepo')) {
 		return { resolveChapterFile: async () => null };
 	}
+	if (name.endsWith('/modals/ConfirmModal')) {
+		return { confirmDialog: async () => true };
+	}
 	return originalLoad.call(this, name, parent, isMain);
 };
 
-const { DEFAULT_SETTINGS } = require('./plugin-settings.ts');
-const { SettingsService } = require('./settings-service.ts');
-const { ModelRepository } = require('./model-repository.ts');
-const { getActiveModelConfig } = require('./active-model.ts');
-const { chapterOutputBudget } = require('../../utils/chapterOutputBudget.ts');
+const { DEFAULT_SETTINGS } = require('../src/infrastructure/settings/plugin-settings.ts');
+const { SettingsService } = require('../src/infrastructure/settings/settings-service.ts');
+const { ModelRepository } = require('../src/infrastructure/settings/model-repository.ts');
+const { getActiveModelConfig } = require('../src/infrastructure/settings/active-model.ts');
+const { chapterOutputBudget } = require('../src/utils/chapterOutputBudget.ts');
 const {
 	generateChapterDraftText, requestDraftCompletion,
-} = require('../../ui/react/outline/outlineGenerators.ts');
-const { useOutlineActions } = require('../../ui/react/outline/useOutlineActions.ts');
+} = require('../src/ui/react/outline/outlineGenerators.ts');
+const { useOutlineActions } = require('../src/ui/react/outline/useOutlineActions.ts');
 const { useChatAiTurn } = require(
-	'../../ui/react/features/chat/hooks/useChatAiTurn.ts'
+	'../src/ui/react/features/chat/hooks/useChatAiTurn.ts'
 );
-const { generateChatName } = require('../../utils/chatNameGeneration.ts');
+const { generateChatName } = require('../src/utils/chatNameGeneration.ts');
 const {
 	runModelCompletion, createUtilityCompletion,
-} = require('../../context/aiCompletion.ts');
+} = require('../src/context/aiCompletion.ts');
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const words = (count) => Array(count).fill('story').join(' ');

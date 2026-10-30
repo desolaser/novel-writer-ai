@@ -5,7 +5,7 @@ const test = require('node:test');
 const Module = require('node:module');
 const ts = require('typescript');
 
-const sourcePath = path.join(__dirname, 'promptTemplates.ts');
+const sourcePath = path.join(__dirname, '../src/context/promptTemplates.ts');
 const source = fs.readFileSync(sourcePath, 'utf8');
 const compiled = ts.transpileModule(source, {
 	compilerOptions: {

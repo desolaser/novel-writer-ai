@@ -4,6 +4,7 @@ import type NovelWriterPlugin from '../../../../../main';
 import { AiContextPolicy } from '../../../../domain';
 import { Icon } from '../../components/Icon';
 import { Notice } from 'obsidian';
+import { confirmDialog } from '../../../modals/ConfirmModal';
 import NovelFolderPickerModal from './modals/NovelFolderPickerModal';
 import { openEntryModal } from './modals/CodexEntryModal';
 import { CategoriasModal } from './modals/CategoriasModal';
@@ -89,7 +90,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const confirmBatchDelete = async () => {
 		const count = selectedIds.size;
-		if (!count || !confirm(`Are you sure you want to delete ${count} entries?`)) return;
+		if (!count) return;
+		const question = `Are you sure you want to delete ${count} entries?`;
+		if (!(await confirmDialog(plugin.app, question))) return;
 		for (const id of selectedIds) await deleteEntry(id);
 		cancelBatch();
 		new Notice(`Deleted ${count} entries`);

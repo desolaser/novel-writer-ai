@@ -4,6 +4,7 @@ import type NovelWriterPlugin from "../../../../main";
 import type { ModelPurpose } from "../../../types/ModelPurpose";
 import type { Acto, Capitulo } from "../../../domain";
 import { ApiFactory } from "../../../factories/api-factory";
+import { confirmDialog } from "../../modals/ConfirmModal";
 import {
 	orderedChapters,
 	buildActSummaryPrompt,
@@ -411,12 +412,11 @@ export function useOutlineActions(
 		const settings = plugin.settings.data;
 		const active = modelFor("writing");
 		if (!active) return;
-		if (
-			!confirm(
-				"Drafts will be generated only for chapters without content. Continue?"
-			)
-		)
-			return;
+		const proceed = await confirmDialog(
+			plugin.app,
+			"Drafts will be generated only for chapters without content. Continue?"
+		);
+		if (!proceed) return;
 		setBatchBusy(true);
 		let draftsGenerated = 0;
 		try {
@@ -482,9 +482,10 @@ export function useOutlineActions(
 			const existing = await readCapituloTexto(chapter.id_capitulo);
 			if (
 				existing.trim() &&
-				!confirm(
+				!(await confirmDialog(
+					plugin.app,
 					`The chapter "${chapter.nombre}" already has content. It will be deleted and a draft will be generated from scratch. Continue?`
-				)
+				))
 			)
 				return;
 			await ensureActSummaries();

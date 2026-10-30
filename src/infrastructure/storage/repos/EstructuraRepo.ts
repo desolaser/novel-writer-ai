@@ -2,7 +2,12 @@ import { App } from 'obsidian';
 import { Acto, Capitulo, EntityId, nowISO } from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { joinPath } from '../fsHelpers';
-import { readEstructuraFile, writeEstructuraFile } from './estructuraStorage';
+import {
+	readEstructuraFile,
+	withEstructuraLock,
+	writeEstructuraFile,
+	type EstructuraFile,
+} from './estructuraStorage';
 import { resolveChapterFile, sanitizeFileName } from './chapterFiles';
 
 // Chapter manuscript file handling (creation, renaming, reconciliation) lives in
@@ -21,93 +26,109 @@ export {
 // ---- Actos ----
 
 export async function listActos(app: App, fp: string): Promise<Acto[]> {
+	const data = await withEstructuraLock(fp, () => readEstructuraFile(app, fp));
 	// `resumen` is newer than the file format, so acts written by earlier versions
 	// lack it. Normalising here lets every caller treat it as a plain string.
-	return (await readEstructuraFile(app, fp)).actos
+	return data.actos
 		.map(a => ({ ...a, resumen: a.resumen ?? '' }))
 		.sort((a, b) => a.orden - b.orden);
 }
 
 export async function createActo(app: App, folderPath: string, idNovela: EntityId, nombre: string): Promise<Acto> {
-	const data = await readEstructuraFile(app, folderPath);
-	const orden = data.actos.length;
-	const acto: Acto = {
-		id_acto: genId(), nombre, resumen: '', orden, id_novela: idNovela,
-		created_at: nowISO(), updated_at: nowISO(),
-	};
-	data.actos.push(acto);
-	await writeEstructuraFile(app, folderPath, data);
-	return acto;
+	return withEstructuraLock(folderPath, async () => {
+		const data = await readEstructuraFile(app, folderPath);
+		const orden = data.actos.length;
+		const acto: Acto = {
+			id_acto: genId(), nombre, resumen: '', orden, id_novela: idNovela,
+			created_at: nowISO(), updated_at: nowISO(),
+		};
+		data.actos.push(acto);
+		await writeEstructuraFile(app, folderPath, data);
+		return acto;
+	});
 }
 
 export async function updateActo(app: App, fp: string, id: EntityId, patch: Partial<Acto>) {
-	const data = await readEstructuraFile(app, fp);
-	const a = data.actos.find(x => x.id_acto === id);
-	if (a) Object.assign(a, patch, { updated_at: nowISO() });
-	await writeEstructuraFile(app, fp, data);
+	await withEstructuraLock(fp, async () => {
+		const data = await readEstructuraFile(app, fp);
+		const a = data.actos.find(x => x.id_acto === id);
+		if (a) Object.assign(a, patch, { updated_at: nowISO() });
+		await writeEstructuraFile(app, fp, data);
+	});
 }
 
 export async function deleteActo(app: App, fp: string, id: EntityId) {
-	const data = await readEstructuraFile(app, fp);
-	const caps = data.capitulos.filter(c => c.id_acto === id);
-	if (caps.length > 0) throw new Error('The act still contains chapters. Move or delete them first.');
-	data.actos = data.actos.filter(a => a.id_acto !== id);
-	await writeEstructuraFile(app, fp, data);
+	await withEstructuraLock(fp, async () => {
+		const data = await readEstructuraFile(app, fp);
+		const caps = data.capitulos.filter(c => c.id_acto === id);
+		if (caps.length > 0) throw new Error('The act still contains chapters. Move or delete them first.');
+		data.actos = data.actos.filter(a => a.id_acto !== id);
+		await writeEstructuraFile(app, fp, data);
+	});
 }
 
 // ---- Capitulos ----
 
 export async function listCapitulosByActo(app: App, fp: string, idActo: EntityId): Promise<Capitulo[]> {
-	const data = await readEstructuraFile(app, fp);
-	return data.capitulos.filter(c => c.id_acto === idActo).sort((a, b) => a.orden - b.orden);
+	const capitulos = await listCapitulos(app, fp);
+	return capitulos.filter(c => c.id_acto === idActo);
 }
 
 export async function listCapitulos(app: App, fp: string): Promise<Capitulo[]> {
-	const data = await readEstructuraFile(app, fp);
+	const data = await withEstructuraLock(fp, () => readEstructuraFile(app, fp));
 	return data.capitulos.sort((a, b) => a.orden - b.orden);
 }
 
 export async function createCapitulo(app: App, folderPath: string, idActo: EntityId, nombre: string, orden: number): Promise<Capitulo> {
-	const data = await readEstructuraFile(app, folderPath);
-	const cap: Capitulo = {
-		id_capitulo: genId(), nombre, outline: '', archivo: null, id_acto: idActo, orden,
-		created_at: nowISO(), updated_at: nowISO(),
-	};
-	data.capitulos.push(cap);
-	await writeEstructuraFile(app, folderPath, data);
-	return cap;
+	return withEstructuraLock(folderPath, async () => {
+		const data = await readEstructuraFile(app, folderPath);
+		const cap: Capitulo = {
+			id_capitulo: genId(), nombre, outline: '', archivo: null, id_acto: idActo, orden,
+			created_at: nowISO(), updated_at: nowISO(),
+		};
+		data.capitulos.push(cap);
+		await writeEstructuraFile(app, folderPath, data);
+		return cap;
+	});
 }
 
 export async function updateCapitulo(app: App, fp: string, id: EntityId, patch: Partial<Capitulo>) {
-	const data = await readEstructuraFile(app, fp);
-	const c = data.capitulos.find(x => x.id_capitulo === id);
-	if (c && patch.nombre && patch.nombre !== c.nombre && c.archivo) {
-		const file = await resolveChapterFile(app, fp, id, c.archivo);
-		if (file) {
-			const parent = file.parent?.path ?? '';
-			const targetPath = joinPath(parent, `${sanitizeFileName(patch.nombre)}.md`);
-			if (targetPath !== file.path) {
-				const existing = app.vault.getAbstractFileByPath(targetPath);
-				if (existing && existing !== file)
-					throw new Error(`A chapter file named "${patch.nombre}.md" already exists.`);
-				await app.vault.rename(file, targetPath);
-			}
-			c.archivo = targetPath.startsWith(fp + '/') ? targetPath.slice(fp.length + 1) : targetPath;
-		}
+	await withEstructuraLock(fp, async () => {
+		const data = await readEstructuraFile(app, fp);
+		const c = data.capitulos.find(x => x.id_capitulo === id);
+		if (c && patch.nombre && patch.nombre !== c.nombre && c.archivo)
+			await renameChapterFile(app, fp, c, patch.nombre);
+		if (c) Object.assign(c, patch, { updated_at: nowISO() });
+		await writeEstructuraFile(app, fp, data);
+	});
+}
+
+/** Renames the manuscript to follow a new chapter name and stores its new path. */
+async function renameChapterFile(app: App, fp: string, c: Capitulo, nombre: string) {
+	const file = await resolveChapterFile(app, fp, c.id_capitulo, c.archivo!);
+	if (!file) return;
+	const parent = file.parent?.path ?? '';
+	const targetPath = joinPath(parent, `${sanitizeFileName(nombre)}.md`);
+	if (targetPath !== file.path) {
+		const existing = app.vault.getAbstractFileByPath(targetPath);
+		if (existing && existing !== file)
+			throw new Error(`A chapter file named "${nombre}.md" already exists.`);
+		await app.vault.rename(file, targetPath);
 	}
-	if (c) Object.assign(c, patch, { updated_at: nowISO() });
-	await writeEstructuraFile(app, fp, data);
+	c.archivo = targetPath.startsWith(fp + '/') ? targetPath.slice(fp.length + 1) : targetPath;
 }
 
 export async function deleteCapitulo(app: App, fp: string, id: EntityId) {
-	const data = await readEstructuraFile(app, fp);
-	const cap = data.capitulos.find(c => c.id_capitulo === id);
-	if (cap?.archivo) {
-		const file = await resolveChapterFile(app, fp, id, cap.archivo);
-		if (file) await app.vault.trash(file, true);
-	}
-	data.capitulos = data.capitulos.filter(c => c.id_capitulo !== id);
-	await writeEstructuraFile(app, fp, data);
+	await withEstructuraLock(fp, async () => {
+		const data = await readEstructuraFile(app, fp);
+		const cap = data.capitulos.find(c => c.id_capitulo === id);
+		if (cap?.archivo) {
+			const file = await resolveChapterFile(app, fp, id, cap.archivo);
+			if (file) await app.vault.trash(file, true);
+		}
+		data.capitulos = data.capitulos.filter(c => c.id_capitulo !== id);
+		await writeEstructuraFile(app, fp, data);
+	});
 }
 
 // ---- Estructura completa ----
@@ -135,7 +156,17 @@ export async function replaceEstructura(
 	idNovela: EntityId,
 	drafts: ActoDraft[],
 ): Promise<void> {
-	const data = await readEstructuraFile(app, folderPath);
+	await withEstructuraLock(folderPath, async () => {
+		const data = await readEstructuraFile(app, folderPath);
+		await writeEstructuraFile(app, folderPath, buildEstructura(data, idNovela, drafts));
+	});
+}
+
+function buildEstructura(
+	data: EstructuraFile,
+	idNovela: EntityId,
+	drafts: ActoDraft[],
+): EstructuraFile {
 	const previous = new Map<string, Capitulo>();
 	for (const cap of data.capitulos) {
 		const key = matchKey(cap.nombre);
@@ -173,5 +204,5 @@ export async function replaceEstructura(
 			});
 		});
 	});
-	await writeEstructuraFile(app, folderPath, { actos, capitulos });
+	return { actos, capitulos };
 }

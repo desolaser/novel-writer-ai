@@ -1,4 +1,4 @@
-import { App, Modal } from 'obsidian';
+import { App, Modal, Notice } from 'obsidian';
 import { Root, createRoot } from 'react-dom/client';
 import React from 'react';
 import { useNovelWriter } from '../../../store/novelWriterStore';
@@ -6,6 +6,7 @@ import { DEFAULT_COLORS as PALETTE } from '../../../../../constants/novel';
 import { Icon } from '../../../components/Icon';
 import { Categoria } from '../../../../../domain';
 import type NovelWriterPlugin from '../../../../../../main';
+import { confirmDialog } from '../../../../modals/ConfirmModal';
 
 export class CategoriasModal extends Modal {
 	private root: Root | null = null;
@@ -19,7 +20,7 @@ export class CategoriasModal extends Modal {
 	async onClose() { if (this.root) { this.root.unmount(); this.root = null; } }
 }
 
-function CategoriasView() {
+function CategoriasView({ plugin }: { plugin: NovelWriterPlugin; close: () => void }) {
 	const store = useNovelWriter();
 	const custom = store.categorias.filter(c => !c.system);
 	const { createCategoria, updateCategoria, deleteCategoria, entradas } = store;
@@ -45,8 +46,14 @@ function CategoriasView() {
 	const doSave = async () => { if (draft) await updateCategoria(draft); };
 	const doDelete = async () => {
 		if (!draft) return;
-		if (count(draft.id_categoria) > 0) { alert('This category has entries. Move them first.'); return; }
-		if (confirm('Delete category?')) { await deleteCategoria(draft.id_categoria); setSelected(null); setDraft(null); }
+		if (count(draft.id_categoria) > 0) {
+			new Notice('This category has entries. Move them first.');
+			return;
+		}
+		if (!(await confirmDialog(plugin.app, 'Delete category?'))) return;
+		await deleteCategoria(draft.id_categoria);
+		setSelected(null);
+		setDraft(null);
 	};
 
 	return (

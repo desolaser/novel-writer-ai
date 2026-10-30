@@ -77,7 +77,9 @@ export interface OutlineSlice {
 	actos: Acto[];
 	capitulos: Capitulo[];
 
-	createActo: (nombre: string) => Promise<Acto>;
+	/** Reloads only acts and chapters, without scanning the vault for moved files. */
+	reloadEstructura: () => Promise<void>;
+	createActo:(nombre: string) => Promise<Acto>;
 	updateActo: (id: EntityId, patch: Partial<Acto>) => Promise<void>;
 	deleteActo: (id: EntityId) => Promise<void>;
 	createCapitulo: (idActo: EntityId, nombre: string, orden: number) => Promise<Capitulo>;

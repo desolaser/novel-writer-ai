@@ -14,12 +14,12 @@ require.extensions['.ts'] = (module, filename) => {
 	module._compile(compiled.outputText, filename);
 };
 
-const { DEFAULT_EDITOR_ACTIONS } = require('../../constants/editorActions.ts');
+const { DEFAULT_EDITOR_ACTIONS } = require('../src/constants/editorActions.ts');
 const {
 	EditorActionRepository,
 	validateEditorAction,
-} = require('./editor-action-repository.ts');
-const { buildEditorActionPrompt } = require('../../context/editorActionTemplate.ts');
+} = require('../src/infrastructure/settings/editor-action-repository.ts');
+const { buildEditorActionPrompt } = require('../src/context/editorActionTemplate.ts');
 
 test('built-in action IDs remain stable and exclude Generate text', () => {
 	assert.equal(DEFAULT_EDITOR_ACTIONS.length, 7);

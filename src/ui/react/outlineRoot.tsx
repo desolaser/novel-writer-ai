@@ -9,6 +9,7 @@ import { AddActo } from "./outline/AddActo";
 import { ActoSection } from "./outline/ActoSection";
 import { ChapterFileModal } from "./outline/modals";
 import { openNovelBlueprintModal } from "./features/blueprint/NovelBlueprintModal";
+import { confirmDialog } from "../modals/ConfirmModal";
 
 /** Outline de una columna: orquesta estado de UI y delega en componentes de `./outline`. */
 export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -44,6 +45,8 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		plugin.settings.data.draftWordCount || 2000
 	);
 	const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+	/** Saves already sent to the store and not finished yet, per chapter or act. */
+	const savesInFlight = useRef<Record<string, number>>({});
 	/** Chapters whose outline has an unsaved edit; their draft survives a reload. */
 	const dirtyOutlines = useRef<Set<string>>(new Set());
 	/** Acts whose summary has an unsaved edit; same protection as the outlines. */
@@ -132,32 +135,46 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			return n;
 		});
 
-	const saveActSummary = (id: string, value: string) => {
-		dirtyActSummaries.current.add(id);
-		setActDrafts((d) => ({ ...d, [id]: value }));
+	// Debounced save that keeps the local draft protected until the store holds
+	// the latest text. A save can still be in flight when the next one starts,
+	// and the older one finishing first used to drop the protection: its reload
+	// then reverted the textarea to stale text while the author was typing.
+	const scheduleSave = (
+		id: string,
+		dirty: Set<string>,
+		persist: () => Promise<void>
+	) => {
+		dirty.add(id);
 		const old = timers.current[id];
 		if (old) clearTimeout(old);
 		timers.current[id] = setTimeout(() => {
 			delete timers.current[id];
-			void updateActo(id, { resumen: value }).then(() => {
-				if (!timers.current[id]) dirtyActSummaries.current.delete(id);
-			});
+			savesInFlight.current[id] = (savesInFlight.current[id] ?? 0) + 1;
+			void persist()
+				.catch((error: any) =>
+					new Notice(`Could not save: ${error?.message ?? String(error)}`)
+				)
+				.finally(() => {
+					savesInFlight.current[id] -= 1;
+					const idle =
+						!timers.current[id] && savesInFlight.current[id] === 0;
+					if (idle) dirty.delete(id);
+				});
 		}, 600);
 	};
 
+	const saveActSummary = (id: string, value: string) => {
+		setActDrafts((d) => ({ ...d, [id]: value }));
+		scheduleSave(id, dirtyActSummaries.current, () =>
+			updateActo(id, { resumen: value })
+		);
+	};
+
 	const saveOutline = (id: string, value: string) => {
-		dirtyOutlines.current.add(id);
 		setDrafts((d) => ({ ...d, [id]: value }));
-		const old = timers.current[id];
-		if (old) clearTimeout(old);
-		timers.current[id] = setTimeout(() => {
-			delete timers.current[id];
-			void updateCapitulo(id, { outline: value }).then(() => {
-				// Stop protecting the draft only if nothing was typed since: a new
-				// timer means there is a newer edit that must not be reverted.
-				if (!timers.current[id]) dirtyOutlines.current.delete(id);
-			});
-		}, 600);
+		scheduleSave(id, dirtyOutlines.current, () =>
+			updateCapitulo(id, { outline: value })
+		);
 	};
 
 	const addActo = async () => {
@@ -197,15 +214,17 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		setEditingCap(null);
 	};
 
-	const deleteAct = (acto: Acto) => {
-		if (confirm(`Delete act "${acto.nombre}"?`))
-			void deleteActo(acto.id_acto);
+	const deleteAct = async (acto: Acto) => {
+		const question = `Delete act "${acto.nombre}"?`;
+		if (await confirmDialog(plugin.app, question))
+			await deleteActo(acto.id_acto);
 	};
 
-	const deleteChapter = (chapter: Capitulo) => {
+	const deleteChapter = async (chapter: Capitulo) => {
 		closeChapterMenu();
-		if (confirm(`Delete "${chapter.nombre}"?`))
-			void deleteCapitulo(chapter.id_capitulo);
+		const question = `Delete "${chapter.nombre}"?`;
+		if (await confirmDialog(plugin.app, question))
+			await deleteCapitulo(chapter.id_capitulo);
 	};
 
 	const linkChapterFile = (chapter: Capitulo) => {
@@ -341,7 +360,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 						onStartEditingAct={() => setEditingAct(a.id_acto)}
 						onCommitActName={(name) => commitActName(a, name)}
 						onCancelEditingAct={() => setEditingAct(null)}
-						onDeleteAct={() => deleteAct(a)}
+						onDeleteAct={() => void deleteAct(a)}
 						reorderingAct={Boolean(reorderingAct)}
 						draggedAct={draggedAct}
 						onDragStartAct={() => setDraggedAct(a.id_acto)}
@@ -388,7 +407,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 							void createChapterManuscript(chapter);
 						}}
 						onLinkChapterFile={linkChapterFile}
-						onDeleteChapter={deleteChapter}
+						onDeleteChapter={(chapter) => void deleteChapter(chapter)}
 						onDragStartChapter={setDraggedChapter}
 						onDragEndChapter={() => setDraggedChapter(null)}
 						onDropChapter={(targetId) => {

@@ -6,7 +6,7 @@ import { canvasToDataUrl, cropToCanvas } from '../../../../../utils/image';
 import { openEntryModal } from '../../codex/modals/CodexEntryModal';
 import { ThumbnailCropModal } from '../../codex/ThumbnailCropModal';
 import { FolderPickerModal } from '../modals/FolderPickerModal';
-import { ConfirmModal } from '../modals/ConfirmModal';
+import { confirmDialog } from '../../../../modals/ConfirmModal';
 import { includesQuery } from '../chatContextHelpers';
 
 const dataUrlToArrayBuffer = async (dataUrl: string): Promise<ArrayBuffer> => {
@@ -150,7 +150,10 @@ export function useChatImages({ plugin, categorias, entradas, setSidebarTab, set
 		// Then handle thumbnail
 		const doSet = (url: string) => cropThenSetThumbnail(url, entry.id_entrada_codex, entry.nombre);
 		if (entry.thumbnail) {
-			new ConfirmModal(plugin.app, `Are you sure you want to replace the thumbnail for "${entry.nombre}"?`, () => doSet(dataUrl)).open();
+			const question = `Are you sure you want to replace the thumbnail for "${entry.nombre}"?`;
+			void confirmDialog(plugin.app, question).then(confirmed => {
+				if (confirmed) doSet(dataUrl);
+			});
 		} else {
 			doSet(dataUrl);
 		}

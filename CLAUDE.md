@@ -111,6 +111,7 @@ src/tools => Tools que la IA del chat puede llamar. Dependen del contrato ToolCo
 src/types => Tipos globales. Hay que mover aqui lo de src/domain/types. Una IA sin mucho criterio hizo duplicados.
 src/ui => Interfaz gráfica, componentes React.
 src/utils => Útiles varios.
+test => Todos los tests (`*.test.cjs`), en la raíz del repo, nunca dentro de src. Se corren con `npm test`.
 
 No crear nuevas carpetas y al crear nuevos archivos NO PONER EN LUGARES INDEBIDOS.
 

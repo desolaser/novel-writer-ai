@@ -3,6 +3,7 @@ import type NovelWriterPlugin from '../../../main';
 import type { EditorAction } from '../../types/EditorAction';
 import { EditorActionRepository, validateEditorAction } from
 	'../../infrastructure/settings/editor-action-repository';
+import { confirmDialog } from './ConfirmModal';
 
 const NEW_ACTION: Omit<EditorAction, 'id'> = {
 	name: '',
@@ -49,7 +50,8 @@ export class EditorActionsModal extends Modal {
 					.setIcon('trash')
 					.setTooltip('Delete')
 					.onClick(async () => {
-						if (!confirm(`Delete "${action.name}"?`)) return;
+						const question = `Delete "${action.name}"?`;
+						if (!(await confirmDialog(this.app, question))) return;
 						await this.actions.remove(action.id);
 						this.renderList();
 					}));

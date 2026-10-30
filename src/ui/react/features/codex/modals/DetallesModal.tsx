@@ -7,6 +7,7 @@ import { Icon } from '../../../components/Icon';
 import { TipoDetalle, OpcionDetalle, nowISO } from '../../../../../domain';
 import { genId } from '../../../../../utils/ids';
 import type NovelWriterPlugin from '../../../../../../main';
+import { confirmDialog } from '../../../../modals/ConfirmModal';
 
 export class DetallesModal extends Modal {
 	private root: Root | null = null;
@@ -149,7 +150,11 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 								<button className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>IA</button>
 								{sel.tipo_detalle === TipoDetalle.Dropdown && <button className={tab === 'opciones' ? 'active' : ''} onClick={() => setTab('opciones')}>Options</button>}
 							</div>
-							<button className="nw-btn nw-btn-danger" onClick={async () => { if (confirm('Delete detail?')) { await useNovelWriter.getState().deleteDetalle(sel.id_detalle); setSelected(null); } }} title="Delete"><Icon.Trash /></button>
+							<button className="nw-btn nw-btn-danger" onClick={async () => {
+								if (!(await confirmDialog(plugin.app, 'Delete detail?'))) return;
+								await useNovelWriter.getState().deleteDetalle(sel.id_detalle);
+								setSelected(null);
+							}} title="Delete"><Icon.Trash /></button>
 						</div>
 						<div style={{ flex: 1, overflowY: 'auto' }}>
 							{tab === 'general' && (

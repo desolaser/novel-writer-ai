@@ -1,9 +1,19 @@
+import { Notice } from "obsidian";
 import type { OutlineSlice, SliceCreator } from "../types";
 
 export const createOutlineSlice: SliceCreator<OutlineSlice> = (set, get) => ({
 	actos: [],
 	capitulos: [],
 
+	reloadEstructura: async () => {
+		const s = get().store;
+		if (!s || !s.activeNovelId) return;
+		const [actos, capitulos] = await Promise.all([
+			s.listActos(),
+			s.listCapitulos(),
+		]);
+		set({ actos, capitulos });
+	},
 	createActo: async (nombre) => {
 		const s = get().store;
 		if (!s) return;
@@ -15,7 +25,8 @@ export const createOutlineSlice: SliceCreator<OutlineSlice> = (set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.updateActo(id, patch);
-		await get().reloadAll();
+		// Acts have no manuscript file, so there is nothing to reconcile.
+		await get().reloadEstructura();
 	},
 	deleteActo: async (id) => {
 		const s = get().store;
@@ -23,7 +34,7 @@ export const createOutlineSlice: SliceCreator<OutlineSlice> = (set, get) => ({
 		try {
 			await s.deleteActo(id);
 		} catch (e: any) {
-			alert(e.message);
+			new Notice(e.message);
 		}
 		await get().reloadAll();
 	},
@@ -38,7 +49,11 @@ export const createOutlineSlice: SliceCreator<OutlineSlice> = (set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.updateCapitulo(id, patch);
-		await get().reloadAll();
+		// The outline is saved on every pause while typing, and a full reload
+		// reads every note in the vault to reconcile chapter files. Only a rename
+		// touches the manuscript, so only a rename pays for that scan.
+		if (patch.nombre !== undefined) await get().reloadAll();
+		else await get().reloadEstructura();
 	},
 	deleteCapitulo: async (id) => {
 		const s = get().store;
@@ -46,7 +61,7 @@ export const createOutlineSlice: SliceCreator<OutlineSlice> = (set, get) => ({
 		try {
 			await s.deleteCapitulo(id);
 		} catch (e: any) {
-			alert(e.message);
+			new Notice(e.message);
 		}
 		await get().reloadAll();
 	},
