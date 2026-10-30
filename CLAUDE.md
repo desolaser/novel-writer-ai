@@ -98,6 +98,32 @@ Bien:
     catch (_error) {} 
   }
 
+7. Nada de diálogos nativos: nunca `confirm()`, `alert()` ni `prompt()`. En Electron dejan
+   todos los inputs sin recibir teclas hasta que la ventana pierde y recupera el foco
+   (el autor lo ve como "se bloqueó la escritura"). Para preguntar usar
+   `await confirmDialog(app, mensaje)` de `src/ui/modals/ConfirmModal.ts`; para avisar,
+   `new Notice(...)`.
+
+## Guardado y persistencia
+Detalle en [.claude/rules/storage-and-autosave.md](.claude/rules/storage-and-autosave.md).
+
+- `estructura.json` (actos y capítulos) se lee y escribe solo dentro de
+  `withEstructuraLock` (`src/infrastructure/storage/repos/estructuraStorage.ts`), una cola
+  por novela para que dos guardados no se pisen. Dentro del lock no se llama a otra función
+  con lock (se traba) ni se escanea el vault (bloquea los guardados).
+- `reloadAll` lee todas las notas del vault; para ediciones de texto de actos o capítulos
+  usar `reloadEstructura`.
+- Los campos con auto-guardado del Outline mantienen un borrador local protegido hasta que
+  termina el último guardado en curso (`scheduleSave` en `outlineRoot.tsx`).
+
+## Tests
+Detalle en [.claude/rules/testing.md](.claude/rules/testing.md).
+
+- Van en `test/` (`*.test.cjs`) y se corren con `npm test`. Usan `node:test` y transpilan el
+  TypeScript real al vuelo; `obsidian` y otros módulos se mockean interceptando
+  `Module._load`.
+- Si un cambio agrega un import de Obsidian en un módulo con test, agregar el mock en el test.
+
 
 ## Carpetas
 src/apis => Aqui solo van las API's nada más. No poner utils, ni types, ni nada raro.
