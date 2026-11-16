@@ -24,6 +24,15 @@ espacios, fences, marcador de cierre faltante). Un bloque mal escrito pierde esa
 llamada, no la respuesta entera. Lo que está fuera de los bloques es la prosa que ve el
 autor.
 
+`parseToolAnswer.ts` le pasa al parser el catálogo, con dos reglas más:
+
+- Dentro de un valor multi-línea, una línea como `[x] Leer el capítulo` sigue siendo
+  texto salvo que `x` sea un argumento real de la tool. Antes abría un argumento
+  llamado `x` y dejaba vacío el valor (`update_plan` fallaba con "Missing required
+  argument(s): steps").
+- Si la tool tiene un solo argumento y es multi-línea, el texto escrito sin
+  encabezado va a ese argumento (un `update_plan` sin `[[steps]]` funciona).
+
 `src/context/toolPrompt.ts` arma las instrucciones (`[TOOLS] ... [/TOOLS]`) con las
 reglas de autonomía: mostrar un plan con `update_plan` en tareas de tres pasos o más,
 seguir hasta terminar sin preguntar si continuar, resumir al final, leer antes de

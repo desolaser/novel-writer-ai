@@ -58,4 +58,6 @@ export interface ToolCallState {
 	definition: ToolDefinition | null;
 	status: ToolCallStatus;
 	result?: ToolResult;
+	/** Characters of the turn's text written before this call (see turnSegments). */
+	textOffset?: number;
 }

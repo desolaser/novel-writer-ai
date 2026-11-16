@@ -111,6 +111,8 @@ export async function runAgentLoop(
 
 		const prompt = deps.buildPrompt(state.turns, state.pending);
 		const answer = await deps.complete(prompt, state.round);
+		// Stopped while the model was answering: drop the answer, run nothing.
+		if (deps.shouldStop()) return { kind: 'stopped' };
 		const parsed = deps.parse(answer.text ?? '', state.round);
 		if (parsed.text) state.visible.push(parsed.text);
 		if (answer.images.length) state.images.push(...answer.images);

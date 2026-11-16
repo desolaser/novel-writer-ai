@@ -10,7 +10,8 @@ los personajes. Con las tools activadas la IA lee y edita la novela por su cuent
 |---|---|
 | `src/ui/react/features/sidebar/ChatsPanel.tsx` | Lista de chats, crear, renombrar, borrar |
 | `src/ui/react/features/chat/ChatTab.tsx` | Vista del chat: mensajes, input, footer |
-| `src/ui/react/features/chat/ChatLiveTurn.tsx` | La respuesta en curso: texto, tool calls, Stop / Continue |
+| `src/ui/react/features/chat/ChatLiveTurn.tsx` | La respuesta en curso: texto y tool calls en orden, Stop / Continue |
+| `src/ui/react/features/chat/MessageContent.tsx` | Cuerpo de un mensaje guardado; en las respuestas, texto y grupos de tool calls en orden |
 | `src/ui/react/features/chat/tools/ToolCallCard.tsx` | Una tool call (con Approve / Reject en vivo) |
 | `src/ui/react/features/chat/tools/PlanChecklist.tsx` | El plan del agente (`update_plan`) como checklist dentro de su tarjeta |
 | `src/ui/react/features/chat/tools/create*ToolContext.ts` | Adaptadores de las tools: store, workspace y memoria (ver [chat-tools.md](chat-tools.md)) |
@@ -51,7 +52,7 @@ decide cuándo terminó. Los frenos:
 
 | Freno | Comportamiento |
 |---|---|
-| Stop | El autor puede parar en cualquier momento. Se revisa entre pasos; las aprobaciones pendientes cuentan como rechazadas. La petición en vuelo al modelo no se cancela, pero sus tools no se ejecutan. |
+| Stop | El autor puede parar en cualquier momento y el turno termina enseguida. Las aprobaciones pendientes cuentan como rechazadas. Los proveedores no permiten cancelar la petición en vuelo: `ChatSession.untilStopped` deja de esperarla y su respuesta se descarta sin ejecutar tools. Una tool que sigue corriendo tampoco se espera; su tarjeta dice que quizás terminó. |
 | Pausa por rondas | Cada `toolRoundsBeforePause` rondas (25 por defecto, en Settings) se pausa y aparece **Continue**, que sigue el mismo turno. |
 | Llamadas repetidas | Una llamada idéntica (misma tool, mismos argumentos) ya ejecutada 2 veces desde la última escritura exitosa no se ejecuta; el modelo recibe un error pidiéndole usar el resultado que ya tiene. |
 | Modelo que solo repite | Dos rondas seguidas hechas solo de repeticiones rechazadas pausan el turno. |
@@ -81,6 +82,14 @@ testearlo con un modelo falso.
 - Las tool calls se guardan en `Mensaje.toolCalls` (`MensajeToolCall`): nombre, tipo,
   argumentos, estado, resultado. Argumentos y resultados se recortan a 1500 caracteres;
   el capítulo vive en su archivo, no en el chat.
+- Orden: el texto de la respuesta se guarda entero (las rondas unidas por una línea en
+  blanco) y cada tool call guarda `textOffset`, los caracteres que la IA había escrito
+  cuando la hizo. `splitTurn` (`src/utils/turnSegments.ts`) los vuelve a intercalar,
+  así que en vivo y al recargar se ve texto, tools, texto... en el orden real, como en
+  Claude Code. Las respuestas guardadas antes de esto no tienen `textOffset` y muestran
+  las tools al final. Si el autor editó el texto, el corte se corre al siguiente
+  párrafo para no partir uno por la mitad. Entre texto y tools hay el mismo espacio
+  que entre mensajes (`styles.css`, junto a `.nw-tool-trace`).
 - Una tool guardada como `pending`/`awaiting`/`running` sin sesión viva se muestra como
   "Interrupted".
 - La vista recarga los mensajes del disco cuando cambia `snapshot.version`, que la

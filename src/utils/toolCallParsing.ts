@@ -45,6 +45,25 @@ export interface ParseToolCallsOptions {
 	 * own line is multi-line, and one written next to the header ends with that line.
 	 */
 	isMultiline?: (toolName: string, argName: string) => boolean | undefined;
+	/**
+	 * Whether the tool has an argument with this name. With it, a line such as
+	 * "[x] Read chapter 2" inside a multi-line value stays text instead of
+	 * opening an argument called "x".
+	 */
+	knowsArg?: (toolName: string, argName: string) => boolean;
+	/**
+	 * Argument that takes the text of a block written without any header, for
+	 * tools where only one argument makes sense.
+	 */
+	defaultArg?: (toolName: string) => string | undefined;
+}
+
+type ArgumentRules = Pick<ParseToolCallsOptions, 'isMultiline' | 'knowsArg' | 'defaultArg'>;
+
+function headerName(line: string): string | null {
+	if (TOOL_END.test(line)) return null;
+	const header = line.match(ARG_HEADER);
+	return header ? header[1].trim().toLowerCase().replace(/\s+/g, '_') : null;
 }
 
 interface CollectedBlock {
@@ -75,8 +94,10 @@ function collectBlock(
 	from: number,
 	toolName: string,
 	closingAt: number,
-	isMultiline?: ParseToolCallsOptions['isMultiline'],
+	rules: ArgumentRules,
 ): CollectedBlock {
+	const { isMultiline, knowsArg, defaultArg } = rules;
+	const fallback = defaultArg?.(toolName);
 	const args: Record<string, string> = {};
 	let current: string | null = null;
 	let buffer: string[] = [];
@@ -86,6 +107,13 @@ function collectBlock(
 		current = null;
 		buffer = [];
 	};
+	/** True while a line is text: inside a declared multi-line value, or before
+	 * any header of a tool with a default argument. */
+	const insideText = () => current
+		? multiline && isMultiline?.(toolName, current) === true
+		: Boolean(fallback);
+	const opensArgument = (name: string) =>
+		!knowsArg || knowsArg(toolName, name) || !insideText();
 
 	let index = from;
 	for (; index < lines.length; index++) {
@@ -93,15 +121,20 @@ function collectBlock(
 		const line = lines[index];
 		if (closingAt < 0 && TOOL_START.test(line)) break;
 
-		const header = TOOL_END.test(line) ? null : line.match(ARG_HEADER);
-		if (header) {
+		const name = headerName(line);
+		if (name && opensArgument(name)) {
 			flush();
-			current = header[1].trim().toLowerCase().replace(/\s+/g, '_');
-			const inline = header[2].trim();
+			current = name;
+			const inline = (line.match(ARG_HEADER)?.[2] ?? '').trim();
 			buffer = inline ? [inline] : [];
 			const declared = isMultiline?.(toolName, current);
 			multiline = declared === undefined ? !inline : declared;
 			continue;
+		}
+		if (!current && fallback && line.trim()) {
+			current = fallback;
+			buffer = [];
+			multiline = true;
 		}
 		if (closingAt < 0) {
 			const blank = !line.trim();
@@ -126,7 +159,7 @@ export interface ParsedAnswer {
 
 /** Extracts every tool call from an answer, along with the prose around them. */
 export function parseToolCalls(answer: string, options: ParseToolCallsOptions = {}): ParsedAnswer {
-	const { idPrefix = 'call', isMultiline } = options;
+	const { idPrefix = 'call', ...rules } = options;
 	const lines = normalizeAnswer(answer).split(/\r?\n/);
 	const prose: string[] = [];
 	const calls: ToolCall[] = [];
@@ -141,7 +174,8 @@ export function parseToolCalls(answer: string, options: ParseToolCallsOptions = 
 		}
 		if (start[1].trim()) prose.push(start[1].trim());
 		const name = start[2].trim().toLowerCase();
-		const block = collectBlock(lines, index + 1, name, findClosing(lines, index + 1), isMultiline);
+		const closing = findClosing(lines, index + 1);
+		const block = collectBlock(lines, index + 1, name, closing, rules);
 		calls.push({
 			id: `${idPrefix}_${calls.length}`,
 			name,

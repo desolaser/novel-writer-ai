@@ -242,3 +242,67 @@ test('stopping rejects the pending write and ends the turn', async () => {
 	assert.equal(answer.toolCalls[0].status, 'rejected');
 	assert.equal(chat.getSnapshot().notice, 'Stopped by you.');
 });
+
+test('plan steps marked [x] stay inside the steps value', () => {
+	const answer = call('update_plan', '[[steps]]\n[x] Read chapter 1\n[>] Rewrite it\n[ ] Update the act\n');
+	const [parsed] = parseToolAnswer(answer, 'p').calls;
+	assert.deepEqual(Object.keys(parsed.args), ['steps']);
+	assert.equal(parsed.args.steps, '[x] Read chapter 1\n[>] Rewrite it\n[ ] Update the act');
+});
+
+test('a plan written without the [[steps]] header still has its steps', () => {
+	const answer = call('update_plan', '[x] Read chapter 1\n[ ] Rewrite it\n');
+	const [parsed] = parseToolAnswer(answer, 'p').calls;
+	assert.equal(parsed.args.steps, '[x] Read chapter 1\n[ ] Rewrite it');
+});
+
+test('a known argument still opens after a multi-line value', () => {
+	const answer = call('edit_chapter', '[[chapter]] Opening\n[[find]]\n[x] cat\n[[replace]]\ndog\n');
+	const [parsed] = parseToolAnswer(answer, 'p').calls;
+	assert.equal(parsed.args.find, '[x] cat');
+	assert.equal(parsed.args.replace, 'dog');
+});
+
+test('stopping ends the turn while the model has not answered yet', async () => {
+	const { chat, config, persistence } = session([]);
+	let asked = false;
+	config.complete = () => {
+		asked = true;
+		return new Promise(() => {});
+	};
+	const turn = chat.send('Hello', [], config);
+	await until(() => asked);
+	chat.stop();
+	await turn;
+
+	assert.equal(chat.getSnapshot().status, 'idle');
+	assert.equal(chat.getSnapshot().notice, 'Stopped by you.');
+	assert.deepEqual(persistence.chats.get('chat').map((m) => m.role), ['user', 'assistant']);
+});
+
+test('stopping ends the turn while a tool is still running', async () => {
+	const read = call('read_chapter', '[[chapter]] Opening\n');
+	const { chat, config, novel } = session([read, 'Should not be asked.']);
+	let started = false;
+	novel.context.readChapterText = () => {
+		started = true;
+		return new Promise(() => {});
+	};
+	const turn = chat.send('Read it', [], config);
+	await until(() => started);
+	chat.stop();
+	await turn;
+
+	assert.equal(chat.getSnapshot().status, 'idle');
+	assert.equal(chat.getSnapshot().notice, 'Stopped by you.');
+});
+
+test('the saved answer remembers where each call was made', async () => {
+	const read = call('read_chapter', '[[chapter]] Opening\n');
+	const { chat, config, persistence } = session([`Let me read it.\n${read}`, 'It is about a cat.']);
+	await chat.send('What happens?', [], config);
+
+	const answer = persistence.chats.get('chat')[1];
+	assert.equal(answer.mensaje, 'Let me read it.\n\nIt is about a cat.');
+	assert.equal(answer.toolCalls[0].textOffset, 'Let me read it.'.length);
+});

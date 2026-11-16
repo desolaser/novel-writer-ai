@@ -44,6 +44,11 @@ export interface MensajeToolCall {
 	ok?: boolean;
 	output?: string;
 	truncated?: boolean;
+	/**
+	 * Characters of `Mensaje.mensaje` the AI had written when it made this call,
+	 * so the chat shows text and calls in the order they happened.
+	 */
+	textOffset?: number;
 }
 
 /** Tipo de contexto que puede asociarse a un chat. */

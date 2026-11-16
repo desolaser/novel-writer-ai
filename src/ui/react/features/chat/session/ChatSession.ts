@@ -88,6 +88,8 @@ export class ChatSession {
 	/** Pictures attached to the message the turn answers. */
 	private turnImages: string[] = [];
 	private stopRequested = false;
+	/** Releases whatever the turn is waiting on when the author stops it. */
+	private readonly stopWaiters = new Set<() => void>();
 	private approveRestOfTurn = false;
 	private saving: Promise<void> = Promise.resolve();
 
@@ -152,6 +154,25 @@ export class ChatSession {
 		this.stopRequested = true;
 		this.update({ stopping: true });
 		for (const id of [...this.decisions.keys()]) this.decide(id, false);
+		for (const release of [...this.stopWaiters]) release();
+		this.stopWaiters.clear();
+	}
+
+	/**
+	 * Waits for `work` unless the author stops the turn first; then it resolves
+	 * with `onStop` right away. The providers cannot cancel a request, so a slow
+	 * or hung model call used to leave the chat in "Stopping..." until it
+	 * answered. Its late answer is simply ignored.
+	 */
+	private untilStopped<T>(work: Promise<T>, onStop: T): Promise<T> {
+		if (this.stopRequested) return Promise.resolve(onStop);
+		return new Promise<T>((resolve, reject) => {
+			const release = () => resolve(onStop);
+			this.stopWaiters.add(release);
+			work.then(resolve, reject).finally(() => {
+				this.stopWaiters.delete(release);
+			});
+		});
 	}
 
 	approve(id: string): void {
@@ -198,8 +219,10 @@ export class ChatSession {
 			outcome = await runAgentLoop(loop, {
 				buildPrompt: config.buildPrompt,
 				// Pictures go with the first request only, like the message they came with.
-				complete: (prompt, round) =>
+				complete: (prompt, round) => this.untilStopped(
 					config.complete(prompt, round === 0 ? this.turnImages : []),
+					{ text: '', images: [] },
+				),
 				parse: (answer, round) => config.toolsEnabled
 					? parseToolAnswer(answer, `t${Date.now().toString(36)}r${round}`)
 					: { text: answer, calls: [] },
@@ -208,7 +231,7 @@ export class ChatSession {
 				shouldStop: () => this.stopRequested,
 				onProgress: (state) => {
 					this.update({
-						liveText: state.visible.join('\n\n'),
+						liveText: this.turnText(),
 						liveImages: [...state.images],
 					});
 					this.persistTurn();
@@ -248,12 +271,16 @@ export class ChatSession {
 		skipped: Record<string, string>,
 	): Promise<ToolResult[]> {
 		const context = this.deps.createToolContext();
+		// Same text the answer is saved with, so the offset points into it.
+		const textOffset = this.turnText().length;
 		const states: ToolCallState[] = calls.map((call) => {
 			const definition = findToolDefinition(call.name);
 			const reason = skipped[call.id];
-			if (!reason) return { call, definition, status: 'pending' as ToolCallStatus };
+			if (!reason) {
+				return { call, definition, status: 'pending' as ToolCallStatus, textOffset };
+			}
 			const result: ToolResult = { callId: call.id, name: call.name, ok: false, output: reason };
-			return { call, definition, status: 'error' as ToolCallStatus, result };
+			return { call, definition, status: 'error' as ToolCallStatus, result, textOffset };
 		});
 		this.update({ calls: [...this.snapshot.calls, ...states] });
 
@@ -303,7 +330,14 @@ export class ChatSession {
 		this.patchCall(call.id, 'running');
 		// Write tools only get here approved: by the author, by "approve all"
 		// for this turn, or by the auto-approve setting the author turned on.
-		const result = await executeToolCall(call, context, true);
+		const stopped: ToolResult = {
+			callId: call.id,
+			name: call.name,
+			ok: false,
+			output: 'The author stopped the turn while this call was running; '
+				+ 'it may still have finished.',
+		};
+		const result = await this.untilStopped(executeToolCall(call, context, true), stopped);
 		this.patchCall(call.id, result.ok ? 'done' : 'error', result);
 		return result;
 	}
@@ -330,7 +364,7 @@ export class ChatSession {
 	private persistTurn(final = false): void {
 		const loop = this.loop;
 		if (!loop) return;
-		const visible = loop.visible.join('\n\n').trim();
+		const visible = this.turnText();
 		const images = [...loop.images];
 		const toolCalls = this.snapshot.calls.map((state) => toToolCallRecord(state));
 		const nothing = !visible && !images.length && !toolCalls.length;
@@ -351,6 +385,11 @@ export class ChatSession {
 		}).catch((error) => {
 			console.error('Novel Writer: could not save the chat answer', error);
 		});
+	}
+
+	/** What the AI has said this turn, as it is shown and saved. */
+	private turnText(): string {
+		return (this.loop?.visible ?? []).join('\n\n').trim();
 	}
 
 	private bumpVersion(): void {

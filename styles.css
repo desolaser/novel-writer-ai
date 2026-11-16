@@ -1486,7 +1486,7 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 
 /* Chat tool calls */
 .nw-tool-calls { display: flex; flex-direction: column; gap: 6px; }
-.nw-tool-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--background-modifier-border); border-left-width: 3px; border-radius: 6px; background: var(--background-secondary); font-size: 12px; }
+.nw-tool-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--background-modifier-border); border-left-width: 3px; border-radius: 6px; background: var(--background-secondary); font-size: 13px; }
 .nw-tool-card-awaiting { border-left-color: var(--text-accent); }
 .nw-tool-card-running { border-left-color: var(--text-accent); animation: nw-pulse 1.2s ease-in-out infinite; }
 .nw-tool-card-done { border-left-color: var(--text-success, #3fa66a); }
@@ -1578,9 +1578,15 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-chat-turn-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .nw-chat-turn-state { color: var(--text-muted); font-size: 11px; font-style: italic; margin-right: auto; }
 .nw-chat-turn-notice { color: var(--text-muted); font-size: 11px; font-style: italic; text-align: center; padding: 4px 0; }
-.nw-tool-trace { margin-top: 6px; font-size: 12px; }
-.nw-tool-trace > summary { cursor: pointer; color: var(--text-muted); font-size: 11px; user-select: none; }
-.nw-tool-trace > .nw-tool-calls { margin-top: 6px; }
+.nw-tool-trace { margin-top: 6px; font-size: 13px; }
+.nw-tool-trace > summary { cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none; }
+.nw-tool-trace > .nw-tool-calls { margin-top: 8px; }
+/* Text and tool calls of one answer, in order: as much air between them as
+   between two messages (.nw-chat-messages gap). */
+.nw-msg-body + .nw-tool-trace,
+.nw-msg-body + .nw-tool-calls,
+.nw-tool-trace + .nw-msg-body,
+.nw-tool-calls + .nw-msg-body { margin-top: 10px; }
 
 /* Import categories and details from another novel */
 .nw-schema-import-modal { width: 640px; max-width: 92vw; }

@@ -5,6 +5,31 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Chat: texto y tool calls en el orden en que pasaron
+- Al recargar el chat, todo lo que dijo la IA quedaba arriba y todas las tool calls
+  abajo, plegadas en un solo grupo. En vivo pasaba lo mismo.
+- Cada tool call guarda `textOffset` (cuánto texto había escrito la IA al hacerla) y
+  `splitTurn` (`src/utils/turnSegments.ts`) intercala texto y grupos de tools. Lo usan
+  la respuesta en curso (`ChatLiveTurn.tsx`) y los mensajes guardados
+  (`MessageContent.tsx`, nuevo, sacado de `ChatTab.tsx`).
+- Las respuestas viejas, sin `textOffset`, siguen mostrando las tools al final.
+- Más aire entre texto y grupos de tools (10 px, lo mismo que entre mensajes) y letra
+  de 13 px en el resumen "N tool calls" y en las tarjetas.
+- Tests: `test/turn-segments.test.cjs` y `test/chat-agent.test.cjs`. Detalle:
+  [chat.md](chat.md).
+
+### Chat: Stop ya no se queda en "Stopping..." y `update_plan` sin errores
+- Stop solo se revisaba entre pasos, así que esperaba a que el modelo respondiera. Si
+  la petición tardaba o se colgaba, el chat quedaba en "Stopping..." y no dejaba
+  escribir. Ahora `ChatSession` deja de esperar la petición (y la tool en curso) al
+  apretar Stop, y descarta lo que llegue después.
+- `update_plan` fallaba con "Missing required argument(s): steps": el parser leía
+  `[x] paso` como un argumento llamado `x`. Ahora, dentro de un valor multi-línea, solo
+  abren argumento los nombres que la tool tiene. Un plan sin `[[steps]]` también
+  funciona.
+- Tests en `test/chat-agent.test.cjs`. Detalle: [chat.md](chat.md),
+  [chat-tools.md](chat-tools.md).
+
 ### Chat: 18 tools nuevas y privacidad del codex en las tools
 - El agente solo podía tocar el texto y el outline de los capítulos y la descripción y
   los alias del codex. Ahora también:

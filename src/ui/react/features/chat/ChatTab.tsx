@@ -9,10 +9,9 @@ import { getActiveModelConfig } from '../../../../infrastructure/settings/active
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { buildToolPrompt } from '../../../../context/toolPrompt';
 import { TOOL_DEFINITIONS } from '../../../../tools/registry';
-import { ToolCallTrace } from './tools/ToolCallTrace';
+import { MessageContent } from './MessageContent';
 import { ChatLiveTurn } from './ChatLiveTurn';
 import { generateChatName } from '../../../../utils/chatNameGeneration';
-import { MarkdownBlock } from './MarkdownBlock';
 import { formatTimestamp } from './chatFormatting';
 import { kindIcon } from './chatContextHelpers';
 import { buildPrompt, buildPromptBreakdown } from './promptBuilder';
@@ -247,8 +246,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							) : 'AI'
 						)}
 					</div>
-					{m.mensaje && (
-						messages.editingMsgId === m.id_mensaje ? (
+					{m.mensaje && messages.editingMsgId === m.id_mensaje ? (
 							<div className="nw-msg-edit-area">
 								<textarea
 									className="nw-msg-edit-textarea"
@@ -270,11 +268,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 								</div>
 							</div>
 						) : (
-							<div className="nw-msg-body">
-								{m.role === 'assistant' ? <MarkdownBlock plugin={plugin} content={resolveText(m.mensaje)} /> : resolveText(m.mensaje)}
-							</div>
-						)
-					)}
+							<MessageContent plugin={plugin} message={m} resolveText={resolveText} />
+						)}
 					{m.imagenes?.length > 0 && <div className="nw-msg-images">
 						{m.imagenes.map((url: string, index: number) => (
 							<div key={`${url}-${index}`} className="nw-msg-image-wrapper">
@@ -329,7 +324,6 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							</div>
 						))}
 					</div>}
-					{m.toolCalls?.length > 0 && <ToolCallTrace calls={m.toolCalls} />}
 					{m.mensaje && messages.editingMsgId !== m.id_mensaje && (
 						<div className="nw-msg-actions">
 							<button className="nw-msg-action-btn" title="Edit" onClick={() => messages.startEditMessage(m.id_mensaje, m.mensaje)}>
