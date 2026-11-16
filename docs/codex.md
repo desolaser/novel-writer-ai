@@ -114,6 +114,17 @@ Archivos: `src/types/CodexSchema.ts` (tipos),
 `EntradaCodex.notas` (pestaña Research, "Notes") es privada: nunca se manda a la IA, ni
 en el contexto del autocompletado, ni en el chat, ni en el output de una tool.
 
+Las tools del chat respetan además lo que el autor oculta a la IA, igual que el prompt
+del autocompletado: una entrada con política "Never" no existe para ellas y un detalle
+con `incluir_ia` apagado no se muestra ni se escribe. Ver
+[chat-tools.md](chat-tools.md#reglas-que-no-hay-que-romper).
+
+## Menciones
+
+La pestaña Mentions y la tool `find_mentions` usan la misma lógica
+(`src/utils/codexMentions.ts`): nombre y alias como palabra completa, sin acentos, con
+o sin mayúsculas según `case_sensitive`.
+
 ## Resaltado en el manuscrito
 
 `codexHighlighter` es una extensión de CodeMirror que marca las menciones de entradas

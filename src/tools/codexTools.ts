@@ -4,80 +4,104 @@ import type { CodexToolContext as ToolContext } from '../interfaces/tool-context
 import { findFallbackCategory } from '../utils/categories';
 import { normalizeForMatch } from '../utils/codexAiParsing';
 import { resolveByName } from '../utils/toolCallParsing';
+import {
+	categoryName,
+	isDetailVisible,
+	readableDetailValue,
+	resolveEntry,
+	splitList,
+	summarize,
+	visibleEntries,
+} from './codexShared';
 
 /**
- * Codex tools. `EntradaCodex.notas` is private to the author and is never part of
- * any output here, the same rule the rest of the plugin follows.
+ * Codex entry tools: list, read, create, update and archive. Privacy rules live
+ * in `codexShared.ts`; custom details are in `codexDetailTools.ts`.
  */
 
-const activeEntries = (context: ToolContext) => context.listCodexEntries().filter((entry) => !entry.archivado);
+function resolveCategory(reference: string, context: ToolContext) {
+	const categories = context.listCategories();
+	const category = resolveByName(
+		reference,
+		categories,
+		(item) => item.nombre,
+		(item) => item.id_categoria,
+	);
+	if (!category) {
+		const names = categories.map((item) => item.nombre).join(', ');
+		throw new Error(`No category named "${reference}". Available: ${names}.`);
+	}
+	return category;
+}
 
-const summarize = (text: string, max = 140) => {
-	const clean = (text || '').replace(/\s+/g, ' ').trim();
-	return clean.length > max ? `${clean.slice(0, max)}...` : clean;
-};
-
-/** Resolves an entry reference against names first, then aliases. */
-function resolveEntry(reference: string, context: ToolContext): EntradaCodex {
-	const entries = activeEntries(context);
-	const direct = resolveByName(reference, entries, (entry) => entry.nombre, (entry) => entry.id_entrada_codex);
-	if (direct) return direct;
-	const needle = normalizeForMatch(reference);
-	const byAlias = entries.find((entry) => (entry.alias ?? '')
-		.split(',')
-		.map((alias) => normalizeForMatch(alias))
-		.filter(Boolean)
-		.includes(needle));
-	if (byAlias) return byAlias;
-	throw new Error(`No codex entry matches "${reference}". Use list_codex to see what exists.`);
+function tagNames(entry: EntradaCodex, context: ToolContext): string[] {
+	const tags = context.listTags();
+	return (entry.tags ?? [])
+		.map((id) => tags.find((tag) => tag.id_tag === id)?.nombre)
+		.filter((name): name is string => Boolean(name));
 }
 
 export async function listCodex(args: Record<string, string>, context: ToolContext): Promise<string> {
-	const categories = context.listCategories();
-	let entries = activeEntries(context);
+	let entries = visibleEntries(context);
 
 	if (args.category?.trim()) {
-		const category = resolveByName(args.category, categories, (item) => item.nombre, (item) => item.id_categoria);
-		if (!category) {
-			throw new Error(`No category named "${args.category}". Available: ${categories.map((item) => item.nombre).join(', ')}.`);
-		}
+		const category = resolveCategory(args.category, context);
 		entries = entries.filter((entry) => entry.id_categoria === category.id_categoria);
 	}
 	if (args.query?.trim()) {
 		const needle = normalizeForMatch(args.query);
-		entries = entries.filter((entry) =>
-			normalizeForMatch(`${entry.nombre} ${entry.alias ?? ''} ${entry.descripcion ?? ''}`).includes(needle));
+		entries = entries.filter((entry) => {
+			const haystack = `${entry.nombre} ${entry.alias ?? ''} ${entry.descripcion ?? ''}`;
+			return normalizeForMatch(haystack).includes(needle);
+		});
 	}
 	if (!entries.length) return 'No codex entries match.';
 
 	return entries.map((entry) => {
-		const category = categories.find((item) => item.id_categoria === entry.id_categoria)?.nombre ?? 'Uncategorized';
+		const category = categoryName(context, entry.id_categoria);
 		const description = summarize(entry.descripcion);
 		return `${entry.nombre} (${category})${description ? `: ${description}` : ''}`;
 	}).join('\n');
 }
 
+/** Lines naming the entries whose codex-reference details point at `entry`. */
+function referencedBy(entry: EntradaCodex, context: ToolContext): string[] {
+	const definitions = context.listDetalles().filter((definition) =>
+		definition.tipo_detalle === TipoDetalle.CodexRef && isDetailVisible(definition));
+	const references: string[] = [];
+	for (const other of visibleEntries(context)) {
+		for (const value of other.detalles ?? []) {
+			if (value.valor !== entry.id_entrada_codex) continue;
+			const definition = definitions.find((item) => item.id_detalle === value.id_detalle);
+			if (definition) references.push(`${other.nombre} (as ${definition.nombre})`);
+		}
+	}
+	return references;
+}
+
 export async function readCodexEntry(args: Record<string, string>, context: ToolContext): Promise<string> {
 	const entry = resolveEntry(args.entry ?? '', context);
-	const category = context.listCategories().find((item) => item.id_categoria === entry.id_categoria)?.nombre ?? 'Uncategorized';
 	const definitions = context.listDetalles();
 
-	const lines: string[] = [`Name: ${entry.nombre}`, `Category: ${category}`];
+	const lines: string[] = [
+		`Name: ${entry.nombre}`,
+		`Category: ${categoryName(context, entry.id_categoria)}`,
+	];
 	if (entry.alias?.trim()) lines.push(`Aliases: ${entry.alias.trim()}`);
+	const tags = tagNames(entry, context);
+	if (tags.length) lines.push(`Tags: ${tags.join(', ')}`);
 	if (entry.descripcion?.trim()) lines.push(`Description: ${entry.descripcion.trim()}`);
+	if (entry.first_message?.trim()) lines.push(`First message: ${entry.first_message.trim()}`);
 
 	for (const value of entry.detalles ?? []) {
 		const definition = definitions.find((item) => item.id_detalle === value.id_detalle);
-		if (!definition || value.valor == null || !String(value.valor).trim()) continue;
-		let readable = String(value.valor);
-		if (definition.tipo_detalle === TipoDetalle.Dropdown) {
-			const options = await context.listOptions(definition.id_detalle);
-			readable = options.find((option) => option.id_opcion_detalle === value.valor)?.nombre ?? readable;
-		} else if (definition.tipo_detalle === TipoDetalle.CodexRef) {
-			readable = context.listCodexEntries().find((item) => item.id_entrada_codex === value.valor)?.nombre ?? readable;
-		}
-		lines.push(`${definition.nombre}: ${readable}`);
+		if (!definition || !isDetailVisible(definition)) continue;
+		const readable = await readableDetailValue(value, definition, context);
+		if (readable !== null) lines.push(`${definition.nombre}: ${readable}`);
 	}
+
+	const references = referencedBy(entry, context);
+	if (references.length) lines.push(`Referenced by: ${references.join(', ')}`);
 	return lines.join('\n');
 }
 
@@ -85,14 +109,20 @@ export async function createCodexEntry(args: Record<string, string>, context: To
 	const name = (args.name ?? '').trim();
 	if (!name) throw new Error('Argument "name" is required.');
 
-	const categories = context.listCategories();
-	const category = (args.category?.trim()
-		? resolveByName(args.category, categories, (item) => item.nombre, (item) => item.id_categoria)
-		: null) ?? findFallbackCategory(categories);
+	const category = args.category?.trim()
+		? resolveCategory(args.category, context)
+		: findFallbackCategory(context.listCategories());
 	if (!category) throw new Error('The novel has no categories to place the entry in.');
 
-	const existing = activeEntries(context).find((entry) => normalizeForMatch(entry.nombre) === normalizeForMatch(name));
-	if (existing) throw new Error(`A codex entry named "${existing.nombre}" already exists. Read it instead of creating a duplicate.`);
+	// Checked against every live entry, hidden ones included, without revealing them.
+	const needle = normalizeForMatch(name);
+	const existing = context.listCodexEntries()
+		.filter((entry) => !entry.archivado)
+		.find((entry) => normalizeForMatch(entry.nombre) === needle);
+	if (existing) {
+		throw new Error(`A codex entry named "${existing.nombre}" already exists. `
+			+ 'Read it instead of creating a duplicate.');
+	}
 
 	const created = await context.createCodexEntry(category.id_categoria, name);
 	if (!created) throw new Error('The entry could not be created.');
@@ -100,9 +130,33 @@ export async function createCodexEntry(args: Record<string, string>, context: To
 	const alias = args.aliases?.trim() ?? '';
 	const descripcion = args.description?.trim() ?? '';
 	if (alias || descripcion) {
-		await context.updateCodexEntry({ ...created, alias: alias || created.alias, descripcion: descripcion || created.descripcion });
+		await context.updateCodexEntry({
+			...created,
+			alias: alias || created.alias,
+			descripcion: descripcion || created.descripcion,
+		});
 	}
 	return `Created codex entry "${name}" in ${category.nombre}.`;
+}
+
+function joinText(current: string, addition: string, separator: string, append: boolean): string {
+	const trimmed = current?.trim() ?? '';
+	return append && trimmed ? `${trimmed}${separator}${addition}` : addition;
+}
+
+/** Replaces or extends the entry's tags, creating tags that do not exist yet. */
+async function applyTags(
+	entry: EntradaCodex,
+	names: string[],
+	append: boolean,
+	context: ToolContext,
+): Promise<void> {
+	const ids = append ? [...(entry.tags ?? [])] : [];
+	for (const name of names) {
+		const tag = await context.findOrCreateTag(name);
+		if (!ids.includes(tag.id_tag)) ids.push(tag.id_tag);
+	}
+	await context.setEntryTags(entry.id_entrada_codex, ids);
 }
 
 export async function updateCodexEntry(args: Record<string, string>, context: ToolContext): Promise<string> {
@@ -110,20 +164,45 @@ export async function updateCodexEntry(args: Record<string, string>, context: To
 	const append = (args.mode ?? 'replace').trim().toLowerCase() === 'append';
 	const description = args.description?.trim() ?? '';
 	const aliases = args.aliases?.trim() ?? '';
-	if (!description && !aliases) throw new Error('Nothing to update: pass description and/or aliases.');
+	const firstMessage = args.first_message?.trim() ?? '';
+	const categoryRef = args.category?.trim() ?? '';
+	const tags = splitList(args.tags ?? '');
+	if (!description && !aliases && !firstMessage && !categoryRef && !tags.length) {
+		throw new Error('Nothing to update: pass description, aliases, first_message, category or tags.');
+	}
 
 	const updated = { ...entry };
 	const changed: string[] = [];
 	if (description) {
-		const current = entry.descripcion?.trim() ?? '';
-		updated.descripcion = append && current ? `${current}\n\n${description}` : description;
+		updated.descripcion = joinText(entry.descripcion, description, '\n\n', append);
 		changed.push('description');
 	}
 	if (aliases) {
-		const current = entry.alias?.trim() ?? '';
-		updated.alias = append && current ? `${current}, ${aliases}` : aliases;
+		updated.alias = joinText(entry.alias, aliases, ', ', append);
 		changed.push('aliases');
 	}
-	await context.updateCodexEntry(updated);
-	return `${append ? 'Extended' : 'Replaced'} the ${changed.join(' and ')} of "${entry.nombre}".`;
+	if (firstMessage) {
+		updated.first_message = joinText(entry.first_message, firstMessage, '\n\n', append);
+		changed.push('first message');
+	}
+	if (categoryRef) {
+		const category = resolveCategory(categoryRef, context);
+		updated.id_categoria = category.id_categoria;
+		changed.push(`category (now ${category.nombre})`);
+	}
+
+	const fieldsChanged = changed.length > 0;
+	if (fieldsChanged) await context.updateCodexEntry(updated);
+	if (tags.length) {
+		await applyTags(entry, tags, append, context);
+		changed.push('tags');
+	}
+	return `${append ? 'Extended' : 'Updated'} the ${changed.join(', ')} of "${entry.nombre}".`;
+}
+
+export async function archiveCodexEntry(args: Record<string, string>, context: ToolContext): Promise<string> {
+	const entry = resolveEntry(args.entry ?? '', context);
+	await context.archiveCodexEntry(entry.id_entrada_codex);
+	return `Archived "${entry.nombre}". The author can restore it from the archived filter `
+		+ 'of the Codex panel.';
 }

@@ -9,7 +9,7 @@ import { resolveByName } from '../utils/toolCallParsing';
  * can react to on the next turn.
  */
 
-const countWords = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+export const countWords = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
 
 /** Chapters in reading order: by act order first, then by their own order. */
 export function orderedChapters(context: ToolContext): Capitulo[] {
@@ -42,11 +42,45 @@ export async function listChapters(_args: Record<string, string>, context: ToolC
 	return lines.join('\n');
 }
 
+/** Paragraphs are separated by blank lines, the way Markdown reads them. */
+export function splitParagraphs(text: string): string[] {
+	return text
+		.split(/\n\s*\n/)
+		.map((paragraph) => paragraph.trim())
+		.filter(Boolean);
+}
+
+function parseParagraphNumber(value: string | undefined, name: string): number | null {
+	if (!value?.trim()) return null;
+	const number = Number(value.trim().replace(/^#/, ''));
+	if (!Number.isInteger(number) || number < 1) {
+		throw new Error(`Argument "${name}" must be a paragraph number starting at 1.`);
+	}
+	return number;
+}
+
+/**
+ * Reads a whole chapter, or only paragraphs `from`..`to`. A long chapter read
+ * whole is cut down in later rounds of the same turn, so reading the part to
+ * edit keeps it intact in the conversation.
+ */
 export async function readChapter(args: Record<string, string>, context: ToolContext): Promise<string> {
 	const chapter = resolveChapter(args.chapter ?? '', context);
 	const text = await context.readChapterText(chapter.id_capitulo);
 	if (!text.trim()) return `Chapter "${chapter.nombre}" has no text yet.`;
-	return `Chapter "${chapter.nombre}":\n\n${text}`;
+
+	const paragraphs = splitParagraphs(text);
+	const from = parseParagraphNumber(args.from, 'from');
+	const to = parseParagraphNumber(args.to, 'to');
+	if (from === null && to === null) {
+		return `Chapter "${chapter.nombre}" (${paragraphs.length} paragraphs):\n\n${text}`;
+	}
+
+	const start = Math.min(from ?? 1, paragraphs.length);
+	const end = Math.min(Math.max(to ?? paragraphs.length, start), paragraphs.length);
+	const slice = paragraphs.slice(start - 1, end).join('\n\n');
+	const range = `paragraphs ${start}-${end} of ${paragraphs.length}`;
+	return `Chapter "${chapter.nombre}", ${range}:\n\n${slice}`;
 }
 
 export async function createChapter(args: Record<string, string>, context: ToolContext): Promise<string> {

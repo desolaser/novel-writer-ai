@@ -50,8 +50,10 @@ export function buildToolPrompt(tools: ToolDefinition[], maxOutputTokens?: numbe
 		'- You may explain what you are about to do before the block, and you may write several blocks in one answer.',
 		'- After a tool block, stop and wait: you will receive the results and can continue from there.',
 		'- Never invent a result, and never claim you did something a tool has not confirmed.',
-		'- Work autonomously. For a task with several steps, state a short plan, then keep calling tools round after '
-			+ 'round until the whole task is done. Do not stop halfway to ask whether to continue.',
+		'- Work autonomously. For a task with three or more steps, show your plan with update_plan, then keep calling '
+			+ 'tools round after round until the whole task is done, updating the plan as steps finish. Do not stop '
+			+ 'halfway to ask whether to continue.',
+		'- After changing chapters a lot, keep the act summary current with update_act: later prompts rely on it.',
 		'- When the task is finished, answer without tool blocks and summarize briefly what you changed.',
 		'- Read before you edit. For a change to part of a chapter use edit_chapter; rewrite a whole chapter only '
 			+ 'when most of it changes.',

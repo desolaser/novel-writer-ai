@@ -3,6 +3,7 @@ import { MarkdownView, TFile } from 'obsidian';
 import { useNovelWriter } from '../../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../../main';
 import type { EntradaCodex } from '../../../../../domain/entities/EntradaCodex';
+import { buildEntryRegex, stripAccents } from '../../../../../utils/codexMentions';
 
 interface MentionHit {
 	actoName: string;
@@ -13,31 +14,6 @@ interface MentionHit {
 	before: string;
 	keyword: string;
 	after: string;
-}
-
-function stripAccents(value: string): string {
-	return value.normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
-function buildEntryRegex(entry: EntradaCodex): RegExp | null {
-	const candidates = [entry.nombre, ...(entry.alias || '').split(',')]
-		.map(v => v.trim())
-		.filter(Boolean);
-
-	const escaped = candidates.map(c => {
-		const stripped = stripAccents(entry.case_sensitive ? c : c.toLowerCase());
-		return stripped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	}).filter(Boolean);
-
-	if (!escaped.length) return null;
-	escaped.sort((a, b) => b.length - a.length);
-	const pattern = escaped.join('|');
-	const flags = entry.case_sensitive ? 'g' : 'gi';
-	try {
-		return new RegExp(`(?<=^|[^a-zA-Z0-9])(?:${pattern})(?=$|[^a-zA-Z0-9])`, flags);
-	} catch {
-		return null;
-	}
 }
 
 function cleanWhitespace(s: string): string {

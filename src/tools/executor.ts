@@ -2,9 +2,27 @@ import type { ToolCall, ToolResult } from '../types/AiTool';
 import type { ToolContext } from '../interfaces/tool-context';
 import { findToolDefinition, TOOL_DEFINITIONS } from './registry';
 import { createChapter, editChapter, listChapters, readChapter, writeChapter } from './chapterTools';
-import { searchNovel } from './searchTools';
+import { findMentionsTool, searchNovel } from './searchTools';
 import { readOutline, writeOutline } from './outlineTools';
-import { createCodexEntry, listCodex, readCodexEntry, updateCodexEntry } from './codexTools';
+import {
+	archiveCodexEntry,
+	createCodexEntry,
+	listCodex,
+	readCodexEntry,
+	updateCodexEntry,
+} from './codexTools';
+import { listCodexFields, setCodexDetail } from './codexDetailTools';
+import {
+	createActTool,
+	moveChapter,
+	readAct,
+	renameChapter,
+	updateActTool,
+} from './structureTools';
+import { novelStatus, readBlueprintTool } from './novelTools';
+import { readMemory, writeMemory } from './memoryTools';
+import { updatePlan } from './planTools';
+import { openChapter, openCodexEntryTool, readNoteTool, readSelection } from './workspaceTools';
 
 /** Maps a tool name to its implementation. Every handler returns the text sent back to the model. */
 type ToolHandler = (args: Record<string, string>, context: ToolContext) => Promise<string>;
@@ -18,10 +36,32 @@ const HANDLERS: Record<string, ToolHandler> = {
 	search_novel: searchNovel,
 	read_outline: readOutline,
 	write_outline: writeOutline,
+
+	read_act: readAct,
+	create_act: createActTool,
+	update_act: updateActTool,
+	rename_chapter: renameChapter,
+	move_chapter: moveChapter,
+
 	list_codex: listCodex,
 	read_codex_entry: readCodexEntry,
 	create_codex_entry: createCodexEntry,
 	update_codex_entry: updateCodexEntry,
+	archive_codex_entry: archiveCodexEntry,
+	list_codex_fields: listCodexFields,
+	set_codex_detail: setCodexDetail,
+	find_mentions: findMentionsTool,
+
+	read_blueprint: readBlueprintTool,
+	novel_status: novelStatus,
+	read_memory: readMemory,
+	write_memory: writeMemory,
+
+	update_plan: updatePlan,
+	open_chapter: openChapter,
+	open_codex_entry: openCodexEntryTool,
+	read_selection: readSelection,
+	read_note: readNoteTool,
 };
 
 /** Validates the arguments the model supplied against the tool's declared spec. */

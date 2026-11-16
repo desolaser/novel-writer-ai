@@ -51,6 +51,8 @@ una sola vez por instancia del plugin.
 - Las tools de escritura del chat esperan la aprobación del autor, salvo que él active
   Auto-approve. Ver [chat-tools](docs/chat-tools.md).
 - Las notas privadas de una entrada del codex (`EntradaCodex.notas`) nunca llegan a la IA.
+  Tampoco las entradas con política "Never" ni los detalles con `incluir_ia` apagado
+  (en las tools, vía `src/tools/codexShared.ts`).
 - Campos con auto-guardado: `AutoSaveTextarea`. Ver [outline](docs/outline.md).
 
 ## Convenciones

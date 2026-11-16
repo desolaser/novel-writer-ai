@@ -39,6 +39,12 @@ el ícono de la ribbon, el comando "Generate text" o el menú contextual del edi
 La pestaña Config los edita (guardado con debounce de 600 ms) y "View context" muestra
 el prompt completo que se enviaría.
 
+`promptMeta.ts` expone las piezas por separado para quien no trabaja sobre la nota
+activa: `readFrontmatterValue` / `writeFrontmatterValue` (una nota) y
+`readInheritedPromptMeta` (pasos 2 y 3 desde una carpeta). Las usan las tools
+`read_memory` y `write_memory` del chat, que escriben en el capítulo o en el
+`_config.md` de la carpeta de la novela (ver [chat-tools.md](chat-tools.md)).
+
 ## Acciones del editor
 
 Operaciones de IA configurables sobre el texto: Summarize, Expand, Shorten, Rephrase,

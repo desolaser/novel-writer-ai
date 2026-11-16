@@ -5,6 +5,30 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Chat: 18 tools nuevas y privacidad del codex en las tools
+- El agente solo podía tocar el texto y el outline de los capítulos y la descripción y
+  los alias del codex. Ahora también:
+  - estructura: `read_act`, `create_act`, `update_act` (nombre y resumen),
+    `rename_chapter`, `move_chapter`;
+  - codex: `list_codex_fields`, `set_codex_detail`, `archive_codex_entry`,
+    `find_mentions`; `update_codex_entry` suma categoría, tags y primer mensaje;
+    `read_codex_entry` muestra tags, primer mensaje y qué entradas la referencian;
+  - novela: `read_blueprint`, `novel_status`, `read_memory`, `write_memory`;
+  - workspace: `update_plan` (checklist en el chat), `open_chapter`,
+    `open_codex_entry`, `read_selection`, `read_note`;
+  - `read_chapter` lee un rango de párrafos (`from`/`to`).
+- Arreglo de privacidad: las tools ignoraban la política "Never" de las entradas y
+  `incluir_ia` de los detalles, que el prompt del autocompletado sí respetaba. Las
+  reglas quedan en `src/tools/codexShared.ts`.
+- `ToolContext` se partió por dominio y hay dos adaptadores nuevos
+  (`createWorkspaceToolContext.ts`, `createMemoryToolContext.ts`). Las definiciones
+  pasaron a `src/tools/definitions/`, un archivo por dominio.
+- Lógica compartida movida a `src/utils`: `codexMentions.ts` (también la usa la
+  pestaña Mentions), `generatedMemory.ts` (también la usa el outline) y `planSteps.ts`.
+- El bloque `[TOOLS]` pasa de ~800 a ~2600 tokens por request.
+- Tests: `test/chat-tools.test.cjs`. Detalle: [chat-tools.md](chat-tools.md),
+  [chat.md](chat.md), [codex.md](codex.md), [editor.md](editor.md).
+
 ### Codex: copiar categorías y detalles entre novelas
 - Las categorías custom y los detalles personalizados eran solo de cada novela, así
   que una novela nueva empezaba sin ellos.

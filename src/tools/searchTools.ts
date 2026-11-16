@@ -1,10 +1,13 @@
 import type { ToolContext } from '../interfaces/tool-context';
+import { findMentions } from '../utils/codexMentions';
 import { orderedChapters } from './chapterTools';
+import { resolveEntry, visibleEntries } from './codexShared';
 
 /**
  * Text search across the novel: chapter manuscripts, outlines and codex
  * entries. Lets the model find where something is mentioned without reading
- * every chapter. Private codex notes are never searched or returned.
+ * every chapter. Private codex notes and entries hidden from the AI are never
+ * searched or returned.
  */
 
 const MAX_HITS = 40;
@@ -61,8 +64,7 @@ export async function searchNovel(
 		if (wants(scope, 'outlines')) add(`${label} (outline)`, chapter.outline ?? '');
 	}
 	if (wants(scope, 'codex')) {
-		const entries = context.listCodexEntries().filter((item) => !item.archivado);
-		for (const entry of entries) {
+		for (const entry of visibleEntries(context)) {
 			const text = [entry.nombre, entry.alias, entry.descripcion]
 				.filter(Boolean)
 				.join('\n');
@@ -76,4 +78,35 @@ export async function searchNovel(
 		? `\n(${total - hits.length} more matches not shown)`
 		: '';
 	return `${total} match${total === 1 ? '' : 'es'} for "${query}":\n${shown}${more}`;
+}
+
+const MAX_MENTION_SNIPPETS = 3;
+
+/** Where a codex entry is mentioned in the manuscript, by name or alias. */
+export async function findMentionsTool(
+	args: Record<string, string>,
+	context: ToolContext,
+): Promise<string> {
+	const entry = resolveEntry(args.entry ?? '', context);
+	const lines: string[] = [];
+	let total = 0;
+	let chapterCount = 0;
+
+	for (const [index, chapter] of orderedChapters(context).entries()) {
+		const text = await context.readChapterText(chapter.id_capitulo);
+		const positions = findMentions(text, entry);
+		if (!positions.length) continue;
+		total += positions.length;
+		chapterCount += 1;
+		lines.push(`#${index + 1} ${chapter.nombre} (${positions.length}):`);
+		for (const position of positions.slice(0, MAX_MENTION_SNIPPETS)) {
+			lines.push(`  ${snippet(text, position.index, position.length)}`);
+		}
+	}
+
+	if (!total) return `"${entry.nombre}" is not mentioned in any chapter.`;
+	const times = `${total} time${total === 1 ? '' : 's'}`;
+	const chapters = `${chapterCount} chapter${chapterCount === 1 ? '' : 's'}`;
+	const header = `"${entry.nombre}" is mentioned ${times} in ${chapters}:`;
+	return [header, ...lines].join('\n');
 }

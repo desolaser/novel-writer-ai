@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { MensajeToolCall } from '../../../../../domain';
 import { Icon } from '../../../components/Icon';
+import { PlanChecklist } from './PlanChecklist';
 
 /**
  * One tool call as shown in the chat: what the model wants to do, and — for write
@@ -60,8 +61,11 @@ export function ToolCallCard({
 	onReject,
 	onApproveAll,
 }: ToolCallCardProps) {
-	const args = Object.entries(call.args).filter(([, value]) => value.trim());
+	const isPlan = call.name === 'update_plan';
+	const args = isPlan ? [] : Object.entries(call.args).filter(([, value]) => value.trim());
 	const awaiting = live && call.status === 'awaiting' && call.kind === 'write';
+	// A plan shows its checklist; the model's echo of it would only repeat it.
+	const showOutput = call.output !== undefined && !awaiting && !(isPlan && call.ok);
 
 	return (
 		<div className={`nw-tool-card nw-tool-card-${call.status}`}>
@@ -73,6 +77,7 @@ export function ToolCallCard({
 				</span>
 				<span className="nw-tool-card-status">{statusLabel(call, live)}</span>
 			</div>
+			{isPlan && <PlanChecklist steps={call.args.steps ?? ''} />}
 			{args.length > 0 && (
 				<dl className="nw-tool-card-args">
 					{args.map(([name, value]) => (
@@ -109,7 +114,7 @@ export function ToolCallCard({
 					</button>
 				</div>
 			)}
-			{call.output !== undefined && !awaiting && (
+			{showOutput && (
 				<div
 					className={`nw-tool-card-result${call.ok ? '' : ' nw-tool-card-result-error'}`}
 				>

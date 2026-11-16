@@ -65,7 +65,9 @@ Un capítulo soltado sobre otro de otro acto se mueve a ese acto.
 Desde la cabecera (`OutlineHeader`) y el menú de cada capítulo:
 
 - generar el outline de un capítulo (desde el contexto o desde la memoria),
-- generar la memoria de un capítulo o de todos,
+- generar la memoria de un capítulo o de todos (se escribe en el `memoryContent` del
+  manuscrito, entre los marcadores de `src/utils/generatedMemory.ts`; lo que está
+  fuera de ellos es del autor y no se toca),
 - generar el resumen de un acto,
 - crear los manuscritos que faltan,
 - generar borradores de capítulo con un largo objetivo (`draftWordCount`).

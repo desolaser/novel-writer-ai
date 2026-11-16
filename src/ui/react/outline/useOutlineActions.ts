@@ -20,14 +20,11 @@ import { buildChapterHistory } from "../../../context/chapterHistory";
 import { runModelCompletion } from "../../../context/aiCompletion";
 import { getActiveModelConfig } from "../../../infrastructure/settings/active-model";
 
-/**
- * El historial generado vive dentro del `memoryContent` del capítulo, entre estos
- * marcadores: así se puede regenerar sin borrar la memoria que escribió el autor.
- */
-const MEMORY_MARKER_START = "[Novel Writer AI - Generated Story Context]";
-const MEMORY_MARKER_END = "[End Novel Writer AI - Generated Story Context]";
-const GENERATED_MEMORY_BLOCK =
-	/\n?\[Novel Writer AI - Generated Story Context\][\s\S]*?\[End Novel Writer AI - Generated Story Context\]\n?/g;
+import {
+	GENERATED_MEMORY_BLOCK,
+	MEMORY_MARKER_END,
+	MEMORY_MARKER_START,
+} from "../../../utils/generatedMemory";
 
 /** Operaciones de IA / batch del outline, desacopladas de la UI. */
 export interface OutlineActions {

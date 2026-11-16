@@ -1,44 +1,97 @@
-import { App, TFile } from 'obsidian';
+import { App, TFile, TFolder } from 'obsidian';
 import * as yaml from 'js-yaml';
 import type { PluginSettings } from '../infrastructure/settings/plugin-settings';
+import type { PromptMetaKey } from '../types/PromptMeta';
 
-/** Resolves prompt metadata using the legacy note -> _config.md -> global cascade. */
-export async function getPromptMetaCascading(app: App, settings: PluginSettings, key: 'memoryContent' | 'authorNote'): Promise<string> {
-	const file = app.workspace.getActiveFile();
-	if (file) {
-		const direct = await readFrontmatterValue(app, file, key);
-		if (direct !== null) return direct;
-		let folder = file.parent;
-		while (folder) {
-			const config = folder.children.find(x => x instanceof TFile && x.name === '_config.md') as TFile | undefined;
-			if (config) {
-				const value = await readFrontmatterValue(app, config, key);
-				if (value !== null) return value;
-			}
-			folder = folder.parent;
+export const PROMPT_META_CONFIG_FILE = '_config.md';
+
+const FRONTMATTER = /^---\s*([\s\S]*?)---/;
+
+/**
+ * Value of `key` inherited by notes inside `folder`: the nearest `_config.md`
+ * walking up the folders, then the global setting.
+ */
+export async function readInheritedPromptMeta(
+	app: App,
+	settings: PluginSettings,
+	folder: TFolder | null,
+	key: PromptMetaKey,
+): Promise<string> {
+	let current = folder;
+	while (current) {
+		const config = current.children.find((child) =>
+			child instanceof TFile && child.name === PROMPT_META_CONFIG_FILE) as TFile | undefined;
+		if (config) {
+			const value = await readFrontmatterValue(app, config, key);
+			if (value !== null) return value;
 		}
+		current = current.parent;
 	}
 	return settings[key] ?? '';
 }
 
-export async function writePromptMeta(app: App, settings: PluginSettings, key: 'memoryContent' | 'authorNote', value: string): Promise<void> {
+/** Resolves prompt metadata using the legacy note -> _config.md -> global cascade. */
+export async function getPromptMetaCascading(
+	app: App,
+	settings: PluginSettings,
+	key: PromptMetaKey,
+): Promise<string> {
 	const file = app.workspace.getActiveFile();
-	if (!file) { settings[key] = value; return; }
-	// Use vault.process() for atomic read-modify-write to avoid corrupting
-	// the editor state when modifying the active file's frontmatter.
+	if (!file) return settings[key] ?? '';
+	const direct = await readFrontmatterValue(app, file, key);
+	if (direct !== null) return direct;
+	return readInheritedPromptMeta(app, settings, file.parent, key);
+}
+
+export async function writePromptMeta(
+	app: App,
+	settings: PluginSettings,
+	key: PromptMetaKey,
+	value: string,
+): Promise<void> {
+	const file = app.workspace.getActiveFile();
+	if (!file) {
+		settings[key] = value;
+		return;
+	}
+	await writeFrontmatterValue(app, file, key, value);
+}
+
+/**
+ * Sets one frontmatter key of a note. Uses vault.process() for an atomic
+ * read-modify-write, so an open editor on the same note is not corrupted.
+ */
+export async function writeFrontmatterValue(
+	app: App,
+	file: TFile,
+	key: string,
+	value: string,
+): Promise<void> {
 	await app.vault.process(file, (raw) => {
-		const match = raw.match(/^---\s*([\s\S]*?)---/);
+		const match = raw.match(FRONTMATTER);
 		let front: Record<string, any> = {};
-		if (match) { const parsed = yaml.load(match[1]); if (parsed && typeof parsed === 'object') front = parsed as Record<string, any>; }
+		if (match) {
+			const parsed = yaml.load(match[1]);
+			if (parsed && typeof parsed === 'object') front = parsed as Record<string, any>;
+		}
 		front[key] = value;
 		const block = `---\n${yaml.dump(front)}---`;
 		return match ? raw.replace(/^---[\s\S]*?---/, block) : `${block}\n\n${raw}`;
 	});
 }
 
-async function readFrontmatterValue(app: App, file: TFile, key: string): Promise<string | null> {
+export async function readFrontmatterValue(
+	app: App,
+	file: TFile,
+	key: string,
+): Promise<string | null> {
 	const raw = await app.vault.read(file);
-	const match = raw.match(/^---\s*([\s\S]*?)---/);
+	const match = raw.match(FRONTMATTER);
 	if (!match) return null;
-	try { const value = (yaml.load(match[1]) as any)?.[key]; return typeof value === 'string' ? value : null; } catch { return null; }
+	try {
+		const value = (yaml.load(match[1]) as any)?.[key];
+		return typeof value === 'string' ? value : null;
+	} catch {
+		return null;
+	}
 }

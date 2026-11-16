@@ -12,6 +12,8 @@ los personajes. Con las tools activadas la IA lee y edita la novela por su cuent
 | `src/ui/react/features/chat/ChatTab.tsx` | Vista del chat: mensajes, input, footer |
 | `src/ui/react/features/chat/ChatLiveTurn.tsx` | La respuesta en curso: texto, tool calls, Stop / Continue |
 | `src/ui/react/features/chat/tools/ToolCallCard.tsx` | Una tool call (con Approve / Reject en vivo) |
+| `src/ui/react/features/chat/tools/PlanChecklist.tsx` | El plan del agente (`update_plan`) como checklist dentro de su tarjeta |
+| `src/ui/react/features/chat/tools/create*ToolContext.ts` | Adaptadores de las tools: store, workspace y memoria (ver [chat-tools.md](chat-tools.md)) |
 | `src/ui/react/features/chat/tools/ToolCallTrace.tsx` | Tool calls guardadas de un mensaje, plegadas |
 | `src/ui/react/features/chat/session/ChatSession.ts` | La sesión de un chat, fuera de React |
 | `src/ui/react/features/chat/session/agentLoop.ts` | El loop del agente, sin React ni storage |
@@ -99,7 +101,7 @@ argumentos completos, para leer todo antes de aprobar.
 
 ## Footer
 
-- **Tools**: incluye las instrucciones de tools (~800 tokens por request). Se apaga solo
+- **Tools**: incluye las instrucciones de tools (~2600 tokens por request). Se apaga solo
   en roleplay.
 - **Auto-approve**: ver arriba. Deshabilitado si las tools están apagadas.
 - **Story bible**: manda premisa, estilo, tiempo verbal e idioma de la novela; en

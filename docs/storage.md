@@ -19,6 +19,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `codex/detalles.json` | Campos personalizados (detalles), sus opciones y sus categorías | `DetalleRepo.ts` |
 | `chats/chat_<id>.json` | Un chat con todos sus mensajes y su contexto | `ChatRepo.ts` |
 | `images/` | Imágenes de la novela | — |
+| `_config.md` | Memoria y nota del autor de toda la novela, en el frontmatter (opcional; lo crea la tool `write_memory` del chat) | `src/context/promptMeta.ts` |
 
 `NovelStore` (`src/infrastructure/storage/store.ts`) es la fachada: guarda la novela
 activa (`activeNovelId`, `activeFolderPath`) y delega en los repos. Los repos reciben
