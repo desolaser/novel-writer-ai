@@ -54,3 +54,16 @@ export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
 	for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
 	return out.buffer;
 }
+
+/**
+ * Centered square crop of an image, at most `size` pixels on a side, as a PNG
+ * data URL: the shape and size of a codex thumbnail.
+ */
+export async function squareThumbnail(src: string, size = 480): Promise<string> {
+	const img = await loadImage(src);
+	const { w, h } = imageSize(img);
+	const side = Math.min(w, h);
+	const out = Math.min(size, side);
+	const canvas = cropToCanvas(img, (w - side) / 2, (h - side) / 2, side, side, out, out);
+	return canvasToDataUrl(canvas, 'image/png');
+}

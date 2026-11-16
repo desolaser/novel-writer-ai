@@ -22,6 +22,7 @@ import {
 } from './structureTools';
 import { novelStatus } from './novelTools';
 import { readBlueprintTool, updateBlueprintTool } from './blueprintTools';
+import { generatePortrait } from './portraitTools';
 import {
 	draftChapterTool,
 	generateOutlineTool,
@@ -77,6 +78,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	summarize_act: summarizeActTool,
 	draft_chapter: draftChapterTool,
 	refresh_story_context: refreshStoryContextTool,
+	generate_portrait: generatePortrait,
 };
 
 /** Validates the arguments the model supplied against the tool's declared spec. */

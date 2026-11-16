@@ -1,6 +1,7 @@
 import type { PluginSettings } from "./plugin-settings";
 import { getProvider } from "../../constants/providers";
 import type { ModelPurpose } from "../../types/ModelPurpose";
+import type { Modelo } from "../../domain/entities/Modelo";
 
 /** Missing assignments inherit; invalid references must not spend on another model. */
 export function getActiveModelProfile(
@@ -57,13 +58,18 @@ export function getActiveModelConfig(
 		};
 	}
 
-	const provider = getProvider(model.id_proveedor);
-	if (!provider) throw new Error("The provider of the active model does not exist.");
 	// For chat context, prefer max_output_chat; fall back to max_output if not set.
 	const maxTokens =
 		purpose === "chat"
 			? model.max_output_chat ?? model.max_output
 			: model.max_output;
+	return configForProfile(model, maxTokens);
+}
+
+/** Provider, model name and request options of a saved profile. */
+function configForProfile(model: Modelo, maxTokens: number | undefined) {
+	const provider = getProvider(model.id_proveedor);
+	if (!provider) throw new Error("The provider of the active model does not exist.");
 	return {
 		profile: model,
 		providerId: provider.nombre,
@@ -84,4 +90,24 @@ export function getActiveModelConfig(
 			thinking: model.thinking,
 		},
 	};
+}
+
+/** Only OpenRouter returns generated images through `modalities` today. */
+export const IMAGE_PROVIDER = "openrouter";
+
+/**
+ * The profile that generates images (codex portraits), or null when the author
+ * chose none. Unlike the text purposes it never falls back to the default
+ * model, which usually cannot generate images.
+ */
+export function getImageModelConfig(settings: PluginSettings) {
+	const id = settings.imageModelId;
+	if (!id) return null;
+	const model = settings.modelos.find((item) => item.id_modelo === id);
+	if (!model) throw new Error("The images model no longer exists. Check Settings.");
+	const config = configForProfile(model, model.max_output);
+	if (config.providerId !== IMAGE_PROVIDER || !model.supports_image_generation) {
+		throw new Error(`"${model.nombre_listado}" cannot generate images. Pick an OpenRouter model marked 🖌 in Settings.`);
+	}
+	return config;
 }

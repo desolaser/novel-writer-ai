@@ -62,6 +62,8 @@ qué hacen los grupos; cada grupo muestra su descripción, cuántos tokens suma 
 - "Notes the chat can read" (`settings.chatNoteAccess`): `vault` (por defecto, como
   antes), `novel` (solo notas dentro de la carpeta de la novela) u `off` (saca
   `read_note` del catálogo). `.obsidian` nunca se lee.
+- `generate_portrait` solo aparece si hay un Images model en Settings
+  (`ToolAvailability.canGenerateImages`).
 
 `availableTools(availability)` arma la lista; `ChatTab.tsx` la usa para el prompt y
 para "View context".
@@ -147,6 +149,14 @@ contexto del chat: el modelo recibe un reporte corto y lee más si lo necesita.
 | `summarize_act` | write | Resumen de un acto desde los outlines de sus capítulos |
 | `draft_chapter` | write | Borrador completo desde el outline con el modelo `writing`, con el largo del Story Bible (`words` lo reemplaza, con ±10 %). Pide outline; si el capítulo ya tiene texto, exige `overwrite: yes` |
 | `refresh_story_context` | write | Reescribe "la historia hasta aquí" en la memoria de un capítulo o de todos. Sin IA |
+| `generate_portrait` | write | Retrato de una entrada del codex con el Images model; queda como su imagen (reemplaza la anterior) |
+
+`generate_portrait` arma el prompt de la imagen en `portraitTools.ts` con lo que la IA
+puede ver de la entrada: nombre, categoría, descripción y detalles visibles. Nunca las
+notas, los detalles con `incluir_ia` apagado ni entradas "Never". La imagen se recorta
+a un cuadrado de hasta 480 px (`squareThumbnail` en `src/utils/image.ts`), el mismo
+tamaño que "Add to Codex entry" del chat; si es una URL remota que el canvas no puede
+leer, se guarda entera. Deshacer la respuesta restaura el retrato anterior.
 
 La lógica es `OutlineGenerator` (`src/ui/react/outline/outlineGenerator.ts`), la misma
 que usa la vista Outline (ver [outline.md](outline.md#acciones-de-ia)). El adaptador es
@@ -235,6 +245,7 @@ cierre se conserva siempre: las tools solo leen y escriben la parte del autor
   - `createMemoryToolContext.ts`: memoria y nota del autor, con las funciones de
     `src/context/promptMeta.ts` y `NovelConfigRepo.ts`.
   - `createGeneratorToolContext.ts`: los generadores del Outline.
+  - `createPortraitToolContext.ts`: retratos con el Images model.
 
 ## Cómo agregar una tool
 

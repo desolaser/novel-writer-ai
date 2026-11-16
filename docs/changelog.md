@@ -5,6 +5,22 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Chat: retratos del codex con un modelo de imágenes
+- Nuevo **Images model** en Settings (`imageModelId`), aparte de chat, writing y
+  utilities: el chat coordina y otro modelo dibuja. Solo lista perfiles de OpenRouter
+  marcados 🖌, y vacío no hereda el modelo por defecto.
+- Tool nueva `generate_portrait` (grupo Generators): dibuja el retrato de una entrada
+  con su descripción y detalles visibles para la IA, lo recorta a cuadrado y lo pone
+  como imagen de la entrada. Solo se ofrece si hay un Images model.
+- `getActiveModelConfig` comparte con `getImageModelConfig` la conversión de un perfil a
+  opciones (`configForProfile`).
+- "Generate portrait" en el menú ⋮ de la entrada del codex, entre "Move to" y "Clear
+  Thumbnail": mismo prompt y modelo, iniciado por el autor (`usePortraitGeneration.ts`).
+  Deshabilitado sin Images model.
+- Tests: `test/chat-tools.test.cjs`. Detalle: [chat-tools.md](chat-tools.md),
+  [models-and-prompts.md](models-and-prompts.md#modelo-de-imágenes),
+  [codex.md](codex.md#generar-retrato).
+
 ### El largo de los borradores sale solo del Story Bible
 - Se quitó el campo "Words" de la cabecera del Outline y el setting `draftWordCount`
   (uno para todo el vault). Los borradores usaban ese número mientras `novel_status`

@@ -46,6 +46,9 @@ Detalle en [codex.md](codex.md).
 Flechas atrás/adelante del encabezado de la pestaña: vuelven a la entrada anterior o
 siguiente de esa pestaña.
 
+Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images model (ver
+[codex.md](codex.md#generar-retrato)).
+
 ### Outline
 
 - Arrastrar `⠿` de un capítulo y soltarlo sobre otro: reordena; si es de otro acto, lo

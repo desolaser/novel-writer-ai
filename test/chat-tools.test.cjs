@@ -198,6 +198,15 @@ function fakeNovel() {
 		},
 		refreshStoryContext: async (id) => (id ? 1 : data.chapters.length),
 
+		portraitPrompts: [],
+		generatePortrait: async (id, prompt) => {
+			context.portraitPrompts.push(prompt);
+			const target = findEntry(id);
+			const replaced = Boolean(target.thumbnail);
+			target.thumbnail = 'data:image/png;base64,AAAA';
+			return { replaced };
+		},
+
 		openChapterFile: async (id) => {
 			data.opened.push(`file:${id}`);
 			return true;
@@ -524,4 +533,37 @@ test('references like #2 are resolved to names for the approval card', () => {
 		'nothing to add when the model already wrote the exact name');
 	assert.deepEqual(resolveCallTargets(call({ chapter: '#99' }), context), {},
 		'an unknown reference is left for the tool to report');
+});
+
+test('generate_portrait sends only what the AI may see, and sets the image', async () => {
+	const { data, context } = fakeNovel();
+	const elena = data.entries.find((item) => item.id_entrada_codex === 'e1');
+	elena.descripcion = 'Tall, red hair, a scar on her chin.';
+
+	const first = await run(context, 'generate_portrait', { entry: 'Lena', style: 'oil painting' });
+	assert.ok(first.ok, first.output);
+	assert.equal(elena.thumbnail, 'data:image/png;base64,AAAA');
+	assert.doesNotMatch(first.output, /replaced/);
+
+	const prompt = context.portraitPrompts[0];
+	assert.match(prompt, /Subject: Elena \(Characters\)/);
+	assert.match(prompt, /red hair/);
+	assert.match(prompt, /Mentor: Marco/);
+	assert.match(prompt, /Style: oil painting/);
+	assert.doesNotMatch(prompt, /spy/, 'a detail hidden from the AI stays out');
+	assert.doesNotMatch(prompt, /SECRET NOTE/, 'private notes stay out');
+
+	const again = await run(context, 'generate_portrait', { entry: 'Elena' });
+	assert.match(again.output, /replaced the previous portrait/);
+
+	const hidden = await run(context, 'generate_portrait', { entry: 'Shadow' });
+	assert.equal(hidden.ok, false, 'an entry set to Never cannot be drawn');
+});
+
+test('generate_portrait is offered only with an images model in Settings', () => {
+	const names = (availability) => availableTools(availability).map((tool) => tool.name);
+	assert.ok(names(ALL_TOOLS_AVAILABLE).includes('generate_portrait'));
+	const noImages = { ...ALL_TOOLS_AVAILABLE, canGenerateImages: false };
+	assert.ok(!names(noImages).includes('generate_portrait'));
+	assert.ok(names(noImages).includes('draft_chapter'));
 });

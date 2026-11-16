@@ -136,6 +136,12 @@ export interface GeneratorToolContext {
 	refreshStoryContext(chapterId: EntityId | null): Promise<number>;
 }
 
+/** Codex portraits, drawn by the images model from Settings. */
+export interface PortraitToolContext {
+	/** Draws the image and sets it as the entry's thumbnail. */
+	generatePortrait(entryId: EntityId, prompt: string): Promise<{ replaced: boolean }>;
+}
+
 /** Data of the novel, served by the store adapter. */
 export type NovelToolContext = ChapterToolContext & CodexToolContext & BlueprintToolContext;
 
@@ -145,4 +151,7 @@ export type WorkspaceToolContext = NavigationToolContext
 	& NoteToolContext
 	& MemoryToolContext;
 
-export type ToolContext = NovelToolContext & WorkspaceToolContext & GeneratorToolContext;
+export type ToolContext = NovelToolContext
+	& WorkspaceToolContext
+	& GeneratorToolContext
+	& PortraitToolContext;

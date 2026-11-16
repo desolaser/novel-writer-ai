@@ -83,6 +83,7 @@ export const ALL_TOOLS_AVAILABLE: ToolAvailability = {
 		generators: true,
 	},
 	noteAccess: 'vault',
+	canGenerateImages: true,
 };
 
 /** The tools the author left on in Settings, in catalogue order. */
@@ -90,7 +91,8 @@ export function availableTools(availability: ToolAvailability): ToolDefinition[]
 	return TOOL_GROUPS
 		.filter((group) => availability.groups[group.id] !== false)
 		.flatMap((group) => group.tools)
-		.filter((tool) => tool.name !== 'read_note' || availability.noteAccess !== 'off');
+		.filter((tool) => tool.name !== 'read_note' || availability.noteAccess !== 'off')
+		.filter((tool) => tool.name !== 'generate_portrait' || availability.canGenerateImages);
 }
 
 export function findToolDefinition(name: string): ToolDefinition | null {

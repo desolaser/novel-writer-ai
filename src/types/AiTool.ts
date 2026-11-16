@@ -48,6 +48,8 @@ export type NoteAccess = 'off' | 'novel' | 'vault';
 export interface ToolAvailability {
 	groups: Record<ToolGroupId, boolean>;
 	noteAccess: NoteAccess;
+	/** An images model is set in Settings; without one there are no portraits. */
+	canGenerateImages: boolean;
 }
 
 /** One tool invocation parsed out of a model answer. */

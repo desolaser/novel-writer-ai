@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { Icon } from '../../../components/Icon';
 import { DEFAULT_COLORS as PALETTE } from '../../../../../constants/novel';
 
-export function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove, onSelectCopy, onClearThumbnail, onArchive, onDelete }: { entry: any; otherNovels: any[]; onSelectColor: (c: string | null) => void; onSelectMove: (id: string) => void; onSelectCopy: (id: string) => void; onClearThumbnail: () => void; onArchive: () => void; onDelete: () => void }) {
+/** "Generate portrait" item: drawn by the images model from Settings. */
+export interface PortraitMenuItem {
+	available: boolean;
+	busy: boolean;
+	onGenerate: () => void;
+}
+
+export function ThreeDotsMenu({ entry, otherNovels, portrait, onSelectColor, onSelectMove, onSelectCopy, onClearThumbnail, onArchive, onDelete }: { entry: any; otherNovels: any[]; portrait: PortraitMenuItem; onSelectColor: (c: string | null) => void; onSelectMove: (id: string) => void; onSelectCopy: (id: string) => void; onClearThumbnail: () => void; onArchive: () => void; onDelete: () => void }) {
 	const [colorOpen, setColorOpen] = useState(false);
 	const [moveOpen, setMoveOpen] = useState(false);
 	const [copyOpen, setCopyOpen] = useState(false);
@@ -68,6 +75,19 @@ export function ThreeDotsMenu({ entry, otherNovels, onSelectColor, onSelectMove,
 					))}
 				</div>
 			)}
+			<button
+				type="button"
+				className="nw-popover-item"
+				style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}
+				disabled={!portrait.available || portrait.busy}
+				title={portrait.available
+					? 'Draw a portrait from the description and details, with the images model'
+					: 'Choose an Images model in Settings to draw portraits'}
+				onClick={portrait.onGenerate}
+			>
+				<Icon.Image width={14} height={14} />
+				<span style={{ flex: 1 }}>{portrait.busy ? 'Drawing portrait...' : 'Generate portrait'}</span>
+			</button>
 			{entry.thumbnail && (
 				<button type="button" className="nw-popover-item" style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }} onClick={onClearThumbnail}>
 					<Icon.X width={14} height={14} />

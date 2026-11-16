@@ -99,6 +99,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const enabledTools = () => availableTools({
 		groups: plugin.settings.data.chatToolGroups,
 		noteAccess: plugin.settings.data.chatNoteAccess,
+		canGenerateImages: Boolean(plugin.settings.data.imageModelId),
 	});
 
 	const buildTurnConfig = (): ChatTurnConfig | null => {

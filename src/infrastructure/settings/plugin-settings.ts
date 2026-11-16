@@ -76,6 +76,11 @@ export interface PluginSettings {
 	modeloPredeterminadoId: string;
 	/** Empty assignments inherit the default profile. */
 	modelAssignments: ModelAssignments;
+	/**
+	 * Profile that generates images (codex portraits from the chat). Empty
+	 * means none: unlike the text purposes it does not inherit the default.
+	 */
+	imageModelId: string;
 	/** Numerar capitulos automaticamente. */
 	numerarCapitulosAuto: boolean;
 	/** Prefix prompt global. */
@@ -173,6 +178,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	modelos: [],
 	modeloPredeterminadoId: '',
 	modelAssignments: { chat: '', writing: '', utilities: '' },
+	imageModelId: '',
 	numerarCapitulosAuto: true,
 	prefix: 'Continue the text following the narration style of the user: ',
 	memoryContent: '',

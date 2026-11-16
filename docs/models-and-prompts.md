@@ -43,6 +43,19 @@ Cada función elige un perfil por **propósito** (`ModelPurpose`), en
 `getActiveModelConfig(settings, purpose)` resuelve el perfil a proveedor + opciones. Si
 el perfil asignado se borró, lanza un error claro.
 
+### Modelo de imágenes
+
+Aparte de los propósitos de texto hay un **Images model** (`settings.imageModelId`),
+elegido en Settings junto a los otros. Dibuja los retratos del codex que pide el chat
+(`generate_portrait`), así el modelo del chat coordina y otro dibuja.
+
+- Solo ofrece perfiles de OpenRouter marcados 🖌 (`supports_image_generation`): hoy es
+  el único proveedor que devuelve imágenes con `modalities: ['image', 'text']`.
+- Vacío ("None") no hereda el modelo por defecto, que casi nunca genera imágenes: la
+  tool simplemente no se ofrece.
+- `getImageModelConfig(settings)` lo resuelve; lanza un error si el perfil se borró o
+  ya no puede generar imágenes.
+
 ## Prompts y plantillas
 
 Los prompts custom (`CustomPrompt`) son de tipo `chat` o `text` y tienen texto

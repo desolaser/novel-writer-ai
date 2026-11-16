@@ -4,6 +4,7 @@ import { useNovelWriter } from '../../../store/novelWriterStore';
 import type { ToolContext } from '../../../../../interfaces/tool-context';
 import { createGeneratorToolContext } from '../tools/createGeneratorToolContext';
 import { createMemoryToolContext } from '../tools/createMemoryToolContext';
+import { createPortraitToolContext } from '../tools/createPortraitToolContext';
 import { createStoreToolContext } from '../tools/createStoreToolContext';
 import { createWorkspaceToolContext } from '../tools/createWorkspaceToolContext';
 import { IDLE_CHAT_SNAPSHOT, type ChatSession, type ChatSessionDeps } from './ChatSession';
@@ -17,6 +18,7 @@ function createToolContext(plugin: NovelWriterPlugin): ToolContext {
 		...createWorkspaceToolContext(plugin),
 		...createMemoryToolContext(plugin),
 		...createGeneratorToolContext(plugin),
+		...createPortraitToolContext(plugin),
 	};
 }
 

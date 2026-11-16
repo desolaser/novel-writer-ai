@@ -36,6 +36,15 @@ export const GENERATOR_TOOLS: ToolDefinition[] = [
 		],
 	},
 	{
+		name: 'generate_portrait',
+		kind: 'write',
+		description: 'Draw a portrait of a codex entry with the images model, from its description and details, and set it as the entry\'s image. Replaces the current one.',
+		args: [
+			{ name: 'entry', description: 'Entry name or alias.', required: true },
+			{ name: 'style', description: 'Art style or extra direction, like "oil painting, warm light".' },
+		],
+	},
+	{
 		name: 'refresh_story_context',
 		kind: 'write',
 		description: 'Rebuild the "story so far" the autocomplete and drafts receive, inside the chapter memory. No AI involved.',

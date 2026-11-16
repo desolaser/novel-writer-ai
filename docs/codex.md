@@ -69,6 +69,22 @@ Recibe `entryId` por prop; cada vista abierta tiene el suyo. El store ya no tien
 - Al cerrar la pestaña con un campo sin guardar, guarda igual (flush al desmontar).
 - Borrar o mover a otra novela cierra la vista (`onClose`).
 
+### Generar retrato
+
+El menú ⋮ de la entrada tiene "Generate portrait", entre "Move to" y "Clear
+Thumbnail". Dibuja la imagen de la entrada con el **Images model** de Settings (ver
+[models-and-prompts.md](models-and-prompts.md#modelo-de-imágenes)), con el mismo prompt
+que la tool `generate_portrait` del chat (`buildPortraitPrompt` en
+`src/tools/portraitTools.ts`).
+
+- Usa la descripción tal como está en el editor, aunque no se haya guardado.
+- Respeta las reglas de privacidad: nada de notas ni detalles con `incluir_ia`
+  apagado. Una entrada "Never" sí se puede dibujar desde aquí, porque la pide el autor
+  (igual que agregarla a mano al contexto del chat).
+- Si ya tiene imagen, pide confirmación antes de reemplazarla.
+- Sin Images model, el ítem aparece deshabilitado y su tooltip dice dónde elegirlo.
+- `usePortraitGeneration.ts` maneja el estado ("Drawing portrait...") y los avisos.
+
 ## IA de entradas
 
 `CodexAiProvider` genera campos (alias, descripción, detalles) de tres formas: un campo,

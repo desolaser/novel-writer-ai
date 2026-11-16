@@ -17,6 +17,7 @@ import { isCharacterCategory } from '../../../../../utils/categories';
 import { CategoriaPicker } from './CategoriaPicker';
 import { ThumbnailControl } from './ThumbnailControl';
 import { ThreeDotsMenu } from './ThreeDotsMenu';
+import { usePortraitGeneration } from './usePortraitGeneration';
 import { DetallesFields } from './DetallesFields';
 import { RefFavicon } from './RefFavicon';
 import { capitalize } from './codexEntryHelpers';
@@ -42,6 +43,7 @@ export function CodexEntryEditor({ plugin, entryId, onClose }: CodexEntryEditorP
 
 	const entry = entradas.find((e: any) => e.id_entrada_codex === entryId) ?? null;
 	const mentionCount = useMentionCount(entry, plugin);
+	const portrait = usePortraitGeneration(plugin);
 	const [tab, setTab] = useState<Tab>('detalles');
 	const [draft, setDraft] = useState<any>(entry);
 	const [dirty, setDirty] = useState(false);
@@ -132,6 +134,11 @@ export function CodexEntryEditor({ plugin, entryId, onClose }: CodexEntryEditorP
 		img.src = url;
 	};
 	const onClearThumbnail = async () => { setMenuOpen(false); await setEntryThumbnail(entry.id_entrada_codex, null); };
+	// Uses the description as it is in the editor, saved or not.
+	const onGeneratePortrait = () => {
+		setMenuOpen(false);
+		void portrait.generate(mergeLive(draft));
+	};
 	const onSelectColor = async (color: string | null) => { setMenuOpen(false); await patchAndSave({ color }); };
 	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); onClose?.(); };
 	const onSelectCopy = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await storeState.copyEntryToNovel(entry.id_entrada_codex, targetNovelId); };
@@ -219,6 +226,11 @@ export function CodexEntryEditor({ plugin, entryId, onClose }: CodexEntryEditorP
 							<ThreeDotsMenu
 								entry={entry}
 								otherNovels={otherNovels}
+								portrait={{
+									available: portrait.available,
+									busy: portrait.busy,
+									onGenerate: onGeneratePortrait,
+								}}
 								onSelectColor={onSelectColor}
 								onSelectMove={onSelectMove}
 								onSelectCopy={onSelectCopy}
