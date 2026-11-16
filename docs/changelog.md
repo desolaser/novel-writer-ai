@@ -5,6 +5,19 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Novelas: abrir la última novela, no una borrada
+- Al abrir el vault salía "Novel not found": `lastActiveNovelId` solo se guardaba al
+  crear una novela, así que cambiar de novela no lo actualizaba y quedaba apuntando a
+  una que luego se borró.
+- `setActiveNovel` ahora guarda `lastActiveNovelId` cada vez que cambia la novela
+  (también `null` al borrar la activa).
+- Al cargar, `resolveStartupNovelId` (`src/utils/startupNovel.ts`) usa la novela
+  guardada si existe; si no, la de `updated_at` más reciente.
+- `NovelStore.setActive` devuelve `false` si la novela no existe, y el store de React
+  ya no marca como activa una novela que no se pudo abrir.
+- Tests: `test/startup-novel.test.cjs`. Detalle: [novels.md](novels.md),
+  [storage.md](storage.md).
+
 ### Outline: resúmenes en el idioma de la novela
 - El resumen de capítulo (outline desde el manuscrito) no decía en qué idioma
   responder; el de acto solo lo decía si la story bible estaba apagada. Como las

@@ -17,6 +17,7 @@ import { validateEditorAction } from './src/infrastructure/settings/editor-actio
 import { resolveEditorActionContext } from './src/context/editorActionPrompt';
 import { buildEditorActionPrompt } from './src/context/editorActionTemplate';
 import { stopAllChatSessions } from './src/ui/react/features/chat/session/chatSessions';
+import { resolveStartupNovelId } from './src/utils/startupNovel';
 
 // onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
 // callbacks left by the previous instance. Keep the lock outside the class so
@@ -39,9 +40,11 @@ export default class NovelWriterPlugin extends Plugin {
 		this.store = new NovelStore(this.app);
 		await this.store.refresh();
 
-		if (this.settings.data.lastActiveNovelId) {
-			await this.store.setActive(this.settings.data.lastActiveNovelId);
-		}
+		const startupNovelId = resolveStartupNovelId(
+			this.settings.data.lastActiveNovelId,
+			this.store.novels,
+		);
+		if (startupNovelId) await this.store.setActive(startupNovelId);
 
 		const { extension, control } = createCodexHighlighter({
 			onOpenEntry: (entryId, event) => {
@@ -147,8 +150,6 @@ export default class NovelWriterPlugin extends Plugin {
 		if (!result) return;
 		if (!result.nombre.trim()) { new Notice('The name is required.'); return; }
 		await this.store.create(result.nombre.trim(), result.autor ?? '', '', result.thumbnail ?? null);
-		this.settings.data.lastActiveNovelId = this.store.activeNovelId;
-		await this.settings.save();
 		new Notice(`Novel "${result.nombre}" created.`);
 		const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
 		await useNovelWriter.getState().refreshNovels();

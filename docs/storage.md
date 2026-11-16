@@ -98,3 +98,9 @@ correr, y eso reseteaba el chat activo y recargaba todo mientras el autor trabaj
 - El chat abierto se recuerda por novela en `settings.uiPrefs.activeChatIds`
   (`selectChat` lo guarda).
 - `reloadAll` limpia `activeChatId` si ese chat ya no existe.
+- La novela inicial sale de `resolveStartupNovelId`: la guardada en
+  `settings.lastActiveNovelId` si sigue existiendo, si no la de `updated_at` más
+  reciente. `main.ts` (`onload`) y `initializeStore` usan la misma función.
+- `setActiveNovel` guarda `lastActiveNovelId` en cada cambio de novela.
+- `NovelStore.setActive` devuelve `false` si la novela no existe y deja la anterior
+  activa; `setActiveNovel` hace lo mismo con el estado de React.

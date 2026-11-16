@@ -10,7 +10,9 @@ El Companion (`CompanionView`, barra izquierda) tiene arriba el selector de nove
 - **Novel Setup**: el blueprint de la novela (ver abajo).
 - **Delete Novel**: con opción de borrar también la carpeta (`NovelDeleteModal`).
 
-La novela activa se guarda en `settings.lastActiveNovelId` y se restaura al cargar. Ver
+La novela activa se guarda en `settings.lastActiveNovelId` cada vez que cambia
+(`setActiveNovel`) y se restaura al cargar. Si esa novela ya no existe, se abre la de
+`updated_at` más reciente (`resolveStartupNovelId` en `src/utils/startupNovel.ts`). Ver
 [storage.md](storage.md) para la carpeta de cada novela y la inicialización del store.
 
 Al cargar el plugin se abren el Companion a la izquierda y el Outline a la derecha

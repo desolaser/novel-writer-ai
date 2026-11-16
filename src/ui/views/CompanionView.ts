@@ -3,6 +3,7 @@ import { Root, createRoot } from "react-dom/client";
 import React from "react";
 import { CompanionRoot } from "../react/companionRoot";
 import { useNovelWriter } from "../react/store/novelWriterStore";
+import { resolveStartupNovelId } from "../../utils/startupNovel";
 import type NovelWriterPlugin from "../../../main";
 
 export const VIEW_TYPE_COMPANION = "novel-writer-companion";
@@ -66,7 +67,10 @@ async function loadStore(plugin: NovelWriterPlugin) {
 	state.bindStore(plugin.store);
 	state.bindSettings(plugin.settings);
 	await state.refreshNovels();
-	const id = plugin.settings.data.lastActiveNovelId;
+	const id = resolveStartupNovelId(
+		plugin.settings.data.lastActiveNovelId,
+		useNovelWriter.getState().novels,
+	);
 	if (id) await state.setActiveNovel(id);
 	const p = plugin.settings.data.uiPrefs;
 	useNovelWriter.setState({

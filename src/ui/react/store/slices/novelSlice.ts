@@ -1,4 +1,15 @@
 import type { NovelSlice, SliceCreator } from "../types";
+import type { SettingsService } from "../../../../infrastructure/settings/settings-service";
+
+/** Saves the open novel so the next load reopens it. */
+function rememberActiveNovel(
+	settings: SettingsService | null,
+	id: string | null,
+): void {
+	if (!settings || settings.data.lastActiveNovelId === id) return;
+	settings.data.lastActiveNovelId = id;
+	void settings.save();
+}
 
 export const createNovelSlice: SliceCreator<NovelSlice> = (set, get) => ({
 	settingsRevision: 0,
@@ -37,12 +48,19 @@ export const createNovelSlice: SliceCreator<NovelSlice> = (set, get) => ({
 		// Opening a second view calls this again with the same novel. Clearing
 		// the chat then made the next message start a brand new chat.
 		const changed = id !== get().activeNovelId;
+		const previousChatId = get().activeChatId;
 		set({
 			loading: true,
 			...(changed ? { activeChatId: null } : {}),
 		});
-		await s.setActive(id);
+		const found = await s.setActive(id);
+		if (!found) {
+			// The store kept the previous novel; keep the UI on it too.
+			set({ loading: false, activeChatId: previousChatId });
+			return;
+		}
 		set({ activeNovelId: id, loading: false });
+		rememberActiveNovel(get().settings, id);
 		if (id) {
 			await get().reloadAll();
 			if (changed) {

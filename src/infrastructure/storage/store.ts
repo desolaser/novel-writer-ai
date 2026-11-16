@@ -33,11 +33,24 @@ export class NovelStore {
 
 	async refresh(): Promise<void> { this.scan = await scanNovels(this.app); }
 
-	async setActive(id: EntityId | null): Promise<void> {
-		if (id === null) { this.activeId = null; this.activeFolder = null; return; }
+	/**
+	 * Returns false when the novel no longer exists. The current novel stays
+	 * active in that case.
+	 */
+	async setActive(id: EntityId | null): Promise<boolean> {
+		if (id === null) {
+			this.activeId = null;
+			this.activeFolder = null;
+			return true;
+		}
 		const folder = await findNovelFolder(this.app, id);
-		if (!folder) { new Notice('Novel not found.'); return; }
-		this.activeId = id; this.activeFolder = folder;
+		if (!folder) {
+			new Notice('Novel not found.');
+			return false;
+		}
+		this.activeId = id;
+		this.activeFolder = folder;
+		return true;
 	}
 
 	async create(name: string, author: string, baseFolder?: string, thumbnailFile: ArrayBuffer | null = null): Promise<Novela> {
