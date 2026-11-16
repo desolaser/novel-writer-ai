@@ -55,4 +55,11 @@ export const STRUCTURE_TOOLS: ToolDefinition[] = [
 			{ name: 'position', description: 'Position inside that act (1 = first). Defaults to the end.' },
 		],
 	},
+	{
+		name: 'delete_chapter',
+		kind: 'write',
+		alwaysAsk: true,
+		description: 'Delete a chapter, its outline and its manuscript (sent to the trash). Only when the author asks for it.',
+		args: [CHAPTER_ARG],
+	},
 ];

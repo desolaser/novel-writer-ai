@@ -14,13 +14,16 @@
 
 | Archivo | Cubre |
 |---|---|
-| `chat-agent.test.cjs` | Loop del agente (rondas, pausa, repeticiones, stop, compactación) y `ChatSession` (aprobación, auto-approve, stop aunque el modelo o una tool no respondan, traza guardada); parser con argumentos del catálogo |
-| `chat-tools.test.cjs` | Tools del chat contra una novela en memoria: catálogo completo, privacidad del codex, detalles, estructura, memoria, workspace y plan |
+| `chat-agent.test.cjs` | Loop del agente (rondas, pausa, repeticiones, stop, compactación) y `ChatSession` (aprobación, auto-approve, stop aunque el modelo o una tool no respondan, traza guardada, tools apagadas en Settings, `alwaysAsk`, deshacer una respuesta); parser con argumentos del catálogo |
+| `chat-tools.test.cjs` | Tools del chat contra una novela en memoria: catálogo completo y grupos de Settings, privacidad del codex, detalles, estructura (borrar incluido), blueprint, memoria, workspace, plan y generadores |
+| `draft-length.test.cjs` | Largo de un borrador: rango del Story Bible, punto medio, rango por defecto, override y la regla del prompt |
+| `draft-ending.test.cjs` | Borradores cortados a mitad de oración: detección y recorte hasta la última oración completa |
+| `file-changes.test.cjs` | Diferencia entre copias de la novela y plan para deshacer una respuesta (conflictos incluidos) |
 | `turn-segments.test.cjs` | Orden de texto y tool calls de una respuesta (con y sin `textOffset`, texto editado) |
 | `codex-schema-merge.test.cjs` | Copia de categorías y detalles entre novelas (ids nuevos, nombres repetidos, vínculos, selección parcial) |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
 | `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control |
-| `model-purposes.test.cjs` | Perfiles por propósito, migraciones de settings, presupuestos de output |
+| `model-purposes.test.cjs` | Perfiles por propósito, migraciones de settings, presupuestos de output. Mockea React (`useState`, `useMemo`) y el store (hook con `getState`) para `useOutlineActions` y `OutlineGenerator` |
 | `editor-actions.test.cjs` | Acciones del editor |
 | `promptTemplates.test.cjs` | Plantillas de prompt |
 | `startup-novel.test.cjs` | Novela que se abre al cargar (guardada, borrada, ninguna) |

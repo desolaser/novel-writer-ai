@@ -14,12 +14,20 @@ import {
 import { listCodexFields, setCodexDetail } from './codexDetailTools';
 import {
 	createActTool,
+	deleteChapter,
 	moveChapter,
 	readAct,
 	renameChapter,
 	updateActTool,
 } from './structureTools';
-import { novelStatus, readBlueprintTool } from './novelTools';
+import { novelStatus } from './novelTools';
+import { readBlueprintTool, updateBlueprintTool } from './blueprintTools';
+import {
+	draftChapterTool,
+	generateOutlineTool,
+	refreshStoryContextTool,
+	summarizeActTool,
+} from './generatorTools';
 import { readMemory, writeMemory } from './memoryTools';
 import { updatePlan } from './planTools';
 import { openChapter, openCodexEntryTool, readNoteTool, readSelection } from './workspaceTools';
@@ -42,6 +50,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	update_act: updateActTool,
 	rename_chapter: renameChapter,
 	move_chapter: moveChapter,
+	delete_chapter: deleteChapter,
 
 	list_codex: listCodex,
 	read_codex_entry: readCodexEntry,
@@ -53,6 +62,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	find_mentions: findMentionsTool,
 
 	read_blueprint: readBlueprintTool,
+	update_blueprint: updateBlueprintTool,
 	novel_status: novelStatus,
 	read_memory: readMemory,
 	write_memory: writeMemory,
@@ -62,6 +72,11 @@ const HANDLERS: Record<string, ToolHandler> = {
 	open_codex_entry: openCodexEntryTool,
 	read_selection: readSelection,
 	read_note: readNoteTool,
+
+	generate_outline: generateOutlineTool,
+	summarize_act: summarizeActTool,
+	draft_chapter: draftChapterTool,
+	refresh_story_context: refreshStoryContextTool,
 };
 
 /** Validates the arguments the model supplied against the tool's declared spec. */

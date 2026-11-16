@@ -37,25 +37,51 @@ function paragraphAtCursor(editor: Editor): string {
 	return editor.getRange({ line: first, ch: 0 }, { line: last, ch: editor.getLine(last).length });
 }
 
-/** Notes the tools may read: Markdown, outside Obsidian's config folder. */
-function isReadableNote(app: App, file: unknown): file is TFile {
-	if (!(file instanceof TFile) || file.extension !== 'md') return false;
-	return !file.path.startsWith(`${app.vault.configDir}/`);
+/**
+ * Where `read_note` may look, from Settings: nowhere, the novel's folder or
+ * the whole vault. Obsidian's config folder is never readable.
+ */
+interface NoteScope {
+	app: App;
+	/** Folder the notes must be in; null for the whole vault. */
+	root: string | null;
 }
 
-function findNoteFile(app: App, reference: string): TFile | null {
+function noteScope(plugin: NovelWriterPlugin): NoteScope {
+	const access = plugin.settings.data.chatNoteAccess;
+	if (access === 'off') throw new Error('Reading notes is turned off in Settings.');
+	if (access === 'vault') return { app: plugin.app, root: null };
+	const folder = plugin.store.activeFolderPath;
+	if (!folder) throw new Error('No novel is open.');
+	return { app: plugin.app, root: folder };
+}
+
+/** Notes the tools may read: Markdown, inside the scope, outside the config folder. */
+function isReadableNote(scope: NoteScope, file: unknown): file is TFile {
+	if (!(file instanceof TFile) || file.extension !== 'md') return false;
+	if (file.path.startsWith(`${scope.app.vault.configDir}/`)) return false;
+	return !scope.root || file.path.startsWith(`${scope.root}/`);
+}
+
+function findNoteFile(scope: NoteScope, reference: string): TFile | null {
+	const app = scope.app;
 	const clean = reference.trim().replace(/^\[\[|\]\]$/g, '');
 	const withExtension = clean.endsWith('.md') ? clean : `${clean}.md`;
-	const direct = app.vault.getAbstractFileByPath(withExtension);
-	if (isReadableNote(app, direct)) return direct;
-	const linked = app.metadataCache.getFirstLinkpathDest(clean.replace(/\.md$/, ''), '');
-	return isReadableNote(app, linked) ? linked : null;
+	const candidates = [withExtension];
+	// In novel scope a path may be written relative to the novel folder.
+	if (scope.root) candidates.push(`${scope.root}/${withExtension}`);
+	for (const path of candidates) {
+		const direct = app.vault.getAbstractFileByPath(path);
+		if (isReadableNote(scope, direct)) return direct;
+	}
+	const linked = app.metadataCache.getFirstLinkpathDest(clean.replace(/\.md$/, ''), scope.root ?? '');
+	return isReadableNote(scope, linked) ? linked : null;
 }
 
-function suggestNotes(app: App, reference: string): string[] {
+function suggestNotes(scope: NoteScope, reference: string): string[] {
 	const needle = reference.trim().toLowerCase().replace(/\.md$/, '');
-	return app.vault.getMarkdownFiles()
-		.filter((file) => isReadableNote(app, file))
+	return scope.app.vault.getMarkdownFiles()
+		.filter((file) => isReadableNote(scope, file))
 		.filter((file) => file.basename.toLowerCase().includes(needle))
 		.slice(0, MAX_SUGGESTIONS)
 		.map((file) => file.path);
@@ -92,13 +118,16 @@ export function createWorkspaceToolContext(
 		},
 
 		findNote: (reference): NoteLookup => {
-			const file = findNoteFile(app, reference);
+			const scope = noteScope(plugin);
+			const file = findNoteFile(scope, reference);
 			if (file) return { path: file.path, suggestions: [] };
-			return { path: null, suggestions: suggestNotes(app, reference) };
+			return { path: null, suggestions: suggestNotes(scope, reference) };
 		},
 		readNote: async (path) => {
 			const file = app.vault.getAbstractFileByPath(path);
-			if (!isReadableNote(app, file)) throw new Error(`"${path}" is not a readable note.`);
+			if (!isReadableNote(noteScope(plugin), file)) {
+				throw new Error(`"${path}" is not a note the chat may read (see Settings).`);
+			}
 			return app.vault.cachedRead(file);
 		},
 	};

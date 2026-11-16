@@ -25,8 +25,13 @@ Module._load = function (name, parent, isMain) {
 };
 
 const { executeToolCall } = require('../src/tools/executor.ts');
-const { TOOL_DEFINITIONS } = require('../src/tools/registry.ts');
+const {
+	ALL_TOOLS_AVAILABLE,
+	TOOL_DEFINITIONS,
+	availableTools,
+} = require('../src/tools/registry.ts');
 const { parsePlanSteps } = require('../src/utils/planSteps.ts');
+const { resolveCallTargets } = require('../src/tools/callTargets.ts');
 const {
 	MEMORY_MARKER_END,
 	MEMORY_MARKER_START,
@@ -163,6 +168,35 @@ function fakeNovel() {
 			findEntry(idEntry).tags = ids;
 		},
 		readBlueprint: async () => data.blueprint,
+		updateBlueprint: async (patch) => {
+			data.blueprint = { ...data.blueprint, ...patch };
+		},
+		deleteChapter: async (id) => {
+			data.chapters = data.chapters.filter((item) => item.id_capitulo !== id);
+			delete data.texts[id];
+		},
+
+		generated: [],
+		generateOutline: async (id, source) => {
+			if (source === 'manuscript' && !data.texts[id]) return null;
+			const outline = `Generated from ${source}.`;
+			await context.updateChapter(id, { outline });
+			return outline;
+		},
+		summarizeAct: async (id) => {
+			await context.updateAct(id, { resumen: 'Generated summary.' });
+			return 'Generated summary.';
+		},
+		draftChapter: async (id, words) => {
+			// Without words, the Story Bible's range (100-140 in this fake novel).
+			const length = words
+				? { min: Math.round(words * 0.9), max: Math.round(words * 1.1), target: words }
+				: { min: 100, max: 140, target: 120 };
+			const text = Array.from({ length: length.target }, () => 'word').join(' ');
+			data.texts[id] = text;
+			return { text, length };
+		},
+		refreshStoryContext: async (id) => (id ? 1 : data.chapters.length),
 
 		openChapterFile: async (id) => {
 			data.opened.push(`file:${id}`);
@@ -406,4 +440,88 @@ test('update_plan parses the checklist', async () => {
 	const result = await run(context, 'update_plan', { steps: '[x] One\n[>] Two\n[ ] Three' }, false);
 	assert.ok(result.ok, 'update_plan runs without approval');
 	assert.equal(result.output, 'Plan updated: 1/3 done. Next: Two');
+});
+
+test('tool groups turned off in Settings leave the catalogue, and so can read_note', () => {
+	const names = (availability) => availableTools(availability).map((tool) => tool.name);
+	assert.equal(names(ALL_TOOLS_AVAILABLE).length, TOOL_DEFINITIONS.length);
+
+	const noCodex = { ...ALL_TOOLS_AVAILABLE, groups: { ...ALL_TOOLS_AVAILABLE.groups, codex: false } };
+	assert.ok(!names(noCodex).includes('read_codex_entry'));
+	assert.ok(names(noCodex).includes('read_chapter'));
+
+	const noNotes = { ...ALL_TOOLS_AVAILABLE, noteAccess: 'off' };
+	assert.ok(!names(noNotes).includes('read_note'));
+	assert.ok(names(noNotes).includes('read_selection'));
+});
+
+test('delete_chapter always asks, and removes the chapter', async () => {
+	const definition = TOOL_DEFINITIONS.find((tool) => tool.name === 'delete_chapter');
+	assert.equal(definition.alwaysAsk, true);
+	const { data, context } = fakeNovel();
+	const result = await run(context, 'delete_chapter', { chapter: 'Arrival' });
+	assert.ok(result.ok, result.output);
+	assert.ok(!data.chapters.some((item) => item.id_capitulo === 'c1'));
+});
+
+test('update_blueprint changes only the given fields and marks them as deduced', async () => {
+	const { data, context } = fakeNovel();
+	const result = await run(context, 'update_blueprint', {
+		genre: 'Space opera',
+		tense: 'Present',
+		words_per_chapter: '1500 - 2500',
+	});
+	assert.ok(result.ok, result.output);
+	assert.equal(data.blueprint.genre, 'Space opera');
+	assert.equal(data.blueprint.tense, 'present');
+	assert.deepEqual(data.blueprint.wordsPerChapter, { min: 1500, max: 2500 });
+	assert.equal(data.blueprint.title, 'Test');
+	assert.deepEqual([...data.blueprint.inferred].sort(), ['genre', 'wordsPerChapter']);
+
+	const wrong = await run(context, 'update_blueprint', { tense: 'pluperfect' });
+	assert.equal(wrong.ok, false);
+	assert.match(wrong.output, /past, present, future/);
+	const empty = await run(context, 'update_blueprint', {});
+	assert.equal(empty.ok, false);
+});
+
+test('generator tools: outlines, act summaries and drafts', async () => {
+	const { data, context } = fakeNovel();
+	data.texts.c1 = '';
+	const noText = await run(context, 'generate_outline', { chapter: 'Arrival' });
+	assert.equal(noText.ok, false);
+	assert.match(noText.output, /story_so_far/);
+
+	const fromStory = await run(context, 'generate_outline', { chapter: 'Arrival', source: 'story_so_far' });
+	assert.ok(fromStory.ok, fromStory.output);
+	assert.equal(data.chapters.find((item) => item.id_capitulo === 'c1').outline, 'Generated from story_so_far.');
+
+	const summary = await run(context, 'summarize_act', { act: 'Beginning' });
+	assert.ok(summary.ok, summary.output);
+	assert.equal(data.acts[0].resumen, 'Generated summary.');
+
+	const draft = await run(context, 'draft_chapter', { chapter: 'Arrival' });
+	assert.ok(draft.ok, draft.output);
+	assert.match(draft.output, /120 words \(accepted range 100-140\)/);
+
+	const again = await run(context, 'draft_chapter', { chapter: 'Arrival', words: '200' });
+	assert.equal(again.ok, false, 'a chapter with text needs overwrite yes');
+	assert.match(again.output, /overwrite yes/);
+	const replaced = await run(context, 'draft_chapter', { chapter: 'Arrival', words: '200', overwrite: 'yes' });
+	assert.ok(replaced.ok, replaced.output);
+
+	const all = await run(context, 'refresh_story_context', {});
+	assert.match(all.output, /memory of \d+ chapters/);
+});
+
+test('references like #2 are resolved to names for the approval card', () => {
+	const { context } = fakeNovel();
+	const call = (args) => ({ id: 'x', name: 'delete_chapter', args, raw: '' });
+	assert.deepEqual(resolveCallTargets(call({ chapter: '#2' }), context), { chapter: '#2 The Storm' });
+	assert.deepEqual(resolveCallTargets(call({ chapter: 'storm' }), context), { chapter: '#2 The Storm' });
+	assert.deepEqual(resolveCallTargets(call({ act: '#2' }), context), { act: '#2 Middle' });
+	assert.deepEqual(resolveCallTargets(call({ chapter: 'Arrival' }), context), {},
+		'nothing to add when the model already wrote the exact name');
+	assert.deepEqual(resolveCallTargets(call({ chapter: '#99' }), context), {},
+		'an unknown reference is left for the tool to report');
 });

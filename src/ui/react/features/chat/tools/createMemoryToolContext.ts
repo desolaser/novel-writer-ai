@@ -6,19 +6,21 @@ import type {
 } from '../../../../../interfaces/tool-context';
 import type { PromptMetaKey } from '../../../../../types/PromptMeta';
 import {
-	PROMPT_META_CONFIG_FILE,
 	readFrontmatterValue,
 	readInheritedPromptMeta,
 	writeFrontmatterValue,
 } from '../../../../../context/promptMeta';
 import { resolveChapterFile } from '../../../../../infrastructure/storage/repos/EstructuraRepo';
+import {
+	readNovelPromptMeta,
+	writeNovelPromptMeta,
+} from '../../../../../infrastructure/storage/repos/NovelConfigRepo';
 import { useNovelWriter } from '../../../store/novelWriterStore';
 
 /**
  * Adapter for the memory tools. A chapter keeps its memory and author note in
- * the frontmatter of its manuscript; the novel keeps them in `_config.md` at the
- * root of its folder. Both are where the autocomplete already looks for them
- * (see `getPromptMetaCascading`).
+ * the frontmatter of its manuscript; the novel keeps them in its `__config.json`.
+ * Both are where the autocomplete looks for them (see `getPromptMetaCascading`).
  */
 export function createMemoryToolContext(plugin: NovelWriterPlugin): MemoryToolContext {
 	const app = plugin.app;
@@ -30,8 +32,6 @@ export function createMemoryToolContext(plugin: NovelWriterPlugin): MemoryToolCo
 		return folder;
 	};
 
-	const configPath = () => `${novelFolder().path}/${PROMPT_META_CONFIG_FILE}`;
-
 	const chapterFile = async (id: string, create: boolean): Promise<TFile | null> => {
 		const state = useNovelWriter.getState();
 		const folder = novelFolder().path;
@@ -42,34 +42,30 @@ export function createMemoryToolContext(plugin: NovelWriterPlugin): MemoryToolCo
 		return resolveChapterFile(app, folder, id, stored);
 	};
 
-	const readLayers = async (file: TFile | null, parent: TFolder | null, key: PromptMetaKey) => {
-		const own = file ? await readFrontmatterValue(app, file, key) : null;
-		const inherited = await readInheritedPromptMeta(app, plugin.settings.data, parent, key);
-		return { own, inherited } as PromptMetaLayers;
-	};
+	const inheritedFrom = (folder: TFolder | null, key: PromptMetaKey) =>
+		readInheritedPromptMeta(app, plugin.settings.data, folder, key);
 
 	return {
-		readPromptMeta: async (chapterId, key) => {
+		readPromptMeta: async (chapterId, key): Promise<PromptMetaLayers> => {
 			if (chapterId) {
 				const file = await chapterFile(chapterId, false);
-				return readLayers(file, file?.parent ?? novelFolder(), key);
+				const own = file ? await readFrontmatterValue(app, file, key) : null;
+				return { own, inherited: await inheritedFrom(file?.parent ?? novelFolder(), key) };
 			}
-			const config = app.vault.getAbstractFileByPath(configPath());
-			const file = config instanceof TFile ? config : null;
-			return readLayers(file, novelFolder().parent, key);
+			const folder = novelFolder();
+			return {
+				own: await readNovelPromptMeta(app, folder.path, key),
+				inherited: await inheritedFrom(folder.parent, key),
+			};
 		},
 
 		writePromptMeta: async (chapterId, key, value) => {
-			if (chapterId) {
-				const file = await chapterFile(chapterId, true);
-				if (!file) throw new Error('Could not create the chapter manuscript.');
-				await writeFrontmatterValue(app, file, key, value);
+			if (!chapterId) {
+				await writeNovelPromptMeta(app, novelFolder().path, key, value);
 				return;
 			}
-			const existing = app.vault.getAbstractFileByPath(configPath());
-			const file = existing instanceof TFile
-				? existing
-				: await app.vault.create(configPath(), '');
+			const file = await chapterFile(chapterId, true);
+			if (!file) throw new Error('Could not create the chapter manuscript.');
 			await writeFrontmatterValue(app, file, key, value);
 		},
 	};

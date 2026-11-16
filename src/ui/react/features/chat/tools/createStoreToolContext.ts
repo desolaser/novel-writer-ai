@@ -1,4 +1,5 @@
 import type { NovelToolContext } from '../../../../../interfaces/tool-context';
+import { createEmptyBlueprint } from '../../../../../domain';
 import { useNovelWriter } from '../../../store/novelWriterStore';
 
 /**
@@ -21,11 +22,21 @@ export function createStoreToolContext(): NovelToolContext {
 		listOptions: (idDetalle) => state().listOpcionesByDetalle(idDetalle),
 		listDetailsOfCategory: (idCategoria) => state().getDetallesByCategoria(idCategoria),
 		readBlueprint: async () => (await state().store?.readBlueprint()) ?? null,
+		updateBlueprint: async (patch) => {
+			const store = state().store;
+			if (!store?.activeNovelId) throw new Error('No novel is open.');
+			const scan = (state().novels ?? []).find((item: any) =>
+				item.novela.id_novela === store.activeNovelId);
+			const current = await store.readBlueprint()
+				?? createEmptyBlueprint(store.activeNovelId, scan?.novela.nombre ?? '');
+			await store.writeBlueprint({ ...current, ...patch });
+		},
 
 		createAct: (nombre) => state().createActo(nombre),
 		updateAct: (id, patch) => state().updateActo(id, patch),
 		createChapter: (idActo, nombre, orden) => state().createCapitulo(idActo, nombre, orden),
 		updateChapter: (id, patch) => state().updateCapitulo(id, patch),
+		deleteChapter: (id) => state().deleteCapitulo(id),
 		writeChapterText: (id, content) => state().writeCapituloTexto(id, content),
 		createCodexEntry: (idCategoria, nombre) => state().createEntry(idCategoria, nombre),
 		updateCodexEntry: (entry) => state().updateEntry(entry),

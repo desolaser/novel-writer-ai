@@ -2,7 +2,9 @@ import type { App } from "obsidian";
 import type { Acto, Capitulo } from "../../../domain";
 import type { PluginSettings } from "../../../infrastructure/settings/plugin-settings";
 import type { NovelBlueprint } from "../../../domain/entities/NovelBlueprint";
-import { buildScenePrompt } from "../../../context/promptBuilder";
+import { buildScenePrompt, type ScenePromptMeta } from "../../../context/promptBuilder";
+import { trimToCompleteSentence, wasCutMidSentence } from "../../../utils/draftEnding";
+import type { DraftLength } from "../../../utils/draftLength";
 import { summaryLanguageRule } from "../../../context/blueprintPrompt";
 import type { CompletionOptions } from "../../../utils/provider-options";
 import { chapterOutputBudget } from "../../../utils/chapterOutputBudget";
@@ -215,13 +217,30 @@ export async function requestDraftCompletion(
 	}
 }
 
+/** Longest closing asked for when a draft was cut off past its target. */
+const CLOSING_WORDS = 200;
+
+function wordCount(text: string): number {
+	return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
 /**
  * Generates one chapter's draft text, retrying with the remaining word count
- * until the target length is reached (or generation stalls/corrupts). Shared by
+ * until the draft reaches the minimum of `length` (or generation stalls or
+ * corrupts). Any length inside the range is fine; the model aims at its target
+ * and must not pass its maximum. Shared by
  * the batch ("generate all drafts") and single-chapter draft actions, which only
  * differ in how they word the "how much is left" instruction sent on each retry —
  * that wording is left to the caller via `buildLengthControl` so neither prompt's
  * exact phrasing changes.
+ *
+ * A request that hits the output limit stops mid-sentence. The half sentence is
+ * cut back to the last complete one, and if the draft already reached its
+ * length, one short request closes the scene instead of leaving it cut off.
+ *
+ * `meta` is the memory and author note of the chapter being drafted. Without
+ * it the prompt falls back to the note open in the editor, which is the wrong
+ * chapter whenever the draft is started from the outline or the chat.
  */
 export async function generateChapterDraftText(
 	app: App,
@@ -231,20 +250,34 @@ export async function generateChapterDraftText(
 	options: CompletionOptions,
 	settings: PluginSettings,
 	outline: string,
-	targetWords: number,
+	length: DraftLength,
 	buildLengthControl: (info: { currentWords: number; remainingWords: number }) => string,
 	onCorrupt?: () => void,
+	meta?: ScenePromptMeta,
 ): Promise<string> {
 	// Validate before building prompts or making a paid request.
-	chapterOutputBudget(targetWords);
+	chapterOutputBudget(length.target);
 	let text = "";
 	let attempts = 0;
-	while (attempts++ < 12 && text.trim().split(/\s+/).filter(Boolean).length < targetWords * 0.95) {
-		const currentWords = text.trim().split(/\s+/).filter(Boolean).length;
-		const remainingWords = Math.max(100, targetWords - currentWords);
-		const scene = await buildScenePrompt(app, activeFolderPath, settings, outline, text, targetWords);
-		const prompt = `${scene}\n\n[Length control]\nThe current draft has ${currentWords} words and the target is ${targetWords}. ${buildLengthControl({ currentWords, remainingWords })}`;
-		const requestTokens = chapterOutputBudget(remainingWords);
+	let closed = false;
+	let cutOff = false;
+	while (attempts++ < 12) {
+		const currentWords = wordCount(text);
+		const needsLength = currentWords < length.min;
+		const needsEnding = !needsLength && !closed && cutOff;
+		if (!needsLength && !needsEnding) break;
+		const remainingWords = Math.max(100, length.target - currentWords);
+		const control = needsEnding
+			? `The draft was cut off before its ending. Do not add new events: write only `
+				+ `the end of the current scene and close the chapter in at most ${CLOSING_WORDS} words.`
+			: buildLengthControl({ currentWords, remainingWords });
+		const scene = await buildScenePrompt(
+			app, activeFolderPath, settings, outline, text, length, meta,
+		);
+		const prompt = `${scene}\n\n[Length control]\nThe current draft has ${currentWords} words; `
+			+ `the chapter must end between ${length.min} and ${length.max} (about ${length.target}). `
+			+ control;
+		const requestTokens = chapterOutputBudget(needsEnding ? CLOSING_WORDS : remainingWords);
 		const result = await requestDraftCompletion(
 			api, prompt, model, requestTokens, options
 		);
@@ -254,7 +287,10 @@ export async function generateChapterDraftText(
 			onCorrupt?.();
 			break;
 		}
-		text += `${text ? "\n\n" : ""}${addition}`;
+		if (needsEnding) closed = true;
+		cutOff = wasCutMidSentence(addition);
+		const kept = cutOff ? trimToCompleteSentence(addition) : addition;
+		text += `${text ? "\n\n" : ""}${kept}`;
 	}
 	return text;
 }

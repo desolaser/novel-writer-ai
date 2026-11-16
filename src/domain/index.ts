@@ -11,3 +11,4 @@ export * from './entities/NovelBlueprint';
 export * from './entities/Chat';
 export * from './entities/CustomPrompt';
 export * from './entities/Junctions';
+export * from './entities/NovelConfig';

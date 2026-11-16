@@ -14,7 +14,10 @@ los personajes. Con las tools activadas la IA lee y edita la novela por su cuent
 | `src/ui/react/features/chat/MessageContent.tsx` | Cuerpo de un mensaje guardado; en las respuestas, texto y grupos de tool calls en orden |
 | `src/ui/react/features/chat/tools/ToolCallCard.tsx` | Una tool call (con Approve / Reject en vivo) |
 | `src/ui/react/features/chat/tools/PlanChecklist.tsx` | El plan del agente (`update_plan`) como checklist dentro de su tarjeta |
-| `src/ui/react/features/chat/tools/create*ToolContext.ts` | Adaptadores de las tools: store, workspace y memoria (ver [chat-tools.md](chat-tools.md)) |
+| `src/ui/react/features/chat/tools/create*ToolContext.ts` | Adaptadores de las tools: store, workspace, memoria y generadores (ver [chat-tools.md](chat-tools.md)) |
+| `src/ui/react/features/chat/tools/UndoAnswerButton.tsx` | Botón para deshacer lo que cambió una respuesta |
+| `src/infrastructure/storage/novelSnapshot.ts` | Copia de los archivos de la novela y restauración, para deshacer |
+| `src/utils/fileChanges.ts` | Diferencia entre dos copias y plan para deshacer, puro |
 | `src/ui/react/features/chat/tools/ToolCallTrace.tsx` | Tool calls guardadas de un mensaje, plegadas |
 | `src/ui/react/features/chat/session/ChatSession.ts` | La sesión de un chat, fuera de React |
 | `src/ui/react/features/chat/session/agentLoop.ts` | El loop del agente, sin React ni storage |
@@ -108,10 +111,34 @@ El toggle **Auto-approve** del footer (setting `chatAutoApproveWrites`, apagado 
 defecto) ejecuta las escrituras sin preguntar. La tarjeta en vivo muestra los
 argumentos completos, para leer todo antes de aprobar.
 
+Una tool con `alwaysAsk` (hoy `delete_chapter`) pregunta siempre, aunque Auto-approve
+esté activo o se haya dado "Approve all"; su tarjeta no ofrece ese botón.
+
+## Deshacer una respuesta
+
+Cada respuesta que cambió la novela tiene un botón ← en sus acciones ("Undo the changes
+of this answer"). Deshace todo lo que hizo esa respuesta, sea con la tool que sea.
+
+- Antes de la primera escritura del turno, `ChatSession` pide a `NovelFiles` una copia
+  de los archivos `.md` y `.json` de la carpeta de la novela (sin `chats/`), más los
+  manuscritos enlazados desde fuera de la carpeta. Al terminar el turno toma otra copia
+  y guarda la diferencia (`diffSnapshots`) por id del mensaje.
+- Deshacer restaura cada archivo cambiado: el contenido anterior, y a la papelera lo
+  que la respuesta creó. Un archivo que cambió otra vez después de la respuesta (el
+  autor o una respuesta posterior) se deja como está y se informa (`planRevert`).
+- Copia y restauración corren dentro de `withEstructuraLock`, porque `estructura.json`
+  es uno de los archivos (ver [storage.md](storage.md)).
+- Después recarga el store (`reloadAll`). Los mensajes del chat no se tocan.
+- Vive en memoria: se puede deshacer mientras Obsidian siga abierto. Al reiniciar se
+  pierde. Lo que el autor edite en esos archivos durante el turno también se revierte,
+  porque queda dentro de la diferencia.
+- Si una respuesta se pausa (Continue), la diferencia se toma cuando termina del todo.
+
 ## Footer
 
-- **Tools**: incluye las instrucciones de tools (~2600 tokens por request). Se apaga solo
-  en roleplay.
+- **Tools**: incluye las instrucciones de las tools que Settings deja encendidas (hasta
+  ~3150 tokens por request con todos los grupos; ver
+  [chat-tools.md](chat-tools.md#grupos-y-settings)). Se apaga solo en roleplay.
 - **Auto-approve**: ver arriba. Deshabilitado si las tools están apagadas.
 - **Story bible**: manda premisa, estilo, tiempo verbal e idioma de la novela; en
   roleplay solo el idioma.

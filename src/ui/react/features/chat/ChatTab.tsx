@@ -8,8 +8,9 @@ import { resolvePlaceholders } from '../../../../utils/roleplayPlaceholders';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { buildToolPrompt } from '../../../../context/toolPrompt';
-import { TOOL_DEFINITIONS } from '../../../../tools/registry';
+import { availableTools } from '../../../../tools/registry';
 import { MessageContent } from './MessageContent';
+import { UndoAnswerButton } from './tools/UndoAnswerButton';
 import { ChatLiveTurn } from './ChatLiveTurn';
 import { generateChatName } from '../../../../utils/chatNameGeneration';
 import { formatTimestamp } from './chatFormatting';
@@ -94,6 +95,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	 * Everything the turn needs, captured now: the context and prompt chosen
 	 * when the author pressed send stay in force until the AI finishes.
 	 */
+	/** Tools the author left on in Settings. */
+	const enabledTools = () => availableTools({
+		groups: plugin.settings.data.chatToolGroups,
+		noteAccess: plugin.settings.data.chatNoteAccess,
+	});
+
 	const buildTurnConfig = (): ChatTurnConfig | null => {
 		let complete: ChatTurnConfig['complete'];
 		try {
@@ -104,8 +111,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		}
 		// Tools stay off while roleplaying: a character must not step out of persona to edit the vault.
 		const withTools = toolsEnabled && !chatContext.characterContext;
-		const toolsBlock = withTools
-			? buildToolPrompt(TOOL_DEFINITIONS, chatOutputLimit(plugin))
+		const tools = withTools ? enabledTools() : [];
+		const toolsBlock = tools.length
+			? buildToolPrompt(tools, chatOutputLimit(plugin))
 			: '';
 		const {
 			contextItems, characterContext, impersonateContext, activeNoteItem,
@@ -114,7 +122,8 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		const template = currentPrompt?.plantilla;
 		const bibleText = activeStoryBible;
 		return {
-			toolsEnabled: withTools,
+			toolsEnabled: tools.length > 0,
+			tools,
 			complete,
 			buildPrompt: (turns, pending) => buildPrompt(
 				turns, contextItems, pending, characterContext, impersonateContext,
@@ -201,7 +210,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		const previewModel = getActiveModelConfig(plugin.settings.data, 'chat');
 		const toolsBlock = chatContext.characterContext || !toolsEnabled
 			? ''
-			: buildToolPrompt(TOOL_DEFINITIONS, previewModel.options.max_tokens);
+			: buildToolPrompt(enabledTools(), previewModel.options.max_tokens);
 		const { prompt, breakdown } = buildPromptBreakdown(
 			messages.mensajes, chatContext.contextItems, '', chatContext.characterContext, chatContext.impersonateContext,
 			chatContext.activeNoteItem, chatPromptText, toolsBlock,
@@ -324,7 +333,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							</div>
 						))}
 					</div>}
-					{m.mensaje && messages.editingMsgId !== m.id_mensaje && (
+					{(m.mensaje || snapshot.undoable.includes(m.id_mensaje)) && messages.editingMsgId !== m.id_mensaje && (
 						<div className="nw-msg-actions">
 							<button className="nw-msg-action-btn" title="Edit" onClick={() => messages.startEditMessage(m.id_mensaje, m.mensaje)}>
 								<Icon.Edit width={13} height={13} />
@@ -334,6 +343,9 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							</button>
 							{m.role === 'assistant' && (
 								<>
+									{session && snapshot.undoable.includes(m.id_mensaje) && (
+										<UndoAnswerButton plugin={plugin} session={session} messageId={m.id_mensaje} disabled={busy} />
+									)}
 									<button className="nw-msg-action-btn" title="Regenerate" disabled={busy} onClick={() => void regenerateMessage()}>
 										<Icon.Refresh width={13} height={13} />
 									</button>

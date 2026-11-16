@@ -9,7 +9,7 @@ import { resolveChapter } from './chapterTools';
 /**
  * Memory and author note, the two texts the autocomplete sends with every
  * request. They live at the chapter level (frontmatter of its manuscript) or
- * the novel level (`_config.md` in the novel folder). The story history the
+ * the novel level (the novel's `__config.json`). The story history the
  * outline generates inside a chapter memory is kept intact: these tools only
  * read and write the author's part.
  */

@@ -41,11 +41,42 @@ resumen del acto.
 
 ## Catálogo
 
-Las definiciones están en `src/tools/definitions/`, un archivo por dominio;
-`registry.ts` las junta en `TOOL_DEFINITIONS`.
+Las definiciones están en `src/tools/definitions/`, un archivo por grupo;
+`registry.ts` las junta en `TOOL_GROUPS` y `TOOL_DEFINITIONS`.
 
 "read" quiere decir que corre sin aprobación porque no cambia la novela. Por eso también
-son "read" las tools que abren vistas y `update_plan`.
+son "read" las tools que abren vistas y `update_plan`. Una tool con `alwaysAsk` pide
+aprobación cada vez, aunque Auto-approve esté activo o el autor haya dado "Approve all
+for this answer"; su tarjeta no muestra ese botón. Hoy solo `delete_chapter`.
+
+### Grupos y Settings
+
+Settings → Chat Options → Chat tools (`src/ui/chatToolSettings.ts`). Arriba explica
+qué hacen los grupos; cada grupo muestra su descripción, cuántos tokens suma por mensaje
+(calculado con `buildToolPrompt`) y sus tools.
+
+- Un toggle por grupo (`settings.chatToolGroups`). Un grupo apagado no se describe al
+  modelo, así que tampoco gasta tokens. Si el modelo igual llama a una tool apagada,
+  la sesión la rechaza ("turned off in Settings"): `ChatTurnConfig.tools` lleva la
+  lista que se le mandó.
+- "Notes the chat can read" (`settings.chatNoteAccess`): `vault` (por defecto, como
+  antes), `novel` (solo notas dentro de la carpeta de la novela) u `off` (saca
+  `read_note` del catálogo). `.obsidian` nunca se lee.
+
+`availableTools(availability)` arma la lista; `ChatTab.tsx` la usa para el prompt y
+para "View context".
+
+| Grupo | Tools | Tokens aprox. |
+|---|---|---|
+| Manuscript | 8 | 680 |
+| Structure | 6 | 365 |
+| Codex | 8 | 630 |
+| Novel | 5 | 480 |
+| Workspace | 5 | 250 |
+| Generators | 4 | 295 |
+
+Con todo encendido son 36 tools y ~12 600 caracteres (~3150 tokens), contando las
+reglas fijas (~460 tokens).
 
 ### Manuscrito (`manuscriptDefinitions.ts`)
 
@@ -69,6 +100,7 @@ son "read" las tools que abren vistas y `update_plan`.
 | `update_act` | write | Renombra un acto o reemplaza/extiende su resumen |
 | `rename_chapter` | write | Renombra un capítulo; su manuscrito se renombra también |
 | `move_chapter` | write | Mueve un capítulo a una posición de su acto o de otro acto |
+| `delete_chapter` | write, `alwaysAsk` | Borra un capítulo y manda su manuscrito a la papelera |
 
 ### Codex (`codexDefinitions.ts`)
 
@@ -88,6 +120,7 @@ son "read" las tools que abren vistas y `update_plan`.
 | Tool | Tipo | Qué hace |
 |---|---|---|
 | `read_blueprint` | read | Novel Setup: premisa, género, estilo, tiempo verbal, idioma, largo objetivo y plan de estructura |
+| `update_blueprint` | write | Cambia solo los campos que recibe del Novel Setup |
 | `novel_status` | read | Palabras totales, capítulos sin texto u outline, actos sin resumen, capítulos fuera del largo objetivo |
 | `read_memory` | read | Memoria y nota del autor de un capítulo o de la novela |
 | `write_memory` | write | Escribe la memoria o la nota del autor de un capítulo o de la novela |
@@ -100,9 +133,32 @@ son "read" las tools que abren vistas y `update_plan`.
 | `open_chapter` | read | Abre el manuscrito o el outline de un capítulo |
 | `open_codex_entry` | read | Abre una entrada del codex |
 | `read_selection` | read | Texto seleccionado en el último editor usado, o el párrafo del cursor |
-| `read_note` | read | Lee una nota Markdown del vault por nombre o ruta, fuera de `.obsidian` |
+| `read_note` | read | Lee una nota Markdown por nombre o ruta, dentro de lo que permite Settings |
+
+### Generadores (`generatorDefinitions.ts`)
+
+Los generadores del Outline, corridos por el chat con los modelos `utilities` y
+`writing` de Settings y los prompts del plugin. El texto que generan no pasa por el
+contexto del chat: el modelo recibe un reporte corto y lee más si lo necesita.
+
+| Tool | Tipo | Qué hace |
+|---|---|---|
+| `generate_outline` | write | Outline de un capítulo desde su manuscrito (`source: manuscript`) o desde la historia previa (`story_so_far`) |
+| `summarize_act` | write | Resumen de un acto desde los outlines de sus capítulos |
+| `draft_chapter` | write | Borrador completo desde el outline con el modelo `writing`, con el largo del Story Bible (`words` lo reemplaza, con ±10 %). Pide outline; si el capítulo ya tiene texto, exige `overwrite: yes` |
+| `refresh_story_context` | write | Reescribe "la historia hasta aquí" en la memoria de un capítulo o de todos. Sin IA |
+
+La lógica es `OutlineGenerator` (`src/ui/react/outline/outlineGenerator.ts`), la misma
+que usa la vista Outline (ver [outline.md](outline.md#acciones-de-ia)). El adaptador es
+`createGeneratorToolContext.ts`.
 
 ### Detalles de comportamiento
+
+- Antes de la aprobación, la tarjeta muestra a qué apuntan las referencias: `chapter: #11
+  → #11 Capítulo 11`, y lo mismo con `act` y `entry` (`resolveCallTargets` en
+  `src/tools/callTargets.ts`). La sesión lo resuelve al recibir la llamada y lo guarda
+  en la traza (`MensajeToolCall.targets`). Si el modelo ya escribió el nombre exacto,
+  no se agrega nada.
 
 - Capítulos y actos se pueden nombrar por nombre, nombre parcial o posición (`#3`),
   resuelto por `resolveByName`.
@@ -117,15 +173,22 @@ son "read" las tools que abren vistas y `update_plan`.
 - `find_mentions` usa `src/utils/codexMentions.ts`, la misma lógica que la pestaña
   Mentions de la entrada, así cuentan lo mismo.
 - `read_note` corta en 20 000 caracteres y, si no encuentra la nota, sugiere nombres
-  parecidos.
+  parecidos dentro del alcance permitido. Con `novel`, una ruta se puede dar relativa
+  a la carpeta de la novela.
+- `update_blueprint` valida los valores cerrados (tiempo verbal, tiempo narrativo,
+  audiencia) y el rango `2000-4000`. Marca título, género, estilo, tiempo narrativo y
+  largo como deducidos (`inferred`), para que el Novel Setup muestre que no los eligió
+  el autor. Escribir `structure_plan` pone `structureEdited`. Si la novela no tenía
+  blueprint, lo crea.
 
 ### Memoria y nota del autor
 
 Son los textos que el autocompletado manda en cada request (ver
 [editor.md](editor.md#memoria-y-nota-del-autor)). Un capítulo los guarda en el
-frontmatter de su manuscrito; la novela, en `_config.md` en la raíz de su carpeta (se
-crea si falta). Los dos son lugares donde la cascada de `getPromptMetaCascading` ya
-buscaba.
+frontmatter de su manuscrito; la novela, en su `__config.json`
+(`NovelConfigRepo.ts`). Los dos son niveles de la cascada de `getPromptMetaCascading`.
+Antes el nivel de novela era un `_config.md` en la carpeta, herencia de cuando la
+memoria era por carpeta; ya no se escribe.
 
 El bloque que genera el outline entre `[Novel Writer AI - Generated Story Context]` y su
 cierre se conserva siempre: las tools solo leen y escriben la parte del autor
@@ -170,16 +233,19 @@ cierre se conserva siempre: las tools solo leen y escriben la parte del autor
     vault. El editor es el de la hoja más reciente del área principal, porque mientras
     el autor escribe en el chat el foco está en la barra lateral.
   - `createMemoryToolContext.ts`: memoria y nota del autor, con las funciones de
-    `src/context/promptMeta.ts`.
+    `src/context/promptMeta.ts` y `NovelConfigRepo.ts`.
+  - `createGeneratorToolContext.ts`: los generadores del Outline.
 
 ## Cómo agregar una tool
 
-1. Definirla en el archivo de su dominio en `src/tools/definitions/` (nombre,
+1. Definirla en el archivo de su grupo en `src/tools/definitions/` (nombre,
    `read`/`write`, descripción corta y concreta, argumentos con `required` /
-   `multiline` / `values`).
+   `multiline` / `values`; `alwaysAsk` si destruye algo). Un grupo nuevo va en
+   `TOOL_GROUPS`, `ToolGroupId` y los defaults de `chatToolGroups`.
 2. Implementarla en el archivo de su dominio (`chapterTools.ts`, `structureTools.ts`,
    `outlineTools.ts`, `codexTools.ts`, `codexDetailTools.ts`, `searchTools.ts`,
-   `novelTools.ts`, `memoryTools.ts`, `workspaceTools.ts`, `planTools.ts`). Devuelve el
+   `novelTools.ts`, `blueprintTools.ts`, `memoryTools.ts`, `workspaceTools.ts`,
+   `planTools.ts`, `generatorTools.ts`). Devuelve el
    texto para el modelo y lanza un `Error` con un mensaje útil si algo no se resuelve.
    Todo lo que toque el codex pasa por `codexShared.ts`.
 3. Registrarla en `HANDLERS` de `src/tools/executor.ts`. `test/chat-tools.test.cjs`
@@ -188,7 +254,5 @@ cierre se conserva siempre: las tools solo leen y escriben la parte del autor
    al adaptador que corresponda.
 5. Agregarla a la tabla de arriba y al [changelog](changelog.md).
 
-Cada definición son tokens en cada request: descripciones cortas. Con 30 tools el bloque
-`[TOOLS]` mide unos 10 300 caracteres (~2600 tokens). Si hace falta recortarlo, el paso
-siguiente es activarlas por grupo (un grupo por archivo de `definitions/`) desde las
-opciones.
+Cada definición son tokens en cada request: descripciones cortas. Los costos por grupo
+están en [Grupos y Settings](#grupos-y-settings).

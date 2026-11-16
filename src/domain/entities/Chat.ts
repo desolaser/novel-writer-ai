@@ -49,6 +49,8 @@ export interface MensajeToolCall {
 	 * so the chat shows text and calls in the order they happened.
 	 */
 	textOffset?: number;
+	/** What references like "#11" pointed to when the call was made. */
+	targets?: Record<string, string>;
 }
 
 /** Tipo de contexto que puede asociarse a un chat. */

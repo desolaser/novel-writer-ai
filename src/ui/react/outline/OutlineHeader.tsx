@@ -1,8 +1,6 @@
 import { Icon } from "../components/Icon";
 
 export interface OutlineHeaderProps {
-	targetWords: number;
-	onTargetWordsChange: (value: number) => void;
 	batchBusy: boolean;
 	chaptersCount: number;
 	onGenerateAllMemory: () => void;
@@ -12,10 +10,11 @@ export interface OutlineHeaderProps {
 	onOpenSetup: () => void;
 }
 
-/** Cabecera del outline: título, ajuste de longitud y acciones en lote. */
+/**
+ * Cabecera del outline: título y acciones en lote. El largo de los borradores
+ * sale del Story Bible (words per chapter), no de aquí.
+ */
 export function OutlineHeader({
-	targetWords,
-	onTargetWordsChange,
 	batchBusy,
 	chaptersCount,
 	onGenerateAllMemory,
@@ -38,20 +37,6 @@ export function OutlineHeader({
 				>
 					Setup
 				</button>
-				<label className="nw-draft-length">
-					Words{" "}
-					<input
-						type="number"
-						min={100}
-						max={20000}
-						step={100}
-						value={targetWords}
-						onChange={(e) => {
-							const n = Math.max(100, Number(e.target.value) || 2000);
-							onTargetWordsChange(n);
-						}}
-					/>
-				</label>
 				<button
 					className="nw-btn nw-btn-primary"
 					disabled={batchBusy || !hasChapters}

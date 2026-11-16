@@ -5,6 +5,7 @@ import { Modal, App, MarkdownView } from 'obsidian';
 import { buildEditorPromptDetails, estimateTokens } from '../../../../context/promptBuilder';
 import { getPromptMetaCascading, writePromptMeta } from '../../../../context/promptMeta';
 import { buildStoryBibleBlock } from '../../../../context/blueprintPrompt';
+import { NovelMemorySection } from './NovelMemorySection';
 import type { ResolvedTemplateBlock } from '../../../../context/promptTemplates';
 
 export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -188,6 +189,7 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 					<div className="setting-item"><div className="setting-item-info"><div className="setting-item-name">Story Bible Modal</div><div className="setting-item-description">Open a modal to view the full story bible</div></div><div className="setting-item-control"><button className="mod-cta" onClick={openStoryBibleModal}>[ ]</button></div></div>
 				)}
 			</div>
+			<NovelMemorySection plugin={plugin} />
 			<div className="options-section">
 				<h5>Memory</h5><p className="setting-item-description">The AI will better remember info placed here.</p>
 				<div className="textarea-wrapper"><div className="textarea-label"><span>Memory content:</span><span className="token-count">{estimateTokens(memory)} tokens</span></div><textarea value={memory} onChange={e => saveMemory(e.target.value)} placeholder="Enter memory information..." rows={6} /></div>

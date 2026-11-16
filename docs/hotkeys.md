@@ -58,6 +58,9 @@ siguiente de esa pestaña.
 - Clic en un badge de contexto: abre el elemento (entrada, nota, outline).
 - Clic en el retrato de un personaje junto a un mensaje: abre su entrada.
 - Clic en una imagen de un mensaje: la abre en grande; clic fuera la cierra.
+- Clic en ← de una respuesta de la IA: deshace los cambios que hizo esa respuesta en la
+  novela (pide confirmación). Solo aparece mientras Obsidian siga abierto desde esa
+  respuesta. Detalle en [chat.md](chat.md#deshacer-una-respuesta).
 
 ## Teclado
 

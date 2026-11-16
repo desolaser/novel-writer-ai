@@ -1,15 +1,19 @@
 import type { EntityId, Mensaje } from '../../../../../domain';
 import type { ChatPersistence } from '../../../../../interfaces/chat-persistence';
+import type { NovelFiles, RevertResult } from '../../../../../interfaces/novel-files';
 import type { ToolContext } from '../../../../../interfaces/tool-context';
 import type {
 	ToolCall,
 	ToolCallState,
 	ToolCallStatus,
+	ToolDefinition,
 	ToolResult,
 } from '../../../../../types/AiTool';
+import { diffSnapshots, type FileChange, type FileSnapshot } from '../../../../../utils/fileChanges';
 import { executeToolCall } from '../../../../../tools/executor';
 import { findToolDefinition } from '../../../../../tools/registry';
 import { parseToolAnswer } from '../../../../../tools/parseToolAnswer';
+import { resolveCallTargets } from '../../../../../tools/callTargets';
 import {
 	createLoopState,
 	runAgentLoop,
@@ -25,6 +29,8 @@ export interface ChatTurnConfig {
 	/** Asks the model; `images` only carries pictures on the first request. */
 	complete(prompt: string, images: string[]): Promise<ModelAnswer>;
 	toolsEnabled: boolean;
+	/** Tools the author left on in Settings; calls to any other are refused. */
+	tools?: ToolDefinition[];
 }
 
 export interface ChatSessionDeps {
@@ -35,6 +41,8 @@ export interface ChatSessionDeps {
 	activeNovelId(): string | null;
 	autoApproveWrites(): boolean;
 	roundsBeforePause(): number;
+	/** The novel's files, to undo an answer's changes. Without it there is no undo. */
+	files?: NovelFiles;
 }
 
 export type ChatSessionStatus = 'idle' | 'running' | 'paused';
@@ -52,6 +60,8 @@ export interface ChatSessionSnapshot {
 	stopping: boolean;
 	/** Bumps on every write to the chat file, so views know to reload it. */
 	version: number;
+	/** Answers whose changes to the novel can still be undone. */
+	undoable: string[];
 }
 
 export const IDLE_CHAT_SNAPSHOT: ChatSessionSnapshot = {
@@ -64,6 +74,7 @@ export const IDLE_CHAT_SNAPSHOT: ChatSessionSnapshot = {
 	notice: null,
 	stopping: false,
 	version: 0,
+	undoable: [],
 };
 
 const PAUSE_NOTICES: Record<'limit' | 'repeating', string> = {
@@ -92,6 +103,10 @@ export class ChatSession {
 	private readonly stopWaiters = new Set<() => void>();
 	private approveRestOfTurn = false;
 	private saving: Promise<void> = Promise.resolve();
+	/** The novel's files before the first write of the turn. */
+	private filesBefore: FileSnapshot | null = null;
+	/** Changes of each finished answer, by message id, while Obsidian stays open. */
+	private readonly undoLog = new Map<string, FileChange[]>();
 
 	constructor(readonly chatId: EntityId, private readonly deps: ChatSessionDeps) {}
 
@@ -200,10 +215,12 @@ export class ChatSession {
 		this.loop = createLoopState(messagesToHistory(before), userMessage.mensaje);
 		this.stopRequested = false;
 		this.approveRestOfTurn = false;
+		this.filesBefore = null;
 		this.update({
 			...IDLE_CHAT_SNAPSHOT,
 			status: 'running',
 			version: this.snapshot.version,
+			undoable: this.snapshot.undoable,
 			liveImages: [],
 		});
 		await this.runLoop();
@@ -256,14 +273,57 @@ export class ChatSession {
 		this.stopRequested = false;
 		this.persistTurn(true);
 		await this.saving;
+		await this.recordChanges();
 		this.loop = null;
 		this.config = null;
 		this.turnImages = [];
 		this.update({
 			...IDLE_CHAT_SNAPSHOT,
 			version: this.snapshot.version,
+			undoable: [...this.undoLog.keys()],
 			notice,
 		});
+	}
+
+	canUndo(messageId: string): boolean {
+		return this.undoLog.has(messageId);
+	}
+
+	/**
+	 * Puts back the files an answer changed. A file changed again since (by the
+	 * author or a later answer) is left alone and reported as a conflict.
+	 */
+	async undo(messageId: string): Promise<RevertResult | null> {
+		const changes = this.undoLog.get(messageId);
+		if (!changes || !this.deps.files || this.busy) return null;
+		const result = await this.deps.files.revert(changes);
+		this.undoLog.delete(messageId);
+		this.update({ undoable: [...this.undoLog.keys()] });
+		return result;
+	}
+
+	/** Copy of the novel's files before the turn's first write. */
+	private async rememberFilesBefore(): Promise<void> {
+		if (this.filesBefore || !this.deps.files) return;
+		try {
+			this.filesBefore = await this.deps.files.snapshot();
+		} catch (error) {
+			console.error('Novel Writer: could not snapshot the novel for undo', error);
+		}
+	}
+
+	/** Compares the novel with the copy taken before the first write. */
+	private async recordChanges(): Promise<void> {
+		const before = this.filesBefore;
+		const messageId = this.snapshot.turnMessageId;
+		this.filesBefore = null;
+		if (!before || !messageId || !this.deps.files) return;
+		try {
+			const changes = diffSnapshots(before, await this.deps.files.snapshot());
+			if (changes.length) this.undoLog.set(messageId, changes);
+		} catch (error) {
+			console.error('Novel Writer: could not record the answer changes', error);
+		}
 	}
 
 	private async runCalls(
@@ -276,11 +336,12 @@ export class ChatSession {
 		const states: ToolCallState[] = calls.map((call) => {
 			const definition = findToolDefinition(call.name);
 			const reason = skipped[call.id];
-			if (!reason) {
-				return { call, definition, status: 'pending' as ToolCallStatus, textOffset };
-			}
+			// Resolved now, so the author sees which chapter "#11" is before approving.
+			const targets = resolveCallTargets(call, context);
+			const base = { call, definition, textOffset, targets };
+			if (!reason) return { ...base, status: 'pending' as ToolCallStatus };
 			const result: ToolResult = { callId: call.id, name: call.name, ok: false, output: reason };
-			return { call, definition, status: 'error' as ToolCallStatus, result, textOffset };
+			return { ...base, status: 'error' as ToolCallStatus, result };
 		});
 		this.update({ calls: [...this.snapshot.calls, ...states] });
 
@@ -307,14 +368,19 @@ export class ChatSession {
 		if (this.stopRequested) {
 			return refuse('rejected', 'The author stopped the turn before this call ran.');
 		}
+		if (this.config?.tools && !this.config.tools.some((tool) => tool.name === call.name)) {
+			return refuse('error', `The tool "${call.name}" is turned off in Settings. `
+				+ 'Do not call it; do without it or tell the author.');
+		}
 		if (this.deps.novelId !== this.deps.activeNovelId()) {
 			this.stopRequested = true;
 			return refuse('error', 'The author switched to another novel, so nothing was changed.');
 		}
-		const needsApproval = definition?.kind === 'write'
-			&& !call.truncated
-			&& !this.approveRestOfTurn
-			&& !this.deps.autoApproveWrites();
+		const isWrite = definition?.kind === 'write';
+		// Destructive tools ask every time, whatever was approved before.
+		const preApproved = !definition?.alwaysAsk
+			&& (this.approveRestOfTurn || this.deps.autoApproveWrites());
+		const needsApproval = isWrite && !call.truncated && !preApproved;
 		if (needsApproval) {
 			this.patchCall(call.id, 'awaiting');
 			this.persistTurn();
@@ -327,6 +393,7 @@ export class ChatSession {
 					: 'The author rejected this action. Do not retry it unless they ask for it.');
 			}
 		}
+		if (isWrite) await this.rememberFilesBefore();
 		this.patchCall(call.id, 'running');
 		// Write tools only get here approved: by the author, by "approve all"
 		// for this turn, or by the auto-approve setting the author turned on.

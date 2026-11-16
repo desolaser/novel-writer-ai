@@ -1,4 +1,5 @@
 import { App } from 'obsidian';
+import type { DraftLength } from '../utils/draftLength';
 import * as yaml from 'js-yaml';
 import { EntradaCodex, AiContextPolicy, TipoDetalle } from '../domain';
 import { listEntries } from '../infrastructure/storage/repos/CodexEntryRepo';
@@ -122,20 +123,50 @@ export async function buildCodexEntryYaml(app: App, folderPath: string, entry: E
 	return yaml.dump(formatCodexEntryItem(entry, maps), { lineWidth: 0 });
 }
 
+/** Memory and author note of the chapter a draft is for. */
+export interface ScenePromptMeta {
+	memory: string;
+	authorNote: string;
+}
+
+/**
+ * Length rule of a draft request. Models overshoot "approximately N words", so
+ * it gives the accepted range, the point to aim at and the maximum as a ceiling,
+ * and asks for a complete ending inside it.
+ */
+export function draftLengthRule(length: DraftLength, continuing: boolean): string {
+	const rule = `The whole chapter must be between ${length.min} and ${length.max} words: `
+		+ `aim for about ${length.target} and never go over ${length.max}. Pace the scenes `
+		+ 'to fit: skip what the outline does not need rather than cutting the ending short. '
+		+ 'End with the final scene complete, never mid-sentence.';
+	return continuing
+		? `Continue this draft without restarting or repeating it. ${rule}`
+		: `Write a new, independent chapter that develops the outline. Do not copy the previous context. ${rule}`;
+}
+
 /**
  * Builds the autocomplete / draft prompt. The history of previous chapters is not
  * a parameter: it reaches the model through the memory block, written into the
  * chapter's own frontmatter by the outline view, so there is exactly one channel
  * for it and the author can read what was sent.
+ *
+ * `meta` is that chapter's memory and author note. Without it they come from
+ * the note open in the editor, which is only right for the autocomplete.
  */
 export async function buildScenePrompt(
 	app: App, folderPath: string, settings: PluginSettings,
-	outline: string, currentText: string, targetWords?: number,
+	outline: string, currentText: string, length?: DraftLength,
+	meta?: ScenePromptMeta,
 ): Promise<string> {
 	// Callers may provide the raw Markdown note. Frontmatter is metadata and
 	// must never be sent as story context to the model.
 	const storyText = (currentText || '').replace(/^---\s*[\s\S]*?---\s*/, '');
- const codexYaml = await buildCodexYaml(app, folderPath, undefined, storyText, settings.codexOptions.searchRange);
+	// Entries are detected in the outline too: a chapter not written yet still
+	// needs the places and people it is about.
+	const range = settings.codexOptions.searchRange;
+	const recentText = storyText.slice(-Math.max(0, range));
+	const detectionText = outline ? `${outline}\n\n${recentText}` : recentText;
+	const codexYaml = await buildCodexYaml(app, folderPath, undefined, detectionText, detectionText.length);
 	const parts: string[] = [];
 	parts.push("--- Codex ---");
 	parts.push(codexYaml || "(empty)");
@@ -144,17 +175,17 @@ export async function buildScenePrompt(
 	// in. These instructions are in English whatever the story's language is.
 	const storyBible = buildStoryBibleBlock(await readBlueprint(app, folderPath));
 	if (storyBible) parts.push(storyBible);
-	const memory = await getPromptMetaCascading(app, settings, 'memoryContent');
-	const authorNote = await getPromptMetaCascading(app, settings, 'authorNote');
+	const memory = meta?.memory ?? await getPromptMetaCascading(app, settings, 'memoryContent');
+	const authorNote = meta?.authorNote ?? await getPromptMetaCascading(app, settings, 'authorNote');
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());
-	if (authorNote) parts.push("Author note: " + authorNote);
+	if (authorNote.trim()) parts.push("Author note: " + authorNote.trim());
 	if (outline) {
 		parts.push("Chapter outline: " + outline);
 		if (storyText) {
 			parts.push("The outline describes what should happen in this chapter. Some of it may already be written in the manuscript above. Do not repeat what is already written — identify where the manuscript left off relative to the outline and continue from that point forward.");
 		}
 	}
-	if (targetWords) parts.push(storyText ? `Continue this draft and, as you approach the target, resolve the conflict and write a natural ending. Do not restart or repeat the text already written.` : `Write a new, independent chapter of approximately ${targetWords} words. Develop the current outline, reach a length close to the target, and leave room to close the chapter. Do not copy the previous context.`);
+	if (length) parts.push(draftLengthRule(length, Boolean(storyText)));
 	const defaultTextPromptId = settings.defaultTextPromptId;
 	const defaultTextPrompt = defaultTextPromptId
 		? settings.customPrompts?.find(p => p.id_prompt === defaultTextPromptId)

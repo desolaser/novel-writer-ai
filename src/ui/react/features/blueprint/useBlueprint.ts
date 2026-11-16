@@ -313,12 +313,6 @@ export function useBlueprint(plugin: NovelWriterPlugin, close: () => void): Blue
 			if (novela && title && title !== novela.nombre)
 				await updateNovel(novela.id_novela, { nombre: title, autor: novela.autor });
 
-			// The outline uses this as the target length of generated drafts.
-			plugin.settings.data.draftWordCount = Math.round(
-				(blueprint.wordsPerChapter.min + blueprint.wordsPerChapter.max) / 2
-			);
-			await plugin.settings.save();
-
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 			saveTimer.current = null;
 			pending.current = null;

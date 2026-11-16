@@ -35,7 +35,8 @@ const { ChatSession } = require(
 	'../src/ui/react/features/chat/session/ChatSession.ts'
 );
 const { parseToolAnswer } = require('../src/tools/parseToolAnswer.ts');
-const { findToolDefinition } = require('../src/tools/registry.ts');
+const { findToolDefinition, TOOL_DEFINITIONS } = require('../src/tools/registry.ts');
+const { planRevert } = require('../src/utils/fileChanges.ts');
 
 const call = (name, args = '') => `[[tool: ${name}]]\n${args}[[/tool]]`;
 
@@ -171,6 +172,32 @@ function fakeNovel() {
 			listCodexEntries: () => [],
 			listCategories: () => [],
 			listDetalles: () => [],
+			deleteChapter: async (chapterId) => {
+				delete texts[chapterId];
+			},
+		},
+	};
+}
+
+/** The fake novel's texts as files, with the real revert plan. */
+function fakeFiles(novel) {
+	const pathOf = (id) => `novel/${id}.md`;
+	return {
+		snapshot: async () => Object.fromEntries(
+			Object.entries(novel.texts).map(([id, text]) => [pathOf(id), text])),
+		revert: async (changes) => {
+			const current = {};
+			for (const change of changes) {
+				const id = change.path.slice('novel/'.length, -'.md'.length);
+				current[change.path] = novel.texts[id] ?? null;
+			}
+			const plan = planRevert(changes, current);
+			for (const change of plan.apply) {
+				const id = change.path.slice('novel/'.length, -'.md'.length);
+				if (change.before === null) delete novel.texts[id];
+				else novel.texts[id] = change.before;
+			}
+			return { reverted: plan.apply.length, conflicts: plan.conflicts };
 		},
 	};
 }
@@ -179,6 +206,7 @@ function session(answers, { autoApprove = false } = {}) {
 	const persistence = fakePersistence();
 	const novel = fakeNovel();
 	const chat = new ChatSession('chat', {
+		files: fakeFiles(novel),
 		persistence,
 		createToolContext: () => novel.context,
 		novelId: 'n1',
@@ -305,4 +333,59 @@ test('the saved answer remembers where each call was made', async () => {
 	const answer = persistence.chats.get('chat')[1];
 	assert.equal(answer.mensaje, 'Let me read it.\n\nIt is about a cat.');
 	assert.equal(answer.toolCalls[0].textOffset, 'Let me read it.'.length);
+});
+
+test('a tool turned off in Settings is refused even if the model calls it', async () => {
+	const edit = call('edit_chapter', '[[chapter]] Opening\n[[find]]\ncat\n[[replace]]\nfox\n');
+	const { chat, config, novel, persistence } = session([edit, 'Done.'], { autoApprove: true });
+	config.tools = TOOL_DEFINITIONS.filter((tool) => tool.name !== 'edit_chapter');
+	await chat.send('Use a fox', [], config);
+
+	assert.equal(novel.texts.c1, 'The cat sat on the mat.');
+	const [record] = persistence.chats.get('chat')[1].toolCalls;
+	assert.equal(record.status, 'error');
+	assert.match(record.output, /turned off in Settings/);
+});
+
+test('a destructive tool asks even with auto-approve on', async () => {
+	const remove = call('delete_chapter', '[[chapter]] Opening\n');
+	const { chat, config, novel } = session([remove, 'Deleted.'], { autoApprove: true });
+	const turn = chat.send('Delete the opening', [], config);
+	await until(() => chat.getSnapshot().awaiting);
+	assert.ok(novel.texts.c1, 'nothing deleted before the author approves');
+	chat.approveAll(chat.getSnapshot().calls[0].call.id);
+	await turn;
+	assert.equal(novel.texts.c1, undefined);
+});
+
+test('an answer can be undone, keeping files changed again since', async () => {
+	const edit = call('edit_chapter', '[[chapter]] Opening\n[[find]]\ncat\n[[replace]]\nowl\n');
+	const { chat, config, persistence, novel } = session([edit, 'Done.'], { autoApprove: true });
+	await chat.send('Use an owl', [], config);
+	const answerId = persistence.chats.get('chat')[1].id_mensaje;
+	assert.equal(novel.texts.c1, 'The owl sat on the mat.');
+	assert.deepEqual(chat.getSnapshot().undoable, [answerId]);
+
+	const result = await chat.undo(answerId);
+	assert.deepEqual(result, { reverted: 1, conflicts: [] });
+	assert.equal(novel.texts.c1, 'The cat sat on the mat.');
+	assert.deepEqual(chat.getSnapshot().undoable, []);
+});
+
+test('undo leaves alone a file the author edited after the answer', async () => {
+	const edit = call('edit_chapter', '[[chapter]] Opening\n[[find]]\ncat\n[[replace]]\nowl\n');
+	const { chat, config, persistence, novel } = session([edit, 'Done.'], { autoApprove: true });
+	await chat.send('Use an owl', [], config);
+	novel.texts.c1 = 'The author rewrote this.';
+
+	const result = await chat.undo(persistence.chats.get('chat')[1].id_mensaje);
+	assert.deepEqual(result, { reverted: 0, conflicts: ['novel/c1.md'] });
+	assert.equal(novel.texts.c1, 'The author rewrote this.');
+});
+
+test('an answer that only read has nothing to undo', async () => {
+	const read = call('read_chapter', '[[chapter]] Opening\n');
+	const { chat, config } = session([read, 'It is about a cat.']);
+	await chat.send('What happens?', [], config);
+	assert.deepEqual(chat.getSnapshot().undoable, []);
 });

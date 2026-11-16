@@ -33,17 +33,23 @@ el ícono de la ribbon, el comando "Generate text" o el menú contextual del edi
 `getPromptMetaCascading` busca el valor en este orden:
 
 1. frontmatter de la nota activa (`memoryContent`, `authorNote`),
-2. `_config.md` en la carpeta de la nota o en una carpeta superior,
-3. valor global de settings.
+2. subiendo por las carpetas: el `__config.json` de la novela que contiene la nota
+   (`NovelConfigRepo.ts`) y, solo de lectura, un `_config.md` legado,
+3. valor global de settings (vale para todo el vault).
 
-La pestaña Config los edita (guardado con debounce de 600 ms) y "View context" muestra
-el prompt completo que se enviaría.
+El `_config.md` es de cuando la memoria era por carpeta. Ya no se escribe; se sigue
+leyendo para notas fuera de una novela (por ejemplo una carpeta de lore).
+
+La pestaña Config edita la memoria y la nota del autor de la nota activa (guardado con
+debounce de 600 ms) y, en la sección "This novel" (`NovelMemorySection.tsx`, con
+`AutoSaveTextarea`), las de la novela activa. "View context" muestra el prompt completo
+que se enviaría.
 
 `promptMeta.ts` expone las piezas por separado para quien no trabaja sobre la nota
 activa: `readFrontmatterValue` / `writeFrontmatterValue` (una nota) y
 `readInheritedPromptMeta` (pasos 2 y 3 desde una carpeta). Las usan las tools
 `read_memory` y `write_memory` del chat, que escriben en el capítulo o en el
-`_config.md` de la carpeta de la novela (ver [chat-tools.md](chat-tools.md)).
+`__config.json` de la novela (ver [chat-tools.md](chat-tools.md)).
 
 ## Acciones del editor
 

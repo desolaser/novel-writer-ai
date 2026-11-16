@@ -95,6 +95,17 @@ export async function renameChapter(args: Record<string, string>, context: ToolC
 	return `Renamed chapter "${chapter.nombre}" to "${name}". Its manuscript file follows the new name.`;
 }
 
+/**
+ * Deletes a chapter. The author approves it every time (`alwaysAsk`), and the
+ * manuscript goes to the trash, so it can still be recovered.
+ */
+export async function deleteChapter(args: Record<string, string>, context: ToolContext): Promise<string> {
+	const chapter = resolveChapter(args.chapter ?? '', context);
+	await context.deleteChapter(chapter.id_capitulo);
+	const file = chapter.archivo ? ' Its manuscript went to the trash.' : '';
+	return `Deleted chapter "${chapter.nombre}".${file}`;
+}
+
 /** Writes `orden` (and the act) of every chapter whose place changed. */
 async function renumber(chapters: Capitulo[], actId: string, context: ToolContext): Promise<void> {
 	for (const [orden, chapter] of chapters.entries()) {

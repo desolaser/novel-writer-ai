@@ -10,7 +10,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | Ruta (relativa a la carpeta) | Contenido | Repo |
 |---|---|---|
 | `__metadata.json` | Metadata de la novela (`Novela`) | `NovelRepo.ts` |
-| `__config.json` | Overrides de configuración de la novela | `NovelRepo.ts` |
+| `__config.json` | Configuración propia de la novela: hoy, su memoria y nota del autor (`NovelConfig`). Vacío o ausente = usa la global | `NovelConfigRepo.ts` |
 | `escritura/estructura.json` | Actos y capítulos (outline, resumen, orden, archivo) | `EstructuraRepo.ts`, `chapterFiles.ts` |
 | `escritura/capitulos/*.md` | Manuscritos de los capítulos | `chapterFiles.ts` |
 | `escritura/blueprint.json` | Novel Setup (premisa, estilo, estructura) | `BlueprintRepo.ts` |
@@ -19,7 +19,6 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `codex/detalles.json` | Campos personalizados (detalles), sus opciones y sus categorías | `DetalleRepo.ts` |
 | `chats/chat_<id>.json` | Un chat con todos sus mensajes y su contexto | `ChatRepo.ts` |
 | `images/` | Imágenes de la novela | — |
-| `_config.md` | Memoria y nota del autor de toda la novela, en el frontmatter (opcional; lo crea la tool `write_memory` del chat) | `src/context/promptMeta.ts` |
 
 `NovelStore` (`src/infrastructure/storage/store.ts`) es la fachada: guarda la novela
 activa (`activeNovelId`, `activeFolderPath`) y delega en los repos. Los repos reciben
@@ -70,6 +69,13 @@ respuesta.
   `toolCalls`); el resto del mensaje queda igual.
 
 Test: `test/chat-repo-lock.test.cjs`, con caso de control.
+
+### Copia para deshacer respuestas del chat
+
+`novelSnapshot.ts` (`createNovelFiles`) copia los `.md` y `.json` de la novela (sin
+`chats/`) y restaura los que cambió una respuesta del chat. Lo hace dentro de
+`withEstructuraLock`, porque `estructura.json` está entre esos archivos; adentro no se
+llama a nada que tome el mismo lock. Ver [chat.md](chat.md#deshacer-una-respuesta).
 
 Las entradas del codex (un archivo cada una) todavía no usan lock. Si aparece un caso
 de dos escrituras simultáneas a la misma entrada, usar `withFileLock` igual que el chat.

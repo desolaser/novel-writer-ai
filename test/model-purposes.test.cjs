@@ -40,10 +40,21 @@ Module._load = function (name, parent, isMain) {
 		return {
 			useState: (value) => [value, () => {}],
 			useCallback: (callback) => callback,
+			useMemo: (factory) => factory(),
+		};
+	}
+	if (name.endsWith('/context/promptMeta')) {
+		// OutlineGenerator reads the drafted chapter's own memory from its note.
+		return {
+			readFrontmatterValue: async () => null,
+			readInheritedPromptMeta: async () => '',
 		};
 	}
 	if (name.endsWith('/novelWriterStore')) {
-		return { useNovelWriter: () => novelState };
+		// The hook reads the store through React; OutlineGenerator through getState().
+		const useNovelWriter = () => novelState;
+		useNovelWriter.getState = () => novelState;
+		return { useNovelWriter };
 	}
 	if (name.endsWith('/context/promptBuilder')
 		|| (name === './promptBuilder' && parent.filename.includes('context'))) {
@@ -206,8 +217,8 @@ test('chat uses its own capabilities rather than the default writing profile',
 	});
 
 test('chapter budget scales beyond the old cap and validates word targets', () => {
-	assert.equal(chapterOutputBudget(2000), 4500);
-	assert.equal(chapterOutputBudget(5000), 11250);
+	assert.equal(chapterOutputBudget(2000), 3750);
+	assert.equal(chapterOutputBudget(5000), 9375);
 	for (const invalid of [0, -1, NaN, Infinity]) {
 		assert.throws(() => chapterOutputBudget(invalid), /positive number/);
 	}
@@ -237,13 +248,35 @@ test('chapter continuations recalculate output while preserving profile options'
 		} };
 		const draft = await generateChapterDraftText(
 			{}, '', api, active.modelName, active.options, configuration(),
-			'An outline', 2000, () => 'Finish the chapter.'
+			'An outline', { min: 1900, max: 2200, target: 2000 }, () => 'Finish the chapter.'
 		);
 		assert.equal(draft.split(/\s+/).length, 2000);
-		assert.deepEqual(calls.map((c) => c.max_tokens), [4500, 2250]);
+		assert.deepEqual(calls.map((c) => c.max_tokens), [3750, 1875]);
 		assert.ok(calls.every((c) => c.thinking && c.effort === 'high'));
 		assert.ok(calls.every((c) => c.stream === false));
 		assert.equal(active.options.max_tokens, 250);
+	});
+
+test('a draft cut mid-sentence is trimmed and closed with a short request',
+	async () => {
+		const active = getActiveModelConfig(configuration(), 'writing');
+		const prompts = [];
+		const budgets = [];
+		const answers = [`${words(1990)}. She opened the door and`, 'Seth waited outside. The end.'];
+		const api = { generateCompletion: async (prompt, _, options) => {
+			prompts.push(prompt);
+			budgets.push(options.max_tokens);
+			return { text: answers.shift() ?? '' };
+		} };
+		const draft = await generateChapterDraftText(
+			{}, '', api, active.modelName, active.options, configuration(),
+			'An outline', { min: 1900, max: 2200, target: 2000 }, () => 'Write the chapter.'
+		);
+		assert.ok(!draft.includes('opened the door and'), 'the half sentence is cut');
+		assert.ok(draft.endsWith('Seth waited outside. The end.'));
+		assert.equal(prompts.length, 2);
+		assert.match(prompts[1], /cut off before its ending/);
+		assert.equal(budgets[1], 375, 'the closing gets a small budget');
 	});
 
 test('provider budget retries retain the selected profile parameters', async () => {
@@ -283,10 +316,10 @@ test('a draft workflow summarizes with utilities then writes with writing',
 			updateCapitulo: async () => {},
 		};
 		responses = ['The protagonist leaves home.', words(2000)];
-		const actions = useOutlineActions({ settings: { data: settings }, app: {} },
-			2000);
+		// No blueprint: the default range 2000-4000, aiming at 3000.
+		const actions = useOutlineActions({ settings: { data: settings }, app: {} });
 		await actions.generateSingleDraft(chapter);
 		assert.deepEqual(requests.map((r) => r.model), ['utilities', 'writing']);
-		assert.deepEqual(requests.map((r) => r.options.max_tokens), [800, 4500]);
+		assert.deepEqual(requests.map((r) => r.options.max_tokens), [800, 5625]);
 		assert.equal(manuscript.split(/\s+/).length, 2000);
 	});

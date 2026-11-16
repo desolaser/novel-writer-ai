@@ -49,7 +49,8 @@ una sola vez por instancia del plugin.
 - `estructura.json` solo se toca dentro de `withEstructuraLock`; los archivos de chat
   dentro de `withFileLock`. Ver [storage](docs/storage.md).
 - Las tools de escritura del chat esperan la aprobación del autor, salvo que él active
-  Auto-approve. Ver [chat-tools](docs/chat-tools.md).
+  Auto-approve. Las destructivas (`alwaysAsk`, como `delete_chapter`) preguntan
+  siempre. Ver [chat-tools](docs/chat-tools.md).
 - Las notas privadas de una entrada del codex (`EntradaCodex.notas`) nunca llegan a la IA.
   Tampoco las entradas con política "Never" ni los detalles con `incluir_ia` apagado
   (en las tools, vía `src/tools/codexShared.ts`).

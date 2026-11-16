@@ -25,6 +25,29 @@ export interface ToolDefinition {
 	kind: ToolKind;
 	description: string;
 	args: ToolArgSpec[];
+	/**
+	 * Destructive write: the author approves it every time, even with
+	 * Auto-approve on or after "Approve all for this answer".
+	 */
+	alwaysAsk?: boolean;
+}
+
+/** Groups of tools the author can turn on and off in Settings. */
+export type ToolGroupId =
+	| 'manuscript'
+	| 'structure'
+	| 'codex'
+	| 'novel'
+	| 'workspace'
+	| 'generators';
+
+/** Which notes `read_note` may open: none, the novel's folder, or the vault. */
+export type NoteAccess = 'off' | 'novel' | 'vault';
+
+/** What the author allows the chat to use, from Settings. */
+export interface ToolAvailability {
+	groups: Record<ToolGroupId, boolean>;
+	noteAccess: NoteAccess;
 }
 
 /** One tool invocation parsed out of a model answer. */
@@ -60,4 +83,6 @@ export interface ToolCallState {
 	result?: ToolResult;
 	/** Characters of the turn's text written before this call (see turnSegments). */
 	textOffset?: number;
+	/** What the call's references resolve to, such as "#11" → its chapter. */
+	targets?: Record<string, string>;
 }

@@ -1,4 +1,3 @@
-import type { NovelBlueprint } from '../domain';
 import type {
 	BlueprintToolContext,
 	ChapterToolContext,
@@ -7,50 +6,11 @@ import { countWords, orderedChapters } from './chapterTools';
 import { orderedActs } from './structureTools';
 
 /**
- * Whole-novel tools: the blueprint (story bible) and a progress report. Both
- * read only, so the model can check them whenever it needs, whatever the
- * Story bible toggle of the chat says.
+ * Progress report of the whole novel. Read only, so the model can check it
+ * whenever it needs. The blueprint tools are in `blueprintTools.ts`.
  */
 
 type NovelContext = ChapterToolContext & BlueprintToolContext;
-
-function field(label: string, value: string | undefined): string | null {
-	return value?.trim() ? `${label}: ${value.trim()}` : null;
-}
-
-function choice(label: string, value: string, fallback: string): string {
-	return value === 'unset' || value === 'undefined'
-		? `${label}: not set (defaults to ${fallback})`
-		: `${label}: ${value}`;
-}
-
-function describeBlueprint(blueprint: NovelBlueprint): string {
-	const words = blueprint.wordsPerChapter;
-	const lines = [
-		field('Title', blueprint.title),
-		field('Genre', blueprint.genre),
-		field('Style', blueprint.style),
-		field('Setting', blueprint.setting),
-		field('Language', blueprint.language) ?? 'Language: same as the manuscript',
-		choice('Tense', blueprint.tense, 'past'),
-		choice('Narrative time', blueprint.narrativeTime, 'linear'),
-		choice('Audience', blueprint.audience, 'none'),
-		words ? `Words per chapter: ${words.min}-${words.max}` : null,
-		`Structure: ${blueprint.structure}, ${blueprint.chapterCount} chapters planned`,
-		field('Premise', blueprint.description),
-		field('Structure plan', blueprint.structureMarkdown),
-	];
-	return lines.filter((line): line is string => Boolean(line)).join('\n');
-}
-
-export async function readBlueprintTool(
-	_args: Record<string, string>,
-	context: BlueprintToolContext,
-): Promise<string> {
-	const blueprint = await context.readBlueprint();
-	if (!blueprint) return 'This novel has no Novel Setup (blueprint) yet.';
-	return describeBlueprint(blueprint);
-}
 
 function chapterLabel(number: number, name: string): string {
 	return `#${number} ${name}`;

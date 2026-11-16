@@ -79,6 +79,7 @@ export function toToolCallRecord(state: ToolCallState, limit = STORED_VALUE_LIMI
 		...(state.result ? { ok: state.result.ok, output: cut(state.result.output, limit) } : {}),
 		...(state.call.truncated ? { truncated: true } : {}),
 		...(state.textOffset !== undefined ? { textOffset: state.textOffset } : {}),
+		...(state.targets && Object.keys(state.targets).length ? { targets: state.targets } : {}),
 	};
 }
 

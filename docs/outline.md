@@ -15,7 +15,8 @@ capítulo y el resumen de cada acto, y generar outlines, memorias y borradores c
 | `src/ui/react/outline/ActSummary.tsx` | Resumen del acto + "Generate with AI" |
 | `src/ui/react/outline/ChapterRow.tsx` | Fila de capítulo y su outline |
 | `src/ui/react/outline/ChapterActionsMenu.tsx` | Menú "⋯" del capítulo |
-| `src/ui/react/outline/useOutlineActions.ts` | Acciones de IA y batch, sin UI |
+| `src/ui/react/outline/useOutlineActions.ts` | Acciones de IA y batch: mensajes de progreso y confirmaciones |
+| `src/ui/react/outline/outlineGenerator.ts` | `OutlineGenerator`: los generadores sin React (también los usa el chat) |
 | `src/ui/react/outline/outlineGenerators.ts` | Generación de borradores de capítulo |
 | `src/ui/react/outline/dragTypes.ts` | Tipos de arrastre propios |
 | `src/ui/react/components/AutoSaveTextarea.tsx` | Campo con auto-guardado |
@@ -70,12 +71,52 @@ Desde la cabecera (`OutlineHeader`) y el menú de cada capítulo:
   fuera de ellos es del autor y no se toca),
 - generar el resumen de un acto,
 - crear los manuscritos que faltan,
-- generar borradores de capítulo con un largo objetivo (`draftWordCount`).
+- generar borradores de capítulo, con el largo del Story Bible (ver abajo).
+
+El trabajo lo hace `OutlineGenerator`, sin React: lee el store con `getState()` y lanza
+errores con mensajes para el autor. `useOutlineActions` solo agrega el estado de
+progreso y las confirmaciones. Las tools del chat (`generate_outline`, `summarize_act`,
+`draft_chapter`, `refresh_story_context`) usan la misma clase, así que un cambio a un
+generador vale para los dos lados.
 
 Todas usan los modelos de propósito `writing` o `utilities` (ver
 [models-and-prompts.md](models-and-prompts.md)). El "historial" que reciben (qué pasó
 antes) lo arma `buildChapterHistory` (`src/context/chapterHistory.ts`): outlines de los
 capítulos recientes y resúmenes de acto para los lejanos, nunca extractos de la prosa.
+
+### Borradores: largo, final y contexto
+
+`generateChapterDraftText` (`outlineGenerators.ts`) pide el capítulo con el modelo
+`writing` y sigue pidiendo hasta llegar al mínimo del rango.
+
+- **De dónde sale el largo.** Solo del Story Bible: "words per chapter" de cada novela
+  (`DraftLength`, `src/utils/draftLength.ts`). Cualquier largo dentro del rango sirve; el
+  modelo apunta al punto medio (2000-4000 → 3000) y el máximo es un techo. Sin Novel
+  Setup se usa `DEFAULT_WORD_RANGE` (2000-4000). `OutlineGenerator.draftLength()` lo lee.
+  Antes había un campo "Words" en la cabecera del Outline (`draftWordCount`, uno para
+  todo el vault) que no coincidía con el rango que usa `novel_status`; se quitó, y el
+  setting viejo se borra al cargar.
+- **Largo en el prompt.** `draftLengthRule` (`src/context/promptBuilder.ts`) da el rango,
+  el punto al que apuntar y el techo, y pide ajustar las escenas al largo en vez de
+  cortar el final. "Aproximadamente N palabras" solo no bastaba: un capítulo de 2000
+  volvía con 3000.
+- **Presupuesto.** `chapterOutputBudget` deja un margen de 1,25 sobre el punto medio
+  (antes 1,5). Con 1,5 el límite de output alcanzaba para ~3000 palabras en español y
+  era lo que cortaba el texto.
+- **Final cortado.** Si una respuesta termina a mitad de oración (llegó al límite), se
+  recorta hasta la última oración completa (`src/utils/draftEnding.ts`). Si el borrador
+  ya llegó al largo, una sola petición corta (hasta 200 palabras) cierra la escena.
+- **Memoria del capítulo correcto.** El prompt recibe la memoria y la nota del autor
+  del capítulo que se escribe (`ScenePromptMeta`, leído por
+  `OutlineGenerator.chapterMeta`). Antes salían de la nota abierta en el editor, así
+  que desde el Outline o el chat llegaba la "historia hasta aquí" de otro capítulo, o
+  ninguna.
+- **Codex.** Las entradas se detectan en el outline además del texto ya escrito. Antes
+  solo en el texto, y en la primera petición no hay texto: el modelo no recibía los
+  lugares y personajes que el outline nombra.
+
+Tests: `test/draft-length.test.cjs`, `test/draft-ending.test.cjs` y
+`test/model-purposes.test.cjs`.
 
 ### Idioma de los resúmenes
 

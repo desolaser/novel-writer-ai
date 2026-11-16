@@ -56,9 +56,6 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [reorderingAct, setReorderingAct] = useState<string | null>(null);
 	const [draggedAct, setDraggedAct] = useState<string | null>(null);
 	const [collapsedActs, setCollapsedActs] = useState<Set<string>>(new Set());
-	const [targetWords, setTargetWords] = useState(
-		plugin.settings.data.draftWordCount || 2000
-	);
 
 	const {
 		batchBusy,
@@ -73,7 +70,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		createChapterManuscript,
 		generateDrafts,
 		generateSingleDraft,
-	} = useOutlineActions(plugin, targetWords);
+	} = useOutlineActions(plugin);
 
 	useEffect(() => {
 		const openChapter = (event: Event) => {
@@ -266,17 +263,9 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		void plugin.app.workspace.openLinkText(fullPath, "", false);
 	};
 
-	const onTargetWordsChange = (n: number) => {
-		setTargetWords(n);
-		plugin.settings.data.draftWordCount = n;
-		void plugin.settings.save();
-	};
-
 	return (
 		<div className="nw-outline-view nw-outline-single-column">
 			<OutlineHeader
-				targetWords={targetWords}
-				onTargetWordsChange={onTargetWordsChange}
 				batchBusy={batchBusy}
 				chaptersCount={capitulos.length}
 				onGenerateAllMemory={() => void generateAllMemory()}

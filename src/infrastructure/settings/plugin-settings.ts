@@ -4,6 +4,7 @@ import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 import type { EffortLevel } from '../../utils/provider-options';
 import type { ModelAssignments } from '../../types/ModelPurpose';
 import type { EditorAction } from '../../types/EditorAction';
+import type { NoteAccess, ToolGroupId } from '../../types/AiTool';
 import { DEFAULT_EDITOR_ACTIONS } from '../../constants/editorActions';
 
 /** Proveedor de IA seleccionado. */
@@ -83,8 +84,6 @@ export interface PluginSettings {
 	memoryContent: string;
 	/** Author's note global. */
 	authorNote: string;
-	/** Target word count used by batch chapter drafts. */
-	draftWordCount: number;
 	/** Opciones de IA. */
 	aiOptions: AiOptions;
 	/** Opciones de codex. */
@@ -123,6 +122,10 @@ export interface PluginSettings {
 	toolRoundsBeforePause: number;
 	/** Run the chat's write tools without asking for each one. Off by default. */
 	chatAutoApproveWrites: boolean;
+	/** Tool groups the chat may use; a group turned off is not even described to the model. */
+	chatToolGroups: Record<ToolGroupId, boolean>;
+	/** Which notes the chat's `read_note` tool may open. */
+	chatNoteAccess: NoteAccess;
 }
 
 /** Paleta de colores predeterminada. */
@@ -174,7 +177,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	prefix: 'Continue the text following the narration style of the user: ',
 	memoryContent: '',
 	authorNote: '',
-	draftWordCount: 2000,
 	aiOptions: DEFAULT_AI_OPTIONS,
 	codexOptions: DEFAULT_CODEX_OPTIONS,
 	historyOptions: DEFAULT_HISTORY_OPTIONS,
@@ -192,6 +194,15 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	includeOutlineInContext: true,
 	toolRoundsBeforePause: 25,
 	chatAutoApproveWrites: false,
+	chatToolGroups: {
+		manuscript: true,
+		structure: true,
+		codex: true,
+		novel: true,
+		workspace: true,
+		generators: true,
+	},
+	chatNoteAccess: 'vault',
 };
 
 /** Crea los dos prompts por defecto y retorna el array inicial. */

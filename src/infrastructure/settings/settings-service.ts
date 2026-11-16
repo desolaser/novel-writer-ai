@@ -31,6 +31,9 @@ export class SettingsService {
 		// Replaced by `toolRoundsBeforePause`: the old limit (4 by default) cut
 		// longer tasks off halfway and was a hard stop instead of a pause.
 		delete (this.data as any).maxToolRounds;
+		// Draft length comes from each novel's Story Bible now (words per chapter):
+		// one number for the whole vault disagreed with the novels' own ranges.
+		delete (this.data as any).draftWordCount;
 		this.migrateLegacyModel();
 		this.prompts.ensureDefaults();
 		return this.data;

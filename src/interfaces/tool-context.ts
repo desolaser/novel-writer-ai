@@ -10,6 +10,7 @@ import type {
 	Tag,
 } from '../domain';
 import type { PromptMetaKey } from '../types/PromptMeta';
+import type { DraftLength } from '../utils/draftLength';
 
 /**
  * Contracts between the tools layer and whatever holds the novel's data.
@@ -32,6 +33,8 @@ export interface ChapterToolContext {
 	updateAct(id: EntityId, patch: Partial<Acto>): Promise<void>;
 	createChapter(idActo: EntityId, nombre: string, orden: number): Promise<Capitulo | undefined>;
 	updateChapter(id: EntityId, patch: Partial<Capitulo>): Promise<void>;
+	/** Removes the chapter and sends its manuscript to the trash. */
+	deleteChapter(id: EntityId): Promise<void>;
 	writeChapterText(id: EntityId, content: string): Promise<string | null>;
 }
 
@@ -56,6 +59,8 @@ export interface CodexToolContext {
 
 export interface BlueprintToolContext {
 	readBlueprint(): Promise<NovelBlueprint | null>;
+	/** Merges the patch into the blueprint, creating it if the novel has none. */
+	updateBlueprint(patch: Partial<NovelBlueprint>): Promise<void>;
 }
 
 /** Moves the author's view; never changes the novel. */
@@ -93,7 +98,7 @@ export interface NoteToolContext {
 
 /**
  * Memory and author note at one level: a chapter (its manuscript frontmatter)
- * or the whole novel (`_config.md` in its folder).
+ * or the whole novel (its `__config.json`).
  */
 export interface PromptMetaLayers {
 	/** Value stored at this level; null when it has none. */
@@ -108,6 +113,29 @@ export interface MemoryToolContext {
 	writePromptMeta(chapterId: EntityId | null, key: PromptMetaKey, value: string): Promise<void>;
 }
 
+/** A draft and the length it was asked for. */
+export interface DraftResult {
+	text: string;
+	length: DraftLength;
+}
+
+/** Where a generated outline comes from. */
+export type OutlineSource = 'manuscript' | 'story_so_far';
+
+/** The outline's AI generators, with the models chosen in Settings. Each one saves its result. */
+export interface GeneratorToolContext {
+	/** Null when the source is the manuscript and it has no text. */
+	generateOutline(chapterId: EntityId, source: OutlineSource): Promise<string | null>;
+	summarizeAct(actId: EntityId): Promise<string>;
+	/**
+	 * Writes the draft over the chapter's text and returns it. Its length comes
+	 * from the Story Bible's range; `words` overrides it when the model asks.
+	 */
+	draftChapter(chapterId: EntityId, words: number | null): Promise<DraftResult>;
+	/** `chapterId` null rebuilds every chapter; returns how many were updated. */
+	refreshStoryContext(chapterId: EntityId | null): Promise<number>;
+}
+
 /** Data of the novel, served by the store adapter. */
 export type NovelToolContext = ChapterToolContext & CodexToolContext & BlueprintToolContext;
 
@@ -117,4 +145,4 @@ export type WorkspaceToolContext = NavigationToolContext
 	& NoteToolContext
 	& MemoryToolContext;
 
-export type ToolContext = NovelToolContext & WorkspaceToolContext;
+export type ToolContext = NovelToolContext & WorkspaceToolContext & GeneratorToolContext;

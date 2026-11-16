@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { MensajeToolCall } from '../../../../../domain';
 import { Icon } from '../../../components/Icon';
 import { PlanChecklist } from './PlanChecklist';
+import { findToolDefinition } from '../../../../../tools/registry';
 
 /**
  * One tool call as shown in the chat: what the model wants to do, and — for write
@@ -64,6 +65,8 @@ export function ToolCallCard({
 	const isPlan = call.name === 'update_plan';
 	const args = isPlan ? [] : Object.entries(call.args).filter(([, value]) => value.trim());
 	const awaiting = live && call.status === 'awaiting' && call.kind === 'write';
+	// Destructive tools are approved one by one, never in bulk.
+	const alwaysAsk = Boolean(findToolDefinition(call.name)?.alwaysAsk);
 	// A plan shows its checklist; the model's echo of it would only repeat it.
 	const showOutput = call.output !== undefined && !awaiting && !(isPlan && call.ok);
 
@@ -83,7 +86,12 @@ export function ToolCallCard({
 					{args.map(([name, value]) => (
 						<div key={name} className="nw-tool-arg">
 							<dt>{name}</dt>
-							<dd><ArgumentValue value={value} /></dd>
+							<dd>
+								<ArgumentValue value={value} />
+								{call.targets?.[name] && (
+									<span className="nw-tool-arg-target">→ {call.targets[name]}</span>
+								)}
+							</dd>
 						</div>
 					))}
 				</dl>
@@ -97,14 +105,16 @@ export function ToolCallCard({
 					>
 						Approve
 					</button>
-					<button
-						type="button"
-						className="nw-btn nw-btn-small"
-						title="Approve this and every other change until the AI finishes this answer"
-						onClick={() => onApproveAll?.(call.id)}
-					>
-						Approve all for this answer
-					</button>
+					{!alwaysAsk && (
+						<button
+							type="button"
+							className="nw-btn nw-btn-small"
+							title="Approve this and every other change until the AI finishes this answer"
+							onClick={() => onApproveAll?.(call.id)}
+						>
+							Approve all for this answer
+						</button>
+					)}
 					<button
 						type="button"
 						className="nw-btn nw-btn-small"

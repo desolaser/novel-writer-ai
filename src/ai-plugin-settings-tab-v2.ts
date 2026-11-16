@@ -6,6 +6,7 @@ import { getProvider } from './constants/providers';
 import { ModelModal } from './ui/modals/ModelModal';
 import { CustomPromptsModal } from './ui/react/features/chat/CustomPromptsModal';
 import { renderModelPurposeSettings } from './ui/modelPurposeSettings';
+import { renderChatToolSettings } from './ui/chatToolSettings';
 import { EditorActionsModal } from './ui/modals/EditorActionsModal';
 
 /** Plugin settings focused on selecting and managing reusable model profiles. */
@@ -199,6 +200,7 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 					settings.chatAutoApproveWrites = value;
 					await this.plugin.settings.save();
 				}));
+		renderChatToolSettings(host, this.plugin.settings);
 	}
 
 	private renderCodexOptions(host: HTMLElement): void {

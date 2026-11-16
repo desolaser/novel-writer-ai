@@ -879,8 +879,6 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-outline-single-column .nw-btn-icon { opacity: .65; }
 .nw-outline-single-column .nw-btn-icon:hover { opacity: 1; }
 .nw-outline-actions { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-start; }
-.nw-draft-length { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; }
-.nw-draft-length input { width: 72px; }
 .nw-btn-experimental { border-color: var(--text-muted); color: var(--text-muted); }
 .nw-outline-status { color: var(--text-muted); font-size: 11px; margin: 5px 0; }
 .nw-chapter-file-status { color: var(--text-muted); font-size: 10px; opacity: .7; }
@@ -1578,6 +1576,10 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-chat-turn-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .nw-chat-turn-state { color: var(--text-muted); font-size: 11px; font-style: italic; margin-right: auto; }
 .nw-chat-turn-notice { color: var(--text-muted); font-size: 11px; font-style: italic; text-align: center; padding: 4px 0; }
+/* Tool names under each group in Settings, Chat tools. */
+.nw-setting-tool-names { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+/* What a reference like "#11" resolves to, shown before approving. */
+.nw-tool-arg-target { margin-left: 6px; color: var(--text-accent); font-weight: 500; }
 .nw-tool-trace { margin-top: 6px; font-size: 13px; }
 .nw-tool-trace > summary { cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none; }
 .nw-tool-trace > .nw-tool-calls { margin-top: 8px; }

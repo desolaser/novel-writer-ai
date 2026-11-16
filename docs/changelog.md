@@ -5,6 +5,66 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### El largo de los borradores sale solo del Story Bible
+- Se quitó el campo "Words" de la cabecera del Outline y el setting `draftWordCount`
+  (uno para todo el vault). Los borradores usaban ese número mientras `novel_status`
+  usaba el rango del Story Bible, así que podían no coincidir.
+- Ahora el largo es el "words per chapter" de cada novela (`DraftLength`,
+  `src/utils/draftLength.ts`); sin Novel Setup, 2000-4000. El modelo apunta al punto
+  medio y cualquier largo dentro del rango sirve: el bucle para al llegar al mínimo y
+  el máximo es el techo del prompt.
+- `draft_chapter` usa el rango por defecto; su argumento `words` lo reemplaza con un
+  margen de ±10 %.
+- El setting viejo se borra al cargar. Tests: `test/draft-length.test.cjs`.
+  Detalle: [outline.md](outline.md#borradores-largo-final-y-contexto).
+
+### Borradores más cerca del largo, sin final cortado y con el contexto correcto
+- Un capítulo de 2000 palabras volvía con ~3000 y cortado a mitad de oración. El margen
+  de output (1,5) dejaba escribir de más hasta chocar con el límite.
+  - Margen 1,25 y una regla de largo con techo (objetivo + 10 %) en `draftLengthRule`.
+  - Un texto cortado se recorta hasta la última oración completa y, si ya llegó al
+    largo, una petición corta cierra la escena (`src/utils/draftEnding.ts`).
+- Arreglo: el borrador usaba la memoria y la nota del autor de la nota abierta en el
+  editor, no las del capítulo. Desde el Outline o el chat, la "historia hasta aquí"
+  era la de otro capítulo o ninguna.
+- Arreglo: el codex se detectaba solo en el texto ya escrito; ahora también en el
+  outline, así el primer pedido ya recibe los lugares y personajes del capítulo.
+- Tests: `test/draft-ending.test.cjs`, `test/model-purposes.test.cjs`. Detalle:
+  [outline.md](outline.md#borradores-largo-final-y-contexto).
+
+### Chat: nombres en las tarjetas y Settings más claros
+- La tarjeta de una tool muestra a qué apunta una referencia antes de aprobarla
+  (`#11 → #11 Capítulo 11`), para capítulos, actos y entradas (`callTargets.ts`).
+  Antes `delete_chapter` solo mostraba el número.
+- Settings → Chat tools explica qué hacen los grupos, y cada uno muestra cuántos tokens
+  suma por mensaje y sus tools.
+- Tests: `test/chat-tools.test.cjs`. Detalle: [chat-tools.md](chat-tools.md).
+
+### Chat: grupos de tools en Settings, deshacer respuestas, generadores y más tools
+- **Grupos en Settings** (Chat Options → Chat tools): un toggle por grupo
+  (`chatToolGroups`); un grupo apagado no se manda al modelo y la sesión rechaza sus
+  llamadas. Con todo encendido son 36 tools, ~3150 tokens.
+- **`read_note` configurable** (`chatNoteAccess`): todo el vault (por defecto), solo la
+  carpeta de la novela, o apagado.
+- **Memoria de la novela en `__config.json`.** La memoria global de Settings vale para
+  todo el vault; cada novela ahora tiene la suya, entre la del capítulo y la global.
+  Se edita en Config → "This novel" y con `write_memory` sin capítulo. `_config.md` ya
+  no se escribe; se sigue leyendo como legado (`NovelConfigRepo.ts`).
+- **Deshacer una respuesta**: botón ← en las respuestas que cambiaron la novela.
+  Restaura los archivos que cambió y deja los que el autor tocó después
+  (`novelSnapshot.ts`, `fileChanges.ts`). Vive en memoria hasta reiniciar Obsidian.
+- **Tools nuevas**: `delete_chapter` (pregunta siempre: `alwaysAsk`), `update_blueprint`,
+  y el grupo Generators: `generate_outline`, `summarize_act`, `draft_chapter`,
+  `refresh_story_context`.
+- Los generadores del Outline salieron de `useOutlineActions` a `OutlineGenerator`
+  (sin React); el Outline y el chat usan la misma clase.
+- No se hizo una tool de retratos: el plugin no tiene un generador de retratos que
+  reutilizar.
+- Tests: `test/chat-tools.test.cjs`, `test/chat-agent.test.cjs`,
+  `test/file-changes.test.cjs`; mocks nuevos en `test/model-purposes.test.cjs`.
+  Detalle: [chat-tools.md](chat-tools.md), [chat.md](chat.md), [editor.md](editor.md),
+  [storage.md](storage.md), [outline.md](outline.md), [hotkeys.md](hotkeys.md).
+
 ### Chat: texto y tool calls en el orden en que pasaron
 - Al recargar el chat, todo lo que dijo la IA quedaba arriba y todas las tool calls
   abajo, plegadas en un solo grupo. En vivo pasaba lo mismo.

@@ -2,14 +2,27 @@ import { App, TFile, TFolder } from 'obsidian';
 import * as yaml from 'js-yaml';
 import type { PluginSettings } from '../infrastructure/settings/plugin-settings';
 import type { PromptMetaKey } from '../types/PromptMeta';
+import { NOVELA_META_FILE } from '../constants/novel';
+import { readNovelPromptMeta } from '../infrastructure/storage/repos/NovelConfigRepo';
 
+/**
+ * Legacy: a note with memory or author note for every note in its folder. Still
+ * read, for folders outside any novel; nothing writes it anymore.
+ */
 export const PROMPT_META_CONFIG_FILE = '_config.md';
 
 const FRONTMATTER = /^---\s*([\s\S]*?)---/;
 
+/** Novel folders are the ones holding this file (see `scanNovels`). */
+function isNovelFolder(folder: TFolder): boolean {
+	return folder.children.some((child) =>
+		child instanceof TFile && child.name === NOVELA_META_FILE);
+}
+
 /**
- * Value of `key` inherited by notes inside `folder`: the nearest `_config.md`
- * walking up the folders, then the global setting.
+ * Value of `key` inherited by notes inside `folder`, walking up the folders:
+ * a novel's own value (its `__config.json`), then a legacy `_config.md`, and
+ * at the end the global setting.
  */
 export async function readInheritedPromptMeta(
 	app: App,
@@ -19,6 +32,10 @@ export async function readInheritedPromptMeta(
 ): Promise<string> {
 	let current = folder;
 	while (current) {
+		if (isNovelFolder(current)) {
+			const novelValue = await readNovelPromptMeta(app, current.path, key);
+			if (novelValue !== null) return novelValue;
+		}
 		const config = current.children.find((child) =>
 			child instanceof TFile && child.name === PROMPT_META_CONFIG_FILE) as TFile | undefined;
 		if (config) {
@@ -30,7 +47,7 @@ export async function readInheritedPromptMeta(
 	return settings[key] ?? '';
 }
 
-/** Resolves prompt metadata using the legacy note -> _config.md -> global cascade. */
+/** Resolves prompt metadata: the active note, then its novel, then the global setting. */
 export async function getPromptMetaCascading(
 	app: App,
 	settings: PluginSettings,
