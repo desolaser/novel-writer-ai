@@ -6,7 +6,7 @@ import { Icon } from '../../components/Icon';
 import { Notice } from 'obsidian';
 import { confirmDialog } from '../../../modals/ConfirmModal';
 import NovelFolderPickerModal from './modals/NovelFolderPickerModal';
-import { openEntryModal } from './modals/CodexEntryModal';
+import { openCodexEntry, paneTypeFor } from '../../../views/openCodexEntry';
 import { CategoriasModal } from './modals/CategoriasModal';
 import { DetallesModal } from './modals/DetallesModal';
 import CodexCategoryGroup from './CodexCategoryGroup';
@@ -19,7 +19,7 @@ import type { Filters } from './types/Filters';
 type BatchMode = 'delete' | 'assign' | null;
 
 export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { categorias, entradas, tags, setEditingEntry, createEntry, deleteEntry, updateEntry } = useNovelWriter();
+	const { categorias, entradas, tags, createEntry, deleteEntry, updateEntry } = useNovelWriter();
 	const [query, setQuery] = useState('');
     const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 	const [configMenuOpen, setConfigMenuOpen] = useState(false);
@@ -44,8 +44,7 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		if (!finalCat) return;
 		const created = await createEntry(finalCat, '');
 		if (created) {
-			setEditingEntry(created.id_entrada_codex);
-			openEntryModal(plugin, created.id_entrada_codex);
+			void openCodexEntry(plugin, created.id_entrada_codex);
 		}
 	};
 
@@ -238,7 +237,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						onToggle={() => toggleCat(c.id_categoria)}
 						entries={filtered.filter((e) => e.id_categoria === c.id_categoria)}
 						tags={tags}
-						onEdit={(entryId) => openEntryModal(plugin, entryId)}
+						onEdit={(entryId, event) => void openCodexEntry(
+							plugin, entryId, paneTypeFor(event.nativeEvent),
+						)}
 						onAddInCategory={() => createAndEdit(c.id_categoria)}
 						selectionActive={batchMode !== null}
 						selectedIds={selectedIds}
@@ -254,7 +255,9 @@ export function CodexPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 						onToggle={() => toggleCat(NO_CAT_KEY)}
 						entries={noCat}
 						tags={tags}
-						onEdit={(entryId) => openEntryModal(plugin, entryId)}
+						onEdit={(entryId, event) => void openCodexEntry(
+							plugin, entryId, paneTypeFor(event.nativeEvent),
+						)}
 						onAddInCategory={() => createAndEdit('')}
 						selectionActive={batchMode !== null}
 						selectedIds={selectedIds}

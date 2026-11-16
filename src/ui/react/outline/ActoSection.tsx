@@ -21,14 +21,12 @@ export interface ActoSectionProps {
 	onDragEndAct: () => void;
 	onDropAct: () => void;
 	// Resumen del acto
-	actSummary: string;
-	onSaveActSummary: (value: string) => void;
+	onSaveActSummary: (value: string) => Promise<void>;
 	onGenerateActSummary: () => void;
 	// Estado compartido de capítulos
 	expanded: Set<string>;
 	editingCap: string | null;
 	openChapterMenu: string | null;
-	drafts: Record<string, string>;
 	batchBusy: boolean;
 	reorderingChapter: string | null;
 	draggedChapter: string | null;
@@ -37,7 +35,7 @@ export interface ActoSectionProps {
 	onCommitCapName: (chapter: Capitulo, name: string) => void;
 	onCancelEditingCap: () => void;
 	onToggleChapterMenu: (id: string | null) => void;
-	onSaveOutline: (id: string, value: string) => void;
+	onSaveOutline: (id: string, value: string) => Promise<void>;
 	onOpenManuscript: (path: string) => void;
 	onGenerateChapterOutline: (chapter: Capitulo) => void;
 	onGenerateChapterOutlineByMemory: (chapter: Capitulo) => void;
@@ -75,13 +73,11 @@ export function ActoSection(props: ActoSectionProps) {
 		onDragStartAct,
 		onDragEndAct,
 		onDropAct,
-		actSummary,
 		onSaveActSummary,
 		onGenerateActSummary,
 		expanded,
 		editingCap,
 		openChapterMenu,
-		drafts,
 		batchBusy,
 		reorderingChapter,
 		draggedChapter,
@@ -130,9 +126,9 @@ export function ActoSection(props: ActoSectionProps) {
 			/>
 			{!collapsed && (
 				<ActSummary
-					value={actSummary}
+					value={acto.resumen ?? ""}
 					busy={batchBusy}
-					onChange={onSaveActSummary}
+					onSave={onSaveActSummary}
 					onGenerate={onGenerateActSummary}
 				/>
 			)}
@@ -147,7 +143,6 @@ export function ActoSection(props: ActoSectionProps) {
 						expanded={isExpanded}
 						editing={isEditing}
 						menuOpen={menuOpen}
-						draft={drafts[chapter.id_capitulo] ?? ""}
 						batchBusy={batchBusy}
 						reordering={reorderingChapter === chapter.id_capitulo}
 						isDragging={draggedChapter === chapter.id_capitulo}

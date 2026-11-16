@@ -1,7 +1,9 @@
+import { AutoSaveTextarea } from "../components/AutoSaveTextarea";
+
 export interface ActSummaryProps {
 	value: string;
 	busy: boolean;
-	onChange: (value: string) => void;
+	onSave: (value: string) => Promise<void>;
 	onGenerate: () => void;
 }
 
@@ -9,7 +11,7 @@ export interface ActSummaryProps {
  * Editor del resumen del acto. Es el contexto que representa a los capítulos ya
  * lejanos, así que el autor puede escribirlo a mano o pedirlo a la IA.
  */
-export function ActSummary({ value, busy, onChange, onGenerate }: ActSummaryProps) {
+export function ActSummary({ value, busy, onSave, onGenerate }: ActSummaryProps) {
 	return (
 		<div className="nw-outline-act-summary">
 			<div className="nw-outline-act-summary-head">
@@ -23,10 +25,10 @@ export function ActSummary({ value, busy, onChange, onGenerate }: ActSummaryProp
 					Generate with AI
 				</button>
 			</div>
-			<textarea
+			<AutoSaveTextarea
 				className="nw-outline-inline-editor"
 				value={value}
-				onChange={(event) => onChange(event.target.value)}
+				onSave={onSave}
 				placeholder="Summary of the whole act, used as context once its chapters fall out of the recent window..."
 				rows={4}
 			/>

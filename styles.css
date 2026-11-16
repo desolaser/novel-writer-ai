@@ -542,14 +542,18 @@
 .nw-btn-transparent { background-color: transparent !important; border: none !important; box-shadow: none !important; }
 
 /* Entry editor */
-.modal.nw-codex-modal {
-	width: min(1100px, 92vw);
-	height: min(820px, 90vh);
-	max-width: none;
-	max-height: none;
+/* Codex entry opened as a leaf in the main area (CodexEntryView). */
+.nw-codex-entry-view.view-content {
+	padding: 0;
+	overflow: hidden;
 }
-.modal.nw-codex-modal .modal-content {
-	height: 100%;
+/* Full width with a light padding, whatever the open sections. */
+.nw-codex-entry-view .nw-entry-editor {
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	padding: 16px 24px 0;
+	box-sizing: border-box;
 }
 .nw-entry-editor { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .nw-editor-header { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid var(--background-modifier-border); }
@@ -1562,3 +1566,11 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-mentions-item:hover { background: var(--background-modifier-hover); }
 .nw-mentions-excerpt { word-break: break-word; }
 .nw-mentions-excerpt mark { background: var(--text-highlight-bg); color: var(--text-normal); border-radius: 2px; padding: 0 1px; }
+
+/* ---- Chat turn in progress (ChatLiveTurn) and stored tool traces ---- */
+.nw-chat-turn-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.nw-chat-turn-state { color: var(--text-muted); font-size: 11px; font-style: italic; margin-right: auto; }
+.nw-chat-turn-notice { color: var(--text-muted); font-size: 11px; font-style: italic; text-align: center; padding: 4px 0; }
+.nw-tool-trace { margin-top: 6px; font-size: 12px; }
+.nw-tool-trace > summary { cursor: pointer; color: var(--text-muted); font-size: 11px; user-select: none; }
+.nw-tool-trace > .nw-tool-calls { margin-top: 6px; }

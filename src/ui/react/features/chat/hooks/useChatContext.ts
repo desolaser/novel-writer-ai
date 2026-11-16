@@ -3,7 +3,7 @@ import { Notice, TFile, TFolder } from 'obsidian';
 import type NovelWriterPlugin from '../../../../../../main';
 import type { Acto, Capitulo, Categoria, EntradaCodex } from '../../../../../domain';
 import { isCharacterCategory } from '../../../../../utils/categories';
-import { openEntryModal } from '../../codex/modals/CodexEntryModal';
+import { openCodexEntry } from '../../../../views/openCodexEntry';
 import { stripFrontmatter, includesQuery, groupChaptersByAct } from '../chatContextHelpers';
 import { buildCodexEntryYaml } from '../../../../../context/promptBuilder';
 import type { ContextItem } from '../promptBuilder';
@@ -220,7 +220,7 @@ export function useChatContext({
 	 */
 	const openCharacterEntry = useCallback((item: ContextItem) => {
 		const entryId = item.id.replace(/^(character|impersonate):/, '');
-		if (entryId) openEntryModal(plugin, entryId);
+		if (entryId) void openCodexEntry(plugin, entryId);
 	}, [plugin]);
 
 	const removeCharacterContext = useCallback(() => {
@@ -252,7 +252,7 @@ export function useChatContext({
 	const openContextItem = useCallback(async (item: ContextItem) => {
 		if (item.kind === 'codex') {
 			setSidebarTab('codex');
-			openEntryModal(plugin, item.id.replace('codex:', ''));
+			void openCodexEntry(plugin, item.id.replace('codex:', ''));
 			return;
 		}
 		if (item.kind === 'outline' && item.chapterId) { await plugin.openOutlineChapter(item.chapterId); return; }

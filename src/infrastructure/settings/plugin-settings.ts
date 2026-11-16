@@ -96,6 +96,8 @@ export interface PluginSettings {
 	/** Preferencias de UI. */
 	uiPrefs: {
 		activeSidebarTab: 'codex' | string;
+		/** Open chat per novel id, so reopening a view never starts a new chat. */
+		activeChatIds: Record<string, string>;
 	};
 	/** Prompts custom del sistema (chat y texto). */
 	customPrompts: CustomPrompt[];
@@ -109,8 +111,13 @@ export interface PluginSettings {
 	chatNameGeneration: 'local' | 'active_model';
 	/** Whether to include the current chapter's outline in the autocomplete context. */
 	includeOutlineInContext: boolean;
-	/** Safety net against a model that keeps calling tools instead of answering. */
-	maxToolRounds: number;
+	/**
+	 * Rounds of tool calls the chat runs on its own before pausing to ask the
+	 * author whether to continue. A safety net, not a hard stop.
+	 */
+	toolRoundsBeforePause: number;
+	/** Run the chat's write tools without asking for each one. Off by default. */
+	chatAutoApproveWrites: boolean;
 }
 
 /** Paleta de colores predeterminada. */
@@ -169,6 +176,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	lastActiveNovelId: null,
 	uiPrefs: {
 		activeSidebarTab: 'codex',
+		activeChatIds: {},
 	},
 	customPrompts: createDefaultPrompts(),
 	editorActions: DEFAULT_EDITOR_ACTIONS,
@@ -176,7 +184,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	defaultTextPromptId: '',
 	chatNameGeneration: 'active_model',
 	includeOutlineInContext: true,
-	maxToolRounds: 4
+	toolRoundsBeforePause: 25,
+	chatAutoApproveWrites: false,
 };
 
 /** Crea los dos prompts por defecto y retorna el array inicial. */

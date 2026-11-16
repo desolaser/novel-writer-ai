@@ -24,15 +24,23 @@ import { confirmDialog } from '../../../../modals/ConfirmModal';
 
 type Tab = 'detalles' | 'investigacion' | 'relaciones' | 'menciones' | 'tracking';
 
-export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugin; onClose?: () => void }) {
+export interface CodexEntryEditorProps {
+	plugin: NovelWriterPlugin;
+	/** Entry shown by this editor; each open view has its own. */
+	entryId: string | null;
+	/** Closes the view holding the editor (after delete, move, archive...). */
+	onClose?: () => void;
+}
+
+export function CodexEntryEditor({ plugin, entryId, onClose }: CodexEntryEditorProps) {
 	const storeState = useNovelWriter() as any;
 	const {
-		entradas, editingEntryId, setEditingEntry, updateEntry, deleteEntry, archiveEntry,
+		entradas, updateEntry, deleteEntry, archiveEntry,
 		addReferencia, removeReferencia, setEntryTags, findOrCreateTag, tags, categorias, novels,
 		store, refreshEntry, moveEntryToNovel, setEntryThumbnail, setDetalleValor
 	} = storeState;
 
-	const entry = entradas.find((e: any) => e.id_entrada_codex === editingEntryId) ?? null;
+	const entry = entradas.find((e: any) => e.id_entrada_codex === entryId) ?? null;
 	const mentionCount = useMentionCount(entry, plugin);
 	const [tab, setTab] = useState<Tab>('detalles');
 	const [draft, setDraft] = useState<any>(entry);
@@ -44,12 +52,25 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const thumbInputRef = useRef<HTMLInputElement | null>(null);
 	const menuRef = useRef<HTMLDivElement | null>(null);
+	/** Latest save and dirty flag, for the flush when the view closes. */
+	const pendingSave = useRef<(() => Promise<void>) | null>(null);
 
 	useEffect(() => {
 		setDraft(entry); setDirty(false);
 		setMenuOpen(false); setTagInputOpen(false);
 		setTab('detalles'); setCollapsed(new Set());
-	}, [editingEntryId]);
+	}, [entryId]);
+
+	// Several views can show entries at once and the chat can edit them too:
+	// adopt changes made elsewhere unless this view holds unsaved edits.
+	useEffect(() => {
+		if (!dirty && entry) setDraft(entry);
+	}, [entry]);
+
+	// Closing the tab with an unsaved field (no blur happened) still saves it.
+	useEffect(() => () => {
+		void pendingSave.current?.();
+	}, []);
 
 	useEffect(() => {
 		if (!menuOpen) return;
@@ -61,12 +82,18 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	}, [menuOpen]);
 
 	if (!entry || !draft) {
-		return <div className="nw-empty-state"><button className="nw-btn" onClick={() => setEditingEntry(null)}>Back</button></div>;
+		return (
+			<div className="nw-empty-state">
+				<p>This entry is not part of the active novel, or it was deleted.</p>
+				{onClose && <button className="nw-btn" onClick={onClose}>Close</button>}
+			</div>
+		);
 	}
 
 	const mergeLive = (d: any) => ({ ...d, detalles: entry.detalles ?? d.detalles, referencias_externas: entry.referencias_externas ?? d.referencias_externas, tags: entry.tags ?? d.tags, thumbnail: entry.thumbnail ?? d.thumbnail });
 	const patch = (p: any) => { setDraft({ ...draft, ...p }); setDirty(true); };
 	const save = async () => { const merged = mergeLive(draft); await updateEntry(merged); setDraft(merged); setDirty(false); };
+	pendingSave.current = dirty ? save : null;
 	const patchAndSave = async (p: any) => { const next = { ...draft, ...p }; const merged = mergeLive(next); setDraft(next); await updateEntry(merged); setDirty(false); };
 	const addTag = async () => {
 		const names = tagInput.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -106,15 +133,15 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 	};
 	const onClearThumbnail = async () => { setMenuOpen(false); await setEntryThumbnail(entry.id_entrada_codex, null); };
 	const onSelectColor = async (color: string | null) => { setMenuOpen(false); await patchAndSave({ color }); };
-	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); setEditingEntry(null); onClose?.(); };
+	const onSelectMove = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await moveEntryToNovel(entry.id_entrada_codex, targetNovelId); onClose?.(); };
 	const onSelectCopy = async (targetNovelId: string) => { setMenuOpen(false); if (targetNovelId === entry.id_novela) return; await storeState.copyEntryToNovel(entry.id_entrada_codex, targetNovelId); };
-	const onArchive = async () => { setMenuOpen(false); await archiveEntry(entry.id_entrada_codex, !entry.archivado); setEditingEntry(null); };
+	const onArchive = async () => { setMenuOpen(false); await archiveEntry(entry.id_entrada_codex, !entry.archivado); };
 	const onDelete = async () => {
 		setMenuOpen(false);
 		const question = 'Delete entry permanently?';
 		if (!(await confirmDialog(plugin.app, question))) return;
+		pendingSave.current = null;
 		await deleteEntry(entry.id_entrada_codex);
-		setEditingEntry(null);
 		onClose?.();
 	};
 
@@ -276,11 +303,7 @@ export function CodexEntryEditor({ plugin, onClose }: { plugin: NovelWriterPlugi
 					</div>
 				)}
 				{tab === 'menciones' && (
-					<MentionsTab
-						entry={entry}
-						plugin={plugin}
-						onClose={onClose}
-					/>
+					<MentionsTab entry={entry} plugin={plugin} />
 				)}
 				{tab === 'tracking' && (
 					<div className="nw-entry-tab">

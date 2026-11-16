@@ -28,6 +28,9 @@ export class SettingsService {
 	async load(): Promise<PluginSettings> {
 		const raw = await this.plugin.loadData();
 		this.data = mergeSettings(DEFAULT_SETTINGS, raw ?? {});
+		// Replaced by `toolRoundsBeforePause`: the old limit (4 by default) cut
+		// longer tasks off halfway and was a hard stop instead of a pause.
+		delete (this.data as any).maxToolRounds;
 		this.migrateLegacyModel();
 		this.prompts.ensureDefaults();
 		return this.data;

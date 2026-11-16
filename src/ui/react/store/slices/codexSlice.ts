@@ -5,7 +5,6 @@ export const createCodexSlice: SliceCreator<CodexSlice> = (set, get) => ({
 	etiquetas: [],
 	tags: [],
 	entradas: [],
-	editingEntryId: null,
 
 	createEntry: async (idCategoria, nombre) => {
 		const s = get().store;
@@ -28,21 +27,18 @@ export const createCodexSlice: SliceCreator<CodexSlice> = (set, get) => ({
 		const s = get().store;
 		if (!s) return;
 		await s.deleteEntry(id);
-		set({ editingEntryId: null });
 		await get().reloadAll();
 	},
 	archiveEntry: async (id, archived) => {
 		const s = get().store;
 		if (!s) return;
 		await s.archiveEntry(id, archived);
-		if (archived) set({ editingEntryId: null });
 		await get().reloadAll();
 	},
 	moveEntryToNovel: async (idEntry, targetNovelId) => {
 		const s = get().store;
 		if (!s) return;
 		await s.moveEntryToNovel(idEntry, targetNovelId);
-		set({ editingEntryId: null });
 		await get().reloadAll();
 	},
 	copyEntryToNovel: async (idEntry, targetNovelId) => {
@@ -56,7 +52,6 @@ export const createCodexSlice: SliceCreator<CodexSlice> = (set, get) => ({
 		await s.setEntryThumbnail(idEntry, dataUrl);
 		await get().reloadAll();
 	},
-	setEditingEntry: (id) => set({ editingEntryId: id }),
 	addReferencia: async (idEntry, url) => {
 		const s = get().store;
 		if (!s) return null;

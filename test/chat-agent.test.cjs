@@ -1,0 +1,244 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const fs = require('node:fs');
+const Module = require('node:module');
+const ts = require('typescript');
+
+// The chat agent: the loop that keeps calling tools until the model is done,
+// and the session that runs it outside of any view. Real tools and parser,
+// fake model and fake storage.
+require.extensions['.ts'] = (module, filename) => {
+	const source = fs.readFileSync(filename, 'utf8');
+	const compiled = ts.transpileModule(source, {
+		compilerOptions: {
+			module: ts.ModuleKind.CommonJS,
+			target: ts.ScriptTarget.ES2020,
+			esModuleInterop: true,
+		},
+	});
+	module._compile(compiled.outputText, filename);
+};
+
+const originalLoad = Module._load;
+Module._load = function (name, parent, isMain) {
+	if (name === 'obsidian') return {};
+	return originalLoad.call(this, name, parent, isMain);
+};
+
+const { runAgentLoop, createLoopState } = require(
+	'../src/ui/react/features/chat/session/agentLoop.ts'
+);
+const { compactToolResults } = require(
+	'../src/ui/react/features/chat/session/toolHistory.ts'
+);
+const { ChatSession } = require(
+	'../src/ui/react/features/chat/session/ChatSession.ts'
+);
+const { parseToolAnswer } = require('../src/tools/parseToolAnswer.ts');
+const { findToolDefinition } = require('../src/tools/registry.ts');
+
+const call = (name, args = '') => `[[tool: ${name}]]\n${args}[[/tool]]`;
+
+/** Loop dependencies with a scripted model and tools that always succeed. */
+function loopDeps(answers, overrides = {}) {
+	const executed = [];
+	return {
+		executed,
+		deps: {
+			buildPrompt: (turns, pending) => `${turns.length}|${pending}`,
+			complete: async () => ({ text: answers.shift() ?? 'Done.', images: [] }),
+			parse: (answer, round) => parseToolAnswer(answer, `r${round}`),
+			runCalls: async (calls, skipped) => calls.map((item) => {
+				if (skipped[item.id]) {
+					return { callId: item.id, name: item.name, ok: false, output: skipped[item.id] };
+				}
+				executed.push(item.name);
+				return { callId: item.id, name: item.name, ok: true, output: 'ok' };
+			}),
+			isWriteTool: (name) => findToolDefinition(name)?.kind === 'write',
+			shouldStop: () => false,
+			onProgress: () => {},
+			...overrides,
+		},
+	};
+}
+
+test('the loop keeps calling tools across rounds until the model answers', async () => {
+	const answers = [
+		`Plan first.\n${call('list_chapters')}`,
+		call('read_chapter', '[[chapter]] #1\n'),
+		call('read_chapter', '[[chapter]] #2\n'),
+		'All done.',
+	];
+	const { deps, executed } = loopDeps(answers);
+	const state = createLoopState([], 'Review my chapters');
+	const outcome = await runAgentLoop(state, deps, 25);
+	assert.deepEqual(outcome, { kind: 'done' });
+	assert.deepEqual(executed, ['list_chapters', 'read_chapter', 'read_chapter']);
+	assert.deepEqual(state.visible, ['Plan first.', 'All done.']);
+});
+
+test('the loop pauses at the round limit and resumes where it was', async () => {
+	const answers = Array.from({ length: 5 }, (_, index) =>
+		call('read_chapter', `[[chapter]] #${index + 1}\n`));
+	const { deps, executed } = loopDeps(answers);
+	const state = createLoopState([], 'Read everything');
+	assert.deepEqual(await runAgentLoop(state, deps, 3), { kind: 'paused', reason: 'limit' });
+	assert.equal(executed.length, 3);
+	assert.deepEqual(await runAgentLoop(state, deps, 3), { kind: 'done' });
+	assert.equal(executed.length, 5);
+});
+
+test('identical calls are refused after two runs and a repeating model is paused', async () => {
+	const same = call('read_chapter', '[[chapter]] #1\n');
+	const { deps, executed } = loopDeps([same, same, same, same, same]);
+	const state = createLoopState([], 'Read chapter one');
+	const outcome = await runAgentLoop(state, deps, 25);
+	assert.deepEqual(outcome, { kind: 'paused', reason: 'repeating' });
+	assert.equal(executed.length, 2);
+});
+
+test('a successful write lets the model read the same thing again', async () => {
+	const read = call('read_chapter', '[[chapter]] #1\n');
+	const write = call('write_chapter', '[[chapter]] #1\n[[content]]\nNew text\n');
+	const { deps, executed } = loopDeps([read, read, write, read, 'Done.']);
+	const outcome = await runAgentLoop(createLoopState([], 'Rewrite'), deps, 25);
+	assert.deepEqual(outcome, { kind: 'done' });
+	assert.deepEqual(executed, ['read_chapter', 'read_chapter', 'write_chapter', 'read_chapter']);
+});
+
+test('the loop stops when the author asks, without running further calls', async () => {
+	let stop = false;
+	const { deps, executed } = loopDeps(
+		[call('list_chapters'), call('list_codex')],
+		{ onProgress: () => { stop = true; }, shouldStop: () => stop },
+	);
+	const outcome = await runAgentLoop(createLoopState([], 'Go'), deps, 25);
+	assert.deepEqual(outcome, { kind: 'stopped' });
+	assert.deepEqual(executed, []);
+});
+
+test('only the latest tool results stay whole in the history', () => {
+	const long = 'x'.repeat(2000);
+	const turns = compactToolResults([
+		{ role: 'user', mensaje: 'question' },
+		{ role: 'user', mensaje: long, toolResults: true },
+		{ role: 'user', mensaje: long, toolResults: true },
+		{ role: 'user', mensaje: long, toolResults: true },
+	]);
+	assert.equal(turns[0].mensaje, 'question');
+	assert.ok(turns[1].mensaje.length < 1000);
+	assert.equal(turns[2].mensaje, long);
+	assert.equal(turns[3].mensaje, long);
+});
+
+// ---- ChatSession -----------------------------------------------------------
+
+function fakePersistence() {
+	const chats = new Map([['chat', []]]);
+	let id = 0;
+	return {
+		chats,
+		readChat: async (chatId) => ({ mensajes: [...(chats.get(chatId) ?? [])] }),
+		appendMessage: async (chatId, role, text, extras = {}) => {
+			const message = { id_mensaje: `m${++id}`, role, mensaje: text, ...extras };
+			chats.get(chatId).push(message);
+			return message;
+		},
+		patchMessage: async (chatId, messageId, patch) => {
+			const list = chats.get(chatId);
+			const index = list.findIndex((item) => item.id_mensaje === messageId);
+			list[index] = { ...list[index], ...patch };
+		},
+		deleteMessage: async (chatId, messageId) => {
+			chats.set(chatId, chats.get(chatId).filter((item) => item.id_mensaje !== messageId));
+		},
+	};
+}
+
+function fakeNovel() {
+	const texts = { c1: 'The cat sat on the mat.' };
+	return {
+		texts,
+		context: {
+			listChapters: () => [{ id_capitulo: 'c1', id_acto: 'a1', nombre: 'Opening', orden: 0 }],
+			listActs: () => [{ id_acto: 'a1', nombre: 'Act 1', orden: 0 }],
+			readChapterText: async (chapterId) => texts[chapterId] ?? '',
+			writeChapterText: async (chapterId, content) => {
+				texts[chapterId] = content;
+				return `${chapterId}.md`;
+			},
+			listCodexEntries: () => [],
+			listCategories: () => [],
+			listDetalles: () => [],
+		},
+	};
+}
+
+function session(answers, { autoApprove = false } = {}) {
+	const persistence = fakePersistence();
+	const novel = fakeNovel();
+	const chat = new ChatSession('chat', {
+		persistence,
+		createToolContext: () => novel.context,
+		novelId: 'n1',
+		activeNovelId: () => 'n1',
+		autoApproveWrites: () => autoApprove,
+		roundsBeforePause: () => 25,
+	});
+	const config = {
+		toolsEnabled: true,
+		buildPrompt: (turns, pending) => `${turns.map((t) => t.mensaje).join('\n')}\n${pending}`,
+		complete: async () => ({ text: answers.shift() ?? 'Done.', images: [] }),
+	};
+	return { chat, config, persistence, novel };
+}
+
+const until = async (predicate) => {
+	for (let attempt = 0; attempt < 200; attempt++) {
+		if (predicate()) return;
+		await new Promise((resolve) => setTimeout(resolve, 1));
+	}
+	throw new Error('condition never became true');
+};
+
+test('a write waits for approval, then the answer is saved with its tool trace', async () => {
+	const edit = call('edit_chapter', '[[chapter]] Opening\n[[find]]\ncat\n[[replace]]\ndog\n');
+	const { chat, config, persistence, novel } = session([`Fixing it.\n${edit}`, 'Changed cat to dog.']);
+	const turn = chat.send('Use a dog', [], config);
+
+	await until(() => chat.getSnapshot().awaiting);
+	assert.equal(novel.texts.c1, 'The cat sat on the mat.');
+	const pending = chat.getSnapshot().calls[0];
+	chat.approve(pending.call.id);
+	await turn;
+
+	assert.equal(novel.texts.c1, 'The dog sat on the mat.');
+	const messages = persistence.chats.get('chat');
+	assert.deepEqual(messages.map((m) => m.role), ['user', 'assistant']);
+	assert.equal(messages[1].mensaje, 'Fixing it.\n\nChanged cat to dog.');
+	assert.equal(messages[1].toolCalls[0].name, 'edit_chapter');
+	assert.equal(messages[1].toolCalls[0].status, 'done');
+	assert.equal(chat.getSnapshot().status, 'idle');
+});
+
+test('auto-approve runs writes without asking', async () => {
+	const edit = call('edit_chapter', '[[chapter]] Opening\n[[find]]\nmat\n[[replace]]\nrug\n');
+	const { chat, config, novel } = session([edit, 'Done.'], { autoApprove: true });
+	await chat.send('Change the mat', [], config);
+	assert.equal(novel.texts.c1, 'The cat sat on the rug.');
+});
+
+test('stopping rejects the pending write and ends the turn', async () => {
+	const edit = call('edit_chapter', '[[chapter]] Opening\n[[find]]\ncat\n[[replace]]\nowl\n');
+	const { chat, config, persistence, novel } = session([edit, 'Should not be asked.']);
+	const turn = chat.send('Use an owl', [], config);
+	await until(() => chat.getSnapshot().awaiting);
+	chat.stop();
+	await turn;
+
+	assert.equal(novel.texts.c1, 'The cat sat on the mat.');
+	const answer = persistence.chats.get('chat')[1];
+	assert.equal(answer.toolCalls[0].status, 'rejected');
+	assert.equal(chat.getSnapshot().notice, 'Stopped by you.');
+});

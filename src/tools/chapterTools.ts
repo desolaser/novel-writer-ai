@@ -89,3 +89,43 @@ export async function writeChapter(args: Record<string, string>, context: ToolCo
 	if (!path) throw new Error(`Could not write the manuscript of "${chapter.nombre}".`);
 	return `${append ? 'Appended to' : 'Replaced'} chapter "${chapter.nombre}" (${countWords(next)} words total).`;
 }
+
+function countOccurrences(text: string, needle: string): number {
+	if (!needle) return 0;
+	let count = 0;
+	let from = text.indexOf(needle);
+	while (from !== -1) {
+		count += 1;
+		from = text.indexOf(needle, from + needle.length);
+	}
+	return count;
+}
+
+/**
+ * Replaces an exact passage of a chapter, like a find-and-replace. Far cheaper
+ * than rewriting the whole chapter for a small change, and safer: the text has
+ * to match what is really there, so the model has to read before it edits.
+ */
+export async function editChapter(args: Record<string, string>, context: ToolContext): Promise<string> {
+	const chapter = resolveChapter(args.chapter ?? '', context);
+	const find = (args.find ?? '').trim();
+	if (!find) throw new Error('Argument "find" is required.');
+	const replace = (args.replace ?? '').trim();
+	const all = (args.all ?? '').trim().toLowerCase() === 'yes';
+
+	const text = await context.readChapterText(chapter.id_capitulo);
+	const count = countOccurrences(text, find);
+	if (count === 0) {
+		throw new Error(`The text to find is not in chapter "${chapter.nombre}". `
+			+ 'Copy it exactly from read_chapter, including punctuation and line breaks.');
+	}
+	if (count > 1 && !all) {
+		throw new Error(`The text to find appears ${count} times in "${chapter.nombre}". `
+			+ 'Include more of the surrounding text so it is unique, or set [[all]] yes.');
+	}
+	const next = all ? text.split(find).join(replace) : text.replace(find, () => replace);
+	const path = await context.writeChapterText(chapter.id_capitulo, next);
+	if (!path) throw new Error(`Could not write the manuscript of "${chapter.nombre}".`);
+	const times = all && count > 1 ? `${count} passages` : 'one passage';
+	return `Edited chapter "${chapter.nombre}": replaced ${times} (${countWords(next)} words total).`;
+}

@@ -41,7 +41,27 @@ export class CompanionView extends ItemView {
 	}
 }
 
-export async function initializeStore(plugin: NovelWriterPlugin) {
+/** Store bound by the last initialization, and the promise doing it. */
+let initializedFor: NovelWriterPlugin["store"] | null = null;
+let initializing: Promise<void> | null = null;
+
+/**
+ * Loads the store once per plugin instance. Every view (companion, outline,
+ * codex entries) calls this when it opens; running it again used to reset the
+ * active chat and reload everything while the author was working.
+ */
+export function initializeStore(plugin: NovelWriterPlugin): Promise<void> {
+	if (initializedFor === plugin.store && initializing) return initializing;
+	initializedFor = plugin.store;
+	initializing = loadStore(plugin).catch((error) => {
+		// Let the next view retry instead of reusing a failed load.
+		initializing = null;
+		throw error;
+	});
+	return initializing;
+}
+
+async function loadStore(plugin: NovelWriterPlugin) {
 	const state = useNovelWriter.getState();
 	state.bindStore(plugin.store);
 	state.bindSettings(plugin.settings);

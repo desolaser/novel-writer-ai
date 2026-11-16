@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { AiContextPolicy } from '../../../../domain';
 import { Icon } from '../../components/Icon';
 
@@ -19,7 +20,8 @@ function CodexEntryRow({
 }: {
 	entry: any;
 	tags: any[];
-	onClick: () => void;
+	/** Receives the click so a middle or Ctrl-click can open a new tab. */
+	onClick: (event: MouseEvent) => void;
 	selectionActive: boolean;
 	selected: boolean;
 	onToggleSelection: () => void;
@@ -38,6 +40,15 @@ function CodexEntryRow({
 					: "")
 			}
 			onClick={selectionActive ? onToggleSelection : onClick}
+			onMouseDown={(event) => {
+				// Middle button: no autoscroll, it opens the entry in a new tab.
+				if (event.button === 1) event.preventDefault();
+			}}
+			onAuxClick={(event) => {
+				if (selectionActive || event.button !== 1) return;
+				event.preventDefault();
+				onClick(event);
+			}}
 		>
 			{selectionActive && (
 				<input

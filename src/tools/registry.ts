@@ -44,6 +44,26 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 		],
 	},
 	{
+		name: 'edit_chapter',
+		kind: 'write',
+		description: 'Replace an exact passage of a chapter with new text. Use it for changes to part of a chapter instead of rewriting it whole. Read the chapter first: the passage must match exactly.',
+		args: [
+			{ name: 'chapter', description: 'Chapter name, or #N for its position in the list.', required: true },
+			{ name: 'find', description: 'Exact text to replace, copied from the chapter. Must appear once unless all is yes.', required: true, multiline: true },
+			{ name: 'replace', description: 'New text. Leave empty to delete the passage.', multiline: true },
+			{ name: 'all', description: 'yes replaces every occurrence.', values: ['yes', 'no'] },
+		],
+	},
+	{
+		name: 'search_novel',
+		kind: 'read',
+		description: 'Find where a word or phrase appears in chapter texts, outlines and codex entries. Returns short snippets.',
+		args: [
+			{ name: 'query', description: 'Text to look for (case-insensitive).', required: true },
+			{ name: 'scope', description: 'Where to search. Defaults to all.', values: ['all', 'chapters', 'outlines', 'codex'] },
+		],
+	},
+	{
 		name: 'read_outline',
 		kind: 'read',
 		description: 'Read the outline of one chapter.',

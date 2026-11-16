@@ -2,13 +2,14 @@ import type { Capitulo } from "../../../domain";
 import { Icon } from "../components/Icon";
 import { InlineRename } from "./InlineRename";
 import { ChapterActionsMenu } from "./ChapterActionsMenu";
+import { AutoSaveTextarea } from "../components/AutoSaveTextarea";
+import { CHAPTER_DRAG_TYPE, carriesDragType } from "./dragTypes";
 
 export interface ChapterRowProps {
 	chapter: Capitulo;
 	expanded: boolean;
 	editing: boolean;
 	menuOpen: boolean;
-	draft: string;
 	batchBusy: boolean;
 	reordering: boolean;
 	isDragging: boolean;
@@ -28,7 +29,7 @@ export interface ChapterRowProps {
 	onDragStart: () => void;
 	onDragEnd: () => void;
 	onDrop: () => void;
-	onSaveOutline: (value: string) => void;
+	onSaveOutline: (value: string) => Promise<void>;
 }
 
 /** Fila de capítulo: colapsado, renombrado, estado, menú y editor inline. */
@@ -37,7 +38,6 @@ export function ChapterRow({
 	expanded,
 	editing,
 	menuOpen,
-	draft,
 	batchBusy,
 	reordering,
 	isDragging,
@@ -63,8 +63,14 @@ export function ChapterRow({
 		<div
 			className={`nw-outline-chapter${isDragging ? " is-dragging" : ""}`}
 			data-nw-chapter-id={chapter.id_capitulo}
-			onDragOver={(event) => event.preventDefault()}
-			onDrop={onDrop}
+			onDragOver={(event) => {
+				if (carriesDragType(event, CHAPTER_DRAG_TYPE)) event.preventDefault();
+			}}
+			onDrop={(event) => {
+				if (!carriesDragType(event, CHAPTER_DRAG_TYPE)) return;
+				event.preventDefault();
+				onDrop();
+			}}
 		>
 			<div className="nw-outline-chapter-row">
 				<button
@@ -75,7 +81,7 @@ export function ChapterRow({
 					aria-label="Drag to reorder the chapter"
 					onDragStart={(event) => {
 						event.dataTransfer.effectAllowed = "move";
-						event.dataTransfer.setData("text/plain", chapter.id_capitulo);
+						event.dataTransfer.setData(CHAPTER_DRAG_TYPE, chapter.id_capitulo);
 						onDragStart();
 					}}
 					onDragEnd={onDragEnd}
@@ -140,10 +146,10 @@ export function ChapterRow({
 				)}
 			</div>
 			{expanded && (
-				<textarea
+				<AutoSaveTextarea
 					className="nw-outline-inline-editor"
-					value={draft}
-					onChange={(e) => onSaveOutline(e.target.value)}
+					value={chapter.outline ?? ""}
+					onSave={onSaveOutline}
 					placeholder="Summary of what will happen in this chapter..."
 					rows={6}
 				/>

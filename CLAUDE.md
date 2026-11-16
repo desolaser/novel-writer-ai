@@ -6,60 +6,52 @@ Es un plugin de Obsidian para escribir novelas con IA.
 - React para front.
 - Zustand para manejo de estados.
 
-## Features
-- Companion View: Vista lateral con varias funcionalidades
-    - Novel picker: Permite gestionar novelas y elegir novela activa.
-    - Codex Tab: Te permite manejar entradas de lore en el codex de la novela.
-    - Config Tab: Permite ver el contexto, configurar memoria y notas del autor para autocompletado.
-    - Chat tab: Permite chatear con la IA para brainstorming, refinamiento de capitulos y roleplay para hablar con los personajes de la historia.
-        - Tools: La IA puede consultar y editar la novela por si sola (capitulos, outlines y entradas de codex). Ver la seccion "Tools del Chat".
-- Outline View: Permite generar un outline y luego generar manuscritos a traves de este outline.
-- Gestión de modelos: Puedes crear modelos de varios proveedores y luego cambiar entre ellos.
-- Gestión de prompts: Se pueden manejar prompts para chat y para autocompletado aparte.
+## Documentación
+Este archivo solo resume la arquitectura. El detalle de cada módulo está en
+[docs/](docs/README.md).
 
-## Providers
-Proveedores soportados
+- Antes de tocar un módulo, leer su archivo en `docs/`.
+- Todo cambio actualiza el archivo de su módulo y agrega una entrada en
+  [docs/changelog.md](docs/changelog.md), en el mismo cambio. Un módulo nuevo lleva su
+  propio archivo, sumado al índice de `docs/README.md`.
+- Todo atajo nuevo (comando, tecla, clic) va en [docs/hotkeys.md](docs/hotkeys.md).
 
-- Openrouter
-- Deepseek
-- Ollama
-- Opencode Zen
-- Opencode Go
-- Anthropic => API Pay as you GO.
-- Anthropic - Claude Code (No sirve en mobile) => Para usar con suscripción Claude Pro
-- Novel AI
-- Oobabooga text generation web-ui
-- Llama.cpp
-- OpenAI - Codex CLI (No sirve en mobile) => Para usar con suscripción OpenAI Plus
+## Arquitectura
 
-## Tools del Chat
-La IA del chat puede llamar funciones para consultar y editar la novela.
+### Vistas
+| Vista | Dónde | Doc |
+|---|---|---|
+| Companion (`CompanionView`) | Barra izquierda: selector de novela y pestañas Codex, Config y Chats | [codex](docs/codex.md), [chat](docs/chat.md), [editor](docs/editor.md) |
+| Outline (`OutlineView`) | Barra derecha: actos, capítulos, outlines y generación con IA | [outline](docs/outline.md) |
+| Entrada del codex (`CodexEntryView`) | Área principal, una pestaña por entrada, se abren como notas | [codex](docs/codex.md) |
+| Editor de Markdown | Autocompletado, acciones de IA y resaltado de entradas del codex | [editor](docs/editor.md) |
 
-- Protocolo de texto, NO tool-calling nativo. Los 9 proveedores comparten
-  `generateCompletion(prompt, model, options)` con el historial aplanado a un solo string,
-  y NovelAI / oobabooga no tienen API de tools. El modelo escribe bloques
-  `[[tool: nombre]]` / `[[arg]] valor` / `[[/tool]]` y el parser los extrae. Un bloque mal
-  escrito pierde esa llamada, no la respuesta entera.
-- Lecturas automaticas, escrituras con aprobacion. Cada tool de escritura aparece como
-  tarjeta en el chat con Approve / Reject y no toca el vault hasta que el autor acepta.
-  No agregar una tool de escritura que se salte esto.
-- Maximo 4 rondas de tools por turno. Los resultados son efimeros: no se guardan en el
-  chat, solo queda un log compacto al final del mensaje.
-- Se desactivan solas en modo roleplay, y hay un toggle "Tools" en el footer del chat
-  porque el bloque de instrucciones cuesta ~800 tokens por request.
-- Tools disponibles: list_chapters, read_chapter, create_chapter, write_chapter,
-  read_outline, write_outline, list_codex, read_codex_entry, create_codex_entry,
-  update_codex_entry.
-- Una llamada que se corta por el limite de output (nunca llego su [[/tool]] y la
-  respuesta termino con un valor multilinea abierto) se marca como truncada y NO se
-  ejecuta: guardar una descripcion a medias es peor que no guardar nada. El modelo
-  recibe el aviso y puede repetirla mas corta o partirla con [[mode]] append.
-- Para agregar una tool: definirla en `src/tools/registry.ts`, implementarla en el archivo
-  de su dominio y registrarla en `src/tools/executor.ts`. Si necesita datos nuevos, agregarlos
-  al contrato `ToolContext` (`src/interfaces/tool-context.ts`) y al adaptador del store
-  (`src/ui/react/features/chat/tools/createStoreToolContext.ts`).
-- Las notas privadas de una entrada de codex (`EntradaCodex.notas`) nunca salen en el
-  output de una tool, igual que en el resto del plugin.
+Cada vista es un `ItemView` que monta React. Todas llaman a `initializeStore`, que corre
+una sola vez por instancia del plugin.
+
+### Capas
+- **Dominio** (`src/domain`, `src/types`): entidades y tipos.
+- **Contratos** (`src/interfaces`): lo que una capa necesita de otra (`ApiInterface`,
+  `ToolContext`, `ChatPersistence`).
+- **Infraestructura** (`src/infrastructure`): settings y storage. Los datos de cada novela
+  son archivos JSON y Markdown dentro de su carpeta del vault. `NovelStore` es la fachada
+  sobre los repos. Ver [storage](docs/storage.md).
+- **IA** (`src/apis`, `src/factories`, `src/context`): 11 proveedores detrás de
+  `generateCompletion(prompt, model, options)` con un solo string de prompt; perfiles de
+  modelo por propósito (`chat`, `writing`, `utilities`); armado de prompts y plantillas.
+  Ver [models-and-prompts](docs/models-and-prompts.md).
+- **Tools del chat** (`src/tools`): protocolo de texto `[[tool: ...]]`, dependen solo de
+  `ToolContext`. Ver [chat-tools](docs/chat-tools.md).
+- **UI** (`src/ui`): vistas, modales y React. Un store de Zustand con slices por dominio.
+  La lógica que no es de UI (como el loop del chat) vive fuera de los componentes.
+
+### Reglas que no se rompen
+- `estructura.json` solo se toca dentro de `withEstructuraLock`; los archivos de chat
+  dentro de `withFileLock`. Ver [storage](docs/storage.md).
+- Las tools de escritura del chat esperan la aprobación del autor, salvo que él active
+  Auto-approve. Ver [chat-tools](docs/chat-tools.md).
+- Las notas privadas de una entrada del codex (`EntradaCodex.notas`) nunca llegan a la IA.
+- Campos con auto-guardado: `AutoSaveTextarea`. Ver [outline](docs/outline.md).
 
 ## Convenciones
 
@@ -104,34 +96,17 @@ Bien:
    `await confirmDialog(app, mensaje)` de `src/ui/modals/ConfirmModal.ts`; para avisar,
    `new Notice(...)`.
 
-## Guardado y persistencia
-Detalle en [.claude/rules/storage-and-autosave.md](.claude/rules/storage-and-autosave.md).
-
-- `estructura.json` (actos y capítulos) se lee y escribe solo dentro de
-  `withEstructuraLock` (`src/infrastructure/storage/repos/estructuraStorage.ts`), una cola
-  por novela para que dos guardados no se pisen. Dentro del lock no se llama a otra función
-  con lock (se traba) ni se escanea el vault (bloquea los guardados).
-- `reloadAll` lee todas las notas del vault; para ediciones de texto de actos o capítulos
-  usar `reloadEstructura`.
-- Los campos con auto-guardado del Outline mantienen un borrador local protegido hasta que
-  termina el último guardado en curso (`scheduleSave` en `outlineRoot.tsx`).
-
-## Tests
-Detalle en [.claude/rules/testing.md](.claude/rules/testing.md).
-
-- Van en `test/` (`*.test.cjs`) y se corren con `npm test`. Usan `node:test` y transpilan el
-  TypeScript real al vuelo; `obsidian` y otros módulos se mockean interceptando
-  `Module._load`.
-- Si un cambio agrega un import de Obsidian en un módulo con test, agregar el mock en el test.
-
+8. Tests: van en `test/` (`*.test.cjs`) y se corren con `npm test`. Ver
+   [docs/testing.md](docs/testing.md).
 
 ## Carpetas
+docs => Documentación por módulo, changelog y atajos. Ver la sección "Documentación".
 src/apis => Aqui solo van las API's nada más. No poner utils, ni types, ni nada raro.
 src/constants => Aquí constantes globales.
 src/context => Helpers para contexto.
 src/domain => Codigo del Dominio, entidades y tipos, etc...
 src/factories => Factories para clases.
-src/infraestructura => Base del plugin, tiene el storage y settings.
+src/infrastructure => Base del plugin, tiene el storage y settings.
 src/interfaces => Interfaces y contratos.
 src/tools => Tools que la IA del chat puede llamar. Dependen del contrato ToolContext, nunca del store de React.
 src/types => Tipos globales. Hay que mover aqui lo de src/domain/types. Una IA sin mucho criterio hizo duplicados.

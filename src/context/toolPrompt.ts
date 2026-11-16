@@ -50,7 +50,14 @@ export function buildToolPrompt(tools: ToolDefinition[], maxOutputTokens?: numbe
 		'- You may explain what you are about to do before the block, and you may write several blocks in one answer.',
 		'- After a tool block, stop and wait: you will receive the results and can continue from there.',
 		'- Never invent a result, and never claim you did something a tool has not confirmed.',
-		'- Read tools run immediately. Write tools are shown to the author, who may reject them.',
+		'- Work autonomously. For a task with several steps, state a short plan, then keep calling tools round after '
+			+ 'round until the whole task is done. Do not stop halfway to ask whether to continue.',
+		'- When the task is finished, answer without tool blocks and summarize briefly what you changed.',
+		'- Read before you edit. For a change to part of a chapter use edit_chapter; rewrite a whole chapter only '
+			+ 'when most of it changes.',
+		'- If a call fails, read the error and fix the call. Never repeat an identical call.',
+		'- Read tools run immediately. Write tools may need the author\'s approval; if one is rejected, do not '
+			+ 'retry it unless they ask.',
 		'- Copy names exactly as the tools report them, or refer to a chapter by its position (#2).',
 		...budget,
 		'',

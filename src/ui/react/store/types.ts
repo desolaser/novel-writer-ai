@@ -50,7 +50,6 @@ export interface CodexSlice {
 	etiquetas: Etiqueta[];
 	tags: Tag[];
 	entradas: EntradaCodex[];
-	editingEntryId: EntityId | null;
 
 	/** Creates an entry and returns it, so callers can link to it right away. */
 	createEntry: (idCategoria: EntityId, nombre: string) => Promise<EntradaCodex | null>;
@@ -60,7 +59,6 @@ export interface CodexSlice {
 	moveEntryToNovel: (idEntry: EntityId, targetNovelId: EntityId) => Promise<void>;
 	copyEntryToNovel: (idEntry: EntityId, targetNovelId: EntityId) => Promise<void>;
 	setEntryThumbnail: (idEntry: EntityId, dataUrl: string | null) => Promise<void>;
-	setEditingEntry: (id: EntityId | null) => void;
 	addReferencia: (idEntry: EntityId, url: string) => Promise<any>;
 	removeReferencia: (idEntry: EntityId, idRef: EntityId) => Promise<void>;
 	setEntryTags: (idEntry: EntityId, tagIds: EntityId[]) => Promise<void>;

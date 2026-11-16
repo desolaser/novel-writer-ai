@@ -34,15 +34,24 @@ export const createNovelSlice: SliceCreator<NovelSlice> = (set, get) => ({
 	setActiveNovel: async (id) => {
 		const s = get().store;
 		if (!s) return;
+		// Opening a second view calls this again with the same novel. Clearing
+		// the chat then made the next message start a brand new chat.
+		const changed = id !== get().activeNovelId;
 		set({
 			loading: true,
-			editingEntryId: null,
-			activeChatId: null,
+			...(changed ? { activeChatId: null } : {}),
 		});
 		await s.setActive(id);
 		set({ activeNovelId: id, loading: false });
-		if (id) await get().reloadAll();
-		else
+		if (id) {
+			await get().reloadAll();
+			if (changed) {
+				const remembered =
+					get().settings?.data.uiPrefs.activeChatIds?.[id] ?? null;
+				const exists = get().chats.some((c) => c.id_chat === remembered);
+				set({ activeChatId: exists ? remembered : null });
+			}
+		} else
 			set({
 				categorias: [],
 				entradas: [],
@@ -88,6 +97,9 @@ export const createNovelSlice: SliceCreator<NovelSlice> = (set, get) => ({
 			capitulos,
 			chats,
 		});
+		const activeChatId = get().activeChatId;
+		if (activeChatId && !chats.some((c) => c.id_chat === activeChatId))
+			set({ activeChatId: null });
 	},
 
 	setSidebarTab: (t) => set({ activeSidebarTab: t }),

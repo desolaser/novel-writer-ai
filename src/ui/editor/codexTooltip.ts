@@ -3,7 +3,11 @@ import type { MatchRange } from './codexMatching';
 
 /** The hover card shown over a highlighted codex mention, and its DOM lifecycle. */
 
-function createTooltipEl(entry: EntradaCodex, color: string, onOpen: () => void): HTMLElement {
+function createTooltipEl(
+	entry: EntradaCodex,
+	color: string,
+	onOpen: (event: MouseEvent) => void,
+): HTMLElement {
 	const wrap = document.createElement('div');
 	wrap.className = 'nw-codex-tooltip';
 
@@ -54,7 +58,14 @@ function createTooltipEl(entry: EntradaCodex, color: string, onOpen: () => void)
 	btn.addEventListener('click', (e) => {
 		e.preventDefault();
 		e.stopPropagation();
-		onOpen();
+		onOpen(e);
+	});
+	// Middle click opens the entry in a new tab, as with links in Obsidian.
+	btn.addEventListener('auxclick', (e) => {
+		if (e.button !== 1) return;
+		e.preventDefault();
+		e.stopPropagation();
+		onOpen(e);
 	});
 	footer.appendChild(btn);
 
@@ -101,13 +112,17 @@ export class CodexTooltip {
 		}
 	}
 
-	show(match: MatchRange, target: HTMLElement, onOpenEntry: (entryId: string) => void) {
+	show(
+		match: MatchRange,
+		target: HTMLElement,
+		onOpenEntry: (entryId: string, event: MouseEvent) => void,
+	) {
 		this.cancelScheduledHide();
 		this.hide();
 
-		const tooltip = createTooltipEl(match.entry, match.color, () => {
+		const tooltip = createTooltipEl(match.entry, match.color, (event) => {
 			this.hide();
-			onOpenEntry(match.entry.id_entrada_codex);
+			onOpenEntry(match.entry.id_entrada_codex, event);
 		});
 
 		document.body.appendChild(tooltip);

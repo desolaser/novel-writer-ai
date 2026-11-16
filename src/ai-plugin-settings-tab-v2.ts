@@ -172,15 +172,33 @@ export class NovelWriterSettingsTab extends PluginSettingTab {
 				});
 			});
 		new Setting(host)
-			.setName('Max Tool Rounds')
-			.setDesc('Safety net against a model that keeps calling tools instead of answering.')
-			.addText(text => text.setValue(String(settings.maxToolRounds)).onChange(async value => {
-				const parsed = Number(value);
-				if (Number.isInteger(parsed) && parsed >= 0) {
-					settings.maxToolRounds = parsed;
+			.setName('Tool rounds before pausing')
+			.setDesc(
+				'The chat works on its own for this many rounds of tool calls, '
+				+ 'then pauses and asks whether to continue.'
+			)
+			.addText(text => text
+				.setValue(String(settings.toolRoundsBeforePause))
+				.onChange(async value => {
+					const parsed = Number(value);
+					if (Number.isInteger(parsed) && parsed >= 1) {
+						settings.toolRoundsBeforePause = parsed;
+						await this.plugin.settings.save();
+					}
+				}));
+		new Setting(host)
+			.setName('Auto-approve chat edits')
+			.setDesc(
+				'Let the chat create and edit chapters, outlines and codex '
+				+ 'entries without asking for each change. Also toggled from '
+				+ 'the chat footer.'
+			)
+			.addToggle(toggle => toggle
+				.setValue(settings.chatAutoApproveWrites)
+				.onChange(async value => {
+					settings.chatAutoApproveWrites = value;
 					await this.plugin.settings.save();
-				}
-			}));
+				}));
 	}
 
 	private renderCodexOptions(host: HTMLElement): void {

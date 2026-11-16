@@ -10,11 +10,13 @@ import { buildEditorPrompt } from './src/context/promptBuilder';
 import { ApiFactory } from './src/factories/api-factory';
 import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
 import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
-import { openEntryModal } from './src/ui/react/features/codex/modals/CodexEntryModal';
+import { openCodexEntry, paneTypeFor } from './src/ui/views/openCodexEntry';
+import { CodexEntryView, VIEW_TYPE_CODEX_ENTRY } from './src/ui/views/CodexEntryView';
 import type { EditorAction } from './src/types/EditorAction';
 import { validateEditorAction } from './src/infrastructure/settings/editor-action-repository';
 import { resolveEditorActionContext } from './src/context/editorActionPrompt';
 import { buildEditorActionPrompt } from './src/context/editorActionTemplate';
+import { stopAllChatSessions } from './src/ui/react/features/chat/session/chatSessions';
 
 // onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
 // callbacks left by the previous instance. Keep the lock outside the class so
@@ -42,13 +44,16 @@ export default class NovelWriterPlugin extends Plugin {
 		}
 
 		const { extension, control } = createCodexHighlighter({
-			onOpenEntry: (entryId) => openEntryModal(this, entryId),
+			onOpenEntry: (entryId, event) => {
+				void openCodexEntry(this, entryId, paneTypeFor(event));
+			},
 		});
 		this.codexHighlighter = control;
 		this.registerEditorExtension(extension);
 
 		this.registerView(VIEW_TYPE_COMPANION, (leaf) => new CompanionView(leaf, this));
 		this.registerView(VIEW_TYPE_OUTLINE, (leaf) => new OutlineView(leaf, this));
+		this.registerView(VIEW_TYPE_CODEX_ENTRY, (leaf) => new CodexEntryView(leaf, this));
 		this.registerEvent(this.app.vault.on('rename', (file) => {
 			const folderPath = this.store.activeFolderPath;
 			if (!(file instanceof TFile) || file.extension !== 'md' || !folderPath || !file.path.startsWith(`${folderPath}/`)) return;
@@ -445,7 +450,10 @@ export default class NovelWriterPlugin extends Plugin {
 		return chunk?.choices?.[0]?.delta?.content ?? chunk?.choices?.[0]?.text ?? chunk?.token ?? chunk?.text ?? '';
 	}
 
-	onunload() {}
+	onunload() {
+		// A reply still running would keep calling the model after the plugin is gone.
+		stopAllChatSessions();
+	}
 }
 
 async function pickLorebookFolder(app: App): Promise<TFolder | null> {

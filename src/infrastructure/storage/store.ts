@@ -10,6 +10,7 @@ import * as DetRepo from './repos/DetalleRepo';
 import * as EntryRepo from './repos/CodexEntryRepo';
 import * as EstRepo from './repos/EstructuraRepo';
 import * as ChatRepo from './repos/ChatRepo';
+import type { ChatPersistence } from '../../interfaces/chat-persistence';
 import * as BlueprintRepo from './repos/BlueprintRepo';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
@@ -142,6 +143,26 @@ export class NovelStore {
 	async appendMensaje(idChat: EntityId, role: 'user' | 'assistant', msg: string, imagenes?: string[]) { return ChatRepo.appendMensaje(this.app, this.activeFolder!, idChat, role, msg, imagenes); }
 	async updateMensaje(idChat: EntityId, idMsg: EntityId, msg: string) { await ChatRepo.updateMensaje(this.app, this.activeFolder!, idChat, idMsg, msg); }
 	async deleteMensaje(idChat: EntityId, idMsg: EntityId) { await ChatRepo.deleteMensaje(this.app, this.activeFolder!, idChat, idMsg); }
+
+	/**
+	 * Message storage bound to the active novel's folder. Captured once per chat
+	 * session, so a reply still lands in its own chat after a novel switch.
+	 */
+	chatPersistence(): ChatPersistence | null {
+		const folder = this.activeFolder;
+		if (!folder) return null;
+		const app = this.app;
+		return {
+			readChat: (chatId) => ChatRepo.readChat(app, folder, chatId),
+			appendMessage: (chatId, role, text, extras) => ChatRepo.appendMensaje(
+				app, folder, chatId, role, text, extras?.imagenes, extras?.toolCalls,
+			),
+			patchMessage: (chatId, messageId, patch) =>
+				ChatRepo.patchMensaje(app, folder, chatId, messageId, patch),
+			deleteMessage: (chatId, messageId) =>
+				ChatRepo.deleteMensaje(app, folder, chatId, messageId),
+		};
+	}
 	async saveChatContext(idChat: EntityId, contextItems: ChatContextItem[], characterContext: ChatContextItem | null, impersonateContext: ChatContextItem | null) {
 		await ChatRepo.saveChatContext(this.app, this.activeFolder!, idChat, contextItems, characterContext, impersonateContext);
 	}

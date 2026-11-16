@@ -4,27 +4,28 @@ import { Notice } from 'obsidian';
 import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
 import { Icon } from '../../components/Icon';
-import { openEntryModal } from '../codex/modals/CodexEntryModal';
 import { resolvePlaceholders } from '../../../../utils/roleplayPlaceholders';
 import { getActiveModelConfig } from '../../../../infrastructure/settings/active-model';
 import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { buildToolPrompt } from '../../../../context/toolPrompt';
 import { TOOL_DEFINITIONS } from '../../../../tools/registry';
-import { useToolRunner } from './tools/useToolRunner';
-import { ToolCallCard } from './tools/ToolCallCard';
+import { ToolCallTrace } from './tools/ToolCallTrace';
+import { ChatLiveTurn } from './ChatLiveTurn';
 import { generateChatName } from '../../../../utils/chatNameGeneration';
 import { MarkdownBlock } from './MarkdownBlock';
 import { formatTimestamp } from './chatFormatting';
 import { kindIcon } from './chatContextHelpers';
-import { buildPromptBreakdown } from './promptBuilder';
+import { buildPrompt, buildPromptBreakdown } from './promptBuilder';
 import { ChatContextModal } from './modals/ChatContextModal';
 import { useChatContext, type ContextMenu } from './hooks/useChatContext';
 import { useChatMessages } from './hooks/useChatMessages';
 import { useChatImages } from './hooks/useChatImages';
-import { useChatAiTurn, composeReply } from './hooks/useChatAiTurn';
 import { ChatModelSelector } from './ChatModelSelector';
 import { useChatModel } from './hooks/useChatModel';
 import { useStoryBible } from './hooks/useStoryBible';
+import { useChatSession, sessionFor } from './session/useChatSession';
+import { createChatCompletion, chatOutputLimit } from './session/chatCompletion';
+import type { ChatTurnConfig } from './session/ChatSession';
 
 export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const {
@@ -47,32 +48,36 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 		getDefaultChatPrompt,
 	} = useNovelWriter();
 	const [input, setInput] = useState('');
-	const [busy, setBusy] = useState(false);
 	const [promptMenuOpen, setPromptMenuOpen] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const promptRef = useRef<HTMLDivElement | null>(null);
-	const runner = useToolRunner();
 	// Tool instructions cost ~800 tokens per request, so they can be switched off.
 	const [toolsEnabled, setToolsEnabled] = useState(true);
+	const [autoApprove, setAutoApprove] = useState(plugin.settings.data.chatAutoApproveWrites);
+	// The turn lives in the chat's session, not here: leaving the tab keeps it running.
+	const { session, snapshot } = useChatSession(plugin, activeChatId);
+	const busy = snapshot.status !== 'idle';
 
-	const messages = useChatMessages({ plugin, store, activeChatId, updateMensaje, deleteMensaje });
+	const messages = useChatMessages({
+		plugin, store, activeChatId, version: snapshot.version, updateMensaje, deleteMensaje,
+	});
 
 	const bible = useStoryBible({ store, activeChatId });
 
 	const appendCharacterOpeningMessage = useCallback(async (text: string) => {
 		await appendMensaje('assistant', text);
-		messages.setMensajes(m => [...m, { id_mensaje: 'tmp_first', role: 'assistant', mensaje: text, created_at: '' }]);
-	}, [appendMensaje, messages.setMensajes]);
+		await messages.reload();
+	}, [appendMensaje, messages.reload]);
 
 	const chatContext = useChatContext({
 		plugin, store, activeChatId, mensajesCount: messages.mensajes.length, capitulos, actos, categorias, entradas,
 		setSidebarTab, saveChatContext, onCharacterOpeningMessage: appendCharacterOpeningMessage,
 	});
 
-	// Switching chats abandons any tool call still waiting for approval.
-	useEffect(() => { runner.reset(); }, [activeChatId]);
 	// Follows the live text and the tool cards too, so an approval never lands off-screen.
-	useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [messages.mensajes, runner.calls.length]);
+	useEffect(() => {
+		scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
+	}, [messages.mensajes, snapshot.calls, snapshot.liveText, snapshot.status]);
 
 	/** Full bible normally; while roleplaying, only the language of the story. */
 	const activeStoryBible = !bible.bibleEnabled ? '' : chatContext.characterContext ? bible.roleplayLanguage : bible.storyBible;
@@ -86,63 +91,49 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	const images = useChatImages({ plugin, categorias, entradas, setSidebarTab, setEntryThumbnail, supportsVision });
 
-	const aiTurn = useChatAiTurn({
-		plugin,
-		contextItems: chatContext.contextItems,
-		characterContext: chatContext.characterContext,
-		impersonateContext: chatContext.impersonateContext,
-		activeNoteItem: chatContext.activeNoteItem,
-		runner,
-		toolsEnabled,
-		activeStoryBible,
-	});
-
-	const regenerateMessage = useCallback(async () => {
-		if (!store || !activeChatId) return;
-		const chat = await store.readChat(activeChatId);
-		if (!chat) return;
-		const msgs = chat.mensajes;
-		let lastAsstMsg = null;
-		for (let i = msgs.length - 1; i >= 0; i--) {
-			if (msgs[i].role === 'assistant') { lastAsstMsg = msgs[i]; break; }
-		}
-		if (!lastAsstMsg) return;
-		// Persist removal of the last assistant message
-		await deleteMensaje(activeChatId, lastAsstMsg.id_mensaje);
-		const newMsgs = msgs.filter(m => m.id_mensaje !== lastAsstMsg!.id_mensaje);
-		messages.setMensajes(newMsgs);
-		const lastUserMsg = [...newMsgs].reverse().find(m => m.role === 'user');
-		if (!lastUserMsg) return;
-		const currentUploadedImagesRegen = [...images.uploadedImages];
-		images.setUploadedImages([]);
-		setBusy(true);
-		runner.reset();
-		aiTurn.resetLiveText();
+	/**
+	 * Everything the turn needs, captured now: the context and prompt chosen
+	 * when the author pressed send stay in force until the AI finishes.
+	 */
+	const buildTurnConfig = (): ChatTurnConfig | null => {
+		let complete: ChatTurnConfig['complete'];
 		try {
-			// The last user message is handed to buildPrompt separately, so it must not
-			// stay in the history as well or the model sees it twice.
-			const cut = newMsgs.findIndex(m => m.id_mensaje === lastUserMsg!.id_mensaje);
-			const turn = await aiTurn.runAiTurn({
-				history: cut >= 0 ? newMsgs.slice(0, cut) : newMsgs,
-				userText: lastUserMsg.mensaje,
-				images: currentUploadedImagesRegen,
-				chatPrompt: chatPromptText,
-				chatTemplate: currentPrompt?.plantilla,
-			});
-			const reply = composeReply(turn.text, turn.log) || (turn.images.length ? '' : '(no response)');
-			await appendMensaje('assistant', reply, turn.images);
-			messages.setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: turn.images, created_at: '' }]);
-		} catch (e: any) {
-			const err = 'Error: ' + (e?.message ?? String(e));
-			await appendMensaje('assistant', err);
-			messages.setMensajes(m => [...m, { id_mensaje: 'tmp_e', role: 'assistant', mensaje: err, created_at: '' }]);
+			complete = createChatCompletion(plugin);
+		} catch (error: any) {
+			new Notice(error?.message ?? String(error));
+			return null;
 		}
-		setBusy(false);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [store, activeChatId, plugin, appendMensaje, deleteMensaje, aiTurn, images.uploadedImages]);
+		// Tools stay off while roleplaying: a character must not step out of persona to edit the vault.
+		const withTools = toolsEnabled && !chatContext.characterContext;
+		const toolsBlock = withTools
+			? buildToolPrompt(TOOL_DEFINITIONS, chatOutputLimit(plugin))
+			: '';
+		const {
+			contextItems, characterContext, impersonateContext, activeNoteItem,
+		} = chatContext;
+		const promptText = chatPromptText;
+		const template = currentPrompt?.plantilla;
+		const bibleText = activeStoryBible;
+		return {
+			toolsEnabled: withTools,
+			complete,
+			buildPrompt: (turns, pending) => buildPrompt(
+				turns, contextItems, pending, characterContext, impersonateContext,
+				activeNoteItem, promptText, toolsBlock, bibleText, template,
+			),
+		};
+	};
+
+	const regenerateMessage = async () => {
+		if (!session || busy) return;
+		const config = buildTurnConfig();
+		if (!config) return;
+		await session.regenerate(config);
+	};
 
 	const doCreate = async () => {
 		const c = await createChat("Unnamed chat");
+		if (!c) return;
 		selectChat(c.id_chat);
 		new Notice('New chat created');
 	};
@@ -150,6 +141,12 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 	const send = async () => {
 		const t = input.trim();
 		if (!t) return;
+		if (busy) {
+			new Notice('The AI is still working on this chat. Stop it or wait for it to finish.');
+			return;
+		}
+		const config = buildTurnConfig();
+		if (!config) return;
 		let chatId = activeChatId;
 		const isFirstUserMessage = !messages.mensajes.some(m => m.role === 'user');
 		if (!chatId) {
@@ -159,33 +156,23 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 			await saveChatContext(chatId, chatContext.contextItems, chatContext.characterContext, chatContext.impersonateContext);
 			selectChat(chatId);
 		}
+		const target = sessionFor(plugin, chatId);
+		if (!target) return;
 		const currentUploadedImages = [...images.uploadedImages];
 		setInput('');
 		images.setUploadedImages([]);
-		await appendMensaje('user', t, currentUploadedImages.length > 0 ? currentUploadedImages : undefined);
-		messages.setMensajes(m => [...m, { id_mensaje: 'tmp_u', role: 'user', mensaje: t, imagenes: currentUploadedImages.length > 0 ? currentUploadedImages : undefined, created_at: '' }]);
-		setBusy(true);
-		runner.reset();
-		aiTurn.resetLiveText();
-		try {
-			const turn = await aiTurn.runAiTurn({
-				history: messages.mensajes, userText: t,
-				images: currentUploadedImages, chatPrompt: chatPromptText,
-				chatTemplate: currentPrompt?.plantilla,
-			});
-			const reply = composeReply(turn.text, turn.log) || (turn.images.length ? '' : '(no response)');
-			await appendMensaje('assistant', reply, turn.images);
-			messages.setMensajes(m => [...m, { id_mensaje: 'tmp_a', role: 'assistant', mensaje: reply, imagenes: turn.images, created_at: '' }]);
-		} catch (e: any) {
-			const err = 'Error: ' + (e?.message ?? String(e));
-			await appendMensaje('assistant', err);
-			messages.setMensajes(m => [...m, { id_mensaje: 'tmp_e', role: 'assistant', mensaje: err, created_at: '' }]);
-		}
-		setBusy(false);
-		if (isFirstUserMessage && chatId) {
+		if (isFirstUserMessage) {
 			const strategy = plugin.settings.data.chatNameGeneration ?? 'active_model';
-			void generateChatName(t, strategy, plugin).then(name => renameChat(chatId!, name));
+			const named = chatId;
+			void generateChatName(t, strategy, plugin).then(name => renameChat(named, name));
 		}
+		await target.send(t, currentUploadedImages, config);
+	};
+
+	const toggleAutoApprove = (value: boolean) => {
+		setAutoApprove(value);
+		plugin.settings.data.chatAutoApproveWrites = value;
+		void plugin.settings.save();
 	};
 
 	// Click-outside for prompt menu
@@ -238,7 +225,10 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					{!activeChatId && <p className="nw-chat-empty-hint">Write a message to create a new chat.</p>}
 				</div>
 			)}
-			{messages.mensajes.map(m => (
+			{messages.mensajes
+				// The answer in progress is drawn live below, with its approval buttons.
+				.filter(m => !(busy && m.id_mensaje === snapshot.turnMessageId))
+				.map(m => (
 				<div key={m.id_mensaje} className={`nw-msg nw-msg-${m.role}${messages.editingMsgId === m.id_mensaje ? ' nw-msg-editing' : ''}`}>
 					<div className="nw-msg-role">
 						{m.role === 'user' ? (
@@ -339,6 +329,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							</div>
 						))}
 					</div>}
+					{m.toolCalls?.length > 0 && <ToolCallTrace calls={m.toolCalls} />}
 					{m.mensaje && messages.editingMsgId !== m.id_mensaje && (
 						<div className="nw-msg-actions">
 							<button className="nw-msg-action-btn" title="Edit" onClick={() => messages.startEditMessage(m.id_mensaje, m.mensaje)}>
@@ -349,7 +340,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 							</button>
 							{m.role === 'assistant' && (
 								<>
-									<button className="nw-msg-action-btn" title="Regenerate" onClick={() => void regenerateMessage()}>
+									<button className="nw-msg-action-btn" title="Regenerate" disabled={busy} onClick={() => void regenerateMessage()}>
 										<Icon.Refresh width={13} height={13} />
 									</button>
 									<button className="nw-msg-action-btn" title="Save as note" onClick={() => void messages.saveAsNote(resolveText(m.mensaje))}>
@@ -367,19 +358,7 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 					)}
 				</div>
 			))}
-			{busy && aiTurn.liveText && (
-				<div className="nw-msg nw-msg-assistant nw-msg-live">
-					<MarkdownBlock plugin={plugin} content={aiTurn.liveText} />
-				</div>
-			)}
-			{runner.calls.length > 0 && (
-				<div className="nw-tool-calls">
-					{runner.calls.map(state => (
-						<ToolCallCard key={state.call.id} state={state} onApprove={runner.approve} onReject={runner.reject} />
-					))}
-				</div>
-			)}
-			{busy && !runner.awaiting && <div className="nw-msg nw-msg-assistant"><em>...typing...</em></div>}
+			<ChatLiveTurn plugin={plugin} session={session} snapshot={snapshot} resolveText={resolveText} />
 		</div>
 		<div className='nw-chat-input-container'>
 			<div className="nw-chat-context-bar">
@@ -499,6 +478,18 @@ export function ChatTab({ plugin }: { plugin: NovelWriterPlugin }) {
 						/>
 						Tools
 					</label>
+						<label
+							className="nw-chat-tools-toggle"
+							title="Let the AI apply its edits without asking for each one. You can still stop it at any time."
+						>
+							<input
+								type="checkbox"
+								checked={autoApprove}
+								disabled={!toolsEnabled || !!chatContext.characterContext}
+								onChange={event => toggleAutoApprove(event.target.checked)}
+							/>
+							Auto-approve
+						</label>
 					<label
 						className="nw-chat-tools-toggle"
 						title={!bible.storyBible

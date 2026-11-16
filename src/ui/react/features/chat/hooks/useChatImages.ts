@@ -3,7 +3,7 @@ import { Notice, TFolder } from 'obsidian';
 import type NovelWriterPlugin from '../../../../../../main';
 import type { Categoria, EntradaCodex } from '../../../../../domain';
 import { canvasToDataUrl, cropToCanvas } from '../../../../../utils/image';
-import { openEntryModal } from '../../codex/modals/CodexEntryModal';
+import { openCodexEntry } from '../../../../views/openCodexEntry';
 import { ThumbnailCropModal } from '../../codex/ThumbnailCropModal';
 import { FolderPickerModal } from '../modals/FolderPickerModal';
 import { confirmDialog } from '../../../../modals/ConfirmModal';
@@ -146,7 +146,7 @@ export function useChatImages({ plugin, categorias, entradas, setSidebarTab, set
 		closeImageDropdown();
 		// Open the CodexEntryModal so the user sees the entry
 		setSidebarTab('codex');
-		openEntryModal(plugin, entryId);
+		void openCodexEntry(plugin, entryId);
 		// Then handle thumbnail
 		const doSet = (url: string) => cropThenSetThumbnail(url, entry.id_entrada_codex, entry.nombre);
 		if (entry.thumbnail) {

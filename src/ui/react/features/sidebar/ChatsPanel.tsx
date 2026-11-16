@@ -6,6 +6,7 @@ import { CustomPromptsModal } from "../chat/CustomPromptsModal";
 import { Icon } from "../../components/Icon";
 import { Notice } from "obsidian";
 import { confirmDialog } from "../../../modals/ConfirmModal";
+import { disposeChatSession } from "../chat/session/chatSessions";
 
 export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const {
@@ -65,6 +66,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 		const question = `Are you sure you want to delete ${count} chats?`;
 		if (!(await confirmDialog(plugin.app, question))) return;
 		for (const id of selectedForDeletion) {
+			disposeChatSession(id);
 			await deleteChat(id);
 		}
 		cancelBatchDelete();
@@ -222,6 +224,7 @@ export function ChatsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 												`Delete chat "${c.nombre}"?`
 											);
 											if (confirmed) {
+												disposeChatSession(c.id_chat);
 												await deleteChat(c.id_chat);
 												if (activeChatId === c.id_chat)
 													selectChat(null);

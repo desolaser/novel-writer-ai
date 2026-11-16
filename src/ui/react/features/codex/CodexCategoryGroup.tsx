@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import CodexEntryRow from "./CodexEntryRow";
 import { Icon } from '../../components/Icon';
 
@@ -22,7 +23,7 @@ function CodexCategoryGroup({
 	onToggle: () => void;
 	entries: any[];
 	tags: any[];
-	onEdit: (id: string) => void;
+	onEdit: (id: string, event: MouseEvent) => void;
 	onAddInCategory: () => void;
 	selectionActive: boolean;
 	selectedIds: Set<string>;
@@ -67,7 +68,7 @@ function CodexCategoryGroup({
 							key={e.id_entrada_codex}
 							entry={e}
 							tags={tags}
-							onClick={() => onEdit(e.id_entrada_codex)}
+							onClick={(event) => onEdit(e.id_entrada_codex, event)}
 							selectionActive={selectionActive}
 							selected={selectedIds.has(
 								e.id_entrada_codex

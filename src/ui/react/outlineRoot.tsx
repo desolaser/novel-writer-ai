@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Notice } from "obsidian";
+import { useShallow } from "zustand/react/shallow";
 import { useNovelWriter } from "./store/novelWriterStore";
 import type NovelWriterPlugin from "../../../main";
 import type { Acto, Capitulo } from "../../domain";
@@ -25,7 +26,23 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		linkCapituloArchivo,
 		store,
 		novels,
-	} = useNovelWriter();
+	} = useNovelWriter(
+		// Only what the outline renders. Without a selector every store change
+		// (chat, codex, settings) re-rendered the whole outline while typing.
+		useShallow((state) => ({
+			actos: state.actos,
+			capitulos: state.capitulos,
+			createActo: state.createActo,
+			createCapitulo: state.createCapitulo,
+			updateActo: state.updateActo,
+			deleteActo: state.deleteActo,
+			updateCapitulo: state.updateCapitulo,
+			deleteCapitulo: state.deleteCapitulo,
+			linkCapituloArchivo: state.linkCapituloArchivo,
+			store: state.store,
+			novels: state.novels,
+		}))
+	);
 
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [editingCap, setEditingCap] = useState<string | null>(null);
@@ -33,8 +50,6 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [newAct, setNewAct] = useState("");
 	const [addingTo, setAddingTo] = useState<string | null>(null);
 	const [capName, setCapName] = useState("");
-	const [drafts, setDrafts] = useState<Record<string, string>>({});
-	const [actDrafts, setActDrafts] = useState<Record<string, string>>({});
 	const [openChapterMenu, setOpenChapterMenu] = useState<string | null>(null);
 	const [reorderingChapter, setReorderingChapter] = useState<string | null>(null);
 	const [draggedChapter, setDraggedChapter] = useState<string | null>(null);
@@ -44,13 +59,6 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 	const [targetWords, setTargetWords] = useState(
 		plugin.settings.data.draftWordCount || 2000
 	);
-	const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-	/** Saves already sent to the store and not finished yet, per chapter or act. */
-	const savesInFlight = useRef<Record<string, number>>({});
-	/** Chapters whose outline has an unsaved edit; their draft survives a reload. */
-	const dirtyOutlines = useRef<Set<string>>(new Set());
-	/** Acts whose summary has an unsaved edit; same protection as the outlines. */
-	const dirtyActSummaries = useRef<Set<string>>(new Set());
 
 	const {
 		batchBusy,
@@ -66,36 +74,6 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		generateDrafts,
 		generateSingleDraft,
 	} = useOutlineActions(plugin, targetWords);
-
-	// Saving an outline reloads the whole store, which lands back here as a new
-	// `capitulos` array. Refreshing every draft from it would overwrite whatever
-	// the author typed while the save was in flight, so chapters with an edit in
-	// progress keep their local text.
-	useEffect(() => {
-		setDrafts((current) => {
-			const next: Record<string, string> = {};
-			capitulos.forEach((c) => {
-				next[c.id_capitulo] = dirtyOutlines.current.has(c.id_capitulo)
-					? current[c.id_capitulo] ?? c.outline ?? ""
-					: c.outline ?? "";
-			});
-			return next;
-		});
-	}, [capitulos]);
-
-	// Same protection for act summaries, which the AI can also rewrite under the
-	// author while they type.
-	useEffect(() => {
-		setActDrafts((current) => {
-			const next: Record<string, string> = {};
-			actos.forEach((a) => {
-				next[a.id_acto] = dirtyActSummaries.current.has(a.id_acto)
-					? current[a.id_acto] ?? a.resumen ?? ""
-					: a.resumen ?? "";
-			});
-			return next;
-		});
-	}, [actos]);
 
 	useEffect(() => {
 		const openChapter = (event: Event) => {
@@ -135,47 +113,13 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 			return n;
 		});
 
-	// Debounced save that keeps the local draft protected until the store holds
-	// the latest text. A save can still be in flight when the next one starts,
-	// and the older one finishing first used to drop the protection: its reload
-	// then reverted the textarea to stale text while the author was typing.
-	const scheduleSave = (
-		id: string,
-		dirty: Set<string>,
-		persist: () => Promise<void>
-	) => {
-		dirty.add(id);
-		const old = timers.current[id];
-		if (old) clearTimeout(old);
-		timers.current[id] = setTimeout(() => {
-			delete timers.current[id];
-			savesInFlight.current[id] = (savesInFlight.current[id] ?? 0) + 1;
-			void persist()
-				.catch((error: any) =>
-					new Notice(`Could not save: ${error?.message ?? String(error)}`)
-				)
-				.finally(() => {
-					savesInFlight.current[id] -= 1;
-					const idle =
-						!timers.current[id] && savesInFlight.current[id] === 0;
-					if (idle) dirty.delete(id);
-				});
-		}, 600);
-	};
+	// The fields keep their own text while the author types (AutoSaveTextarea),
+	// so a save only has to persist it.
+	const saveActSummary = (id: string, value: string) =>
+		updateActo(id, { resumen: value });
 
-	const saveActSummary = (id: string, value: string) => {
-		setActDrafts((d) => ({ ...d, [id]: value }));
-		scheduleSave(id, dirtyActSummaries.current, () =>
-			updateActo(id, { resumen: value })
-		);
-	};
-
-	const saveOutline = (id: string, value: string) => {
-		setDrafts((d) => ({ ...d, [id]: value }));
-		scheduleSave(id, dirtyOutlines.current, () =>
-			updateCapitulo(id, { outline: value })
-		);
-	};
+	const saveOutline = (id: string, value: string) =>
+		updateCapitulo(id, { outline: value });
 
 	const addActo = async () => {
 		if (newAct.trim()) {
@@ -369,13 +313,11 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 							if (draggedAct) void reorderActs(draggedAct, a.id_acto);
 							setDraggedAct(null);
 						}}
-						actSummary={actDrafts[a.id_acto] ?? ""}
 						onSaveActSummary={(value) => saveActSummary(a.id_acto, value)}
 						onGenerateActSummary={() => void generateActSummary(a)}
 						expanded={expanded}
 						editingCap={editingCap}
 						openChapterMenu={openChapterMenu}
-						drafts={drafts}
 						batchBusy={batchBusy}
 						reorderingChapter={reorderingChapter}
 						draggedChapter={draggedChapter}

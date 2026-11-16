@@ -1,6 +1,7 @@
 import type { Acto } from "../../../domain";
 import { Icon } from "../components/Icon";
 import { InlineRename } from "./InlineRename";
+import { ACT_DRAG_TYPE, carriesDragType } from "./dragTypes";
 
 export interface ActoHeaderProps {
 	acto: Acto;
@@ -39,8 +40,14 @@ export function ActoHeader({
 	return (
 		<div
 			className={`nw-outline-act-header${isDragging ? " is-dragging" : ""}`}
-			onDragOver={(event) => event.preventDefault()}
-			onDrop={onDrop}
+			onDragOver={(event) => {
+				if (carriesDragType(event, ACT_DRAG_TYPE)) event.preventDefault();
+			}}
+			onDrop={(event) => {
+				if (!carriesDragType(event, ACT_DRAG_TYPE)) return;
+				event.preventDefault();
+				onDrop();
+			}}
 		>
 			<button
 				className="nw-btn-link nw-outline-chapter-drag-handle"
@@ -50,7 +57,7 @@ export function ActoHeader({
 				aria-label="Drag to reorder the act"
 				onDragStart={(event) => {
 					event.dataTransfer.effectAllowed = "move";
-					event.dataTransfer.setData("text/plain", acto.id_acto);
+					event.dataTransfer.setData(ACT_DRAG_TYPE, acto.id_acto);
 					onDragStart();
 				}}
 				onDragEnd={onDragEnd}

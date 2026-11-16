@@ -6,29 +6,49 @@ interface UseChatMessagesParams {
 	plugin: NovelWriterPlugin;
 	store: any;
 	activeChatId: string | null;
+	/** Bumps whenever the chat's session writes to the chat file. */
+	version: number;
 	updateMensaje: (chatId: string, msgId: string, text: string) => Promise<void>;
 	deleteMensaje: (chatId: string, msgId: string) => Promise<void>;
 }
 
 /** Owns the message list of the active chat, its editing state, and per-message actions. */
-export function useChatMessages({ plugin, store, activeChatId, updateMensaje, deleteMensaje }: UseChatMessagesParams) {
+export function useChatMessages({
+	plugin, store, activeChatId, version, updateMensaje, deleteMensaje,
+}: UseChatMessagesParams) {
 	const [mensajes, setMensajes] = useState<any[]>([]);
 	const [currentPromptId, setCurrentPromptId] = useState<string | null>(null);
 	const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
 	const [editingMsgText, setEditingMsgText] = useState('');
 
-	// Load persisted messages and the chat's chosen prompt when the chat changes
-	useEffect(() => {
+	/** Disk is the source of truth: the session saves there as it works. */
+	const reload = useCallback(async () => {
 		if (!activeChatId || !store) {
 			setMensajes([]);
 			setCurrentPromptId(null);
 			return;
 		}
-		store.readChat(activeChatId).then((c: any) => {
-			setMensajes(c?.mensajes ?? []);
-			setCurrentPromptId(c?.id_prompt ?? null);
-		});
+		const chat = await store.readChat(activeChatId);
+		setMensajes(chat?.mensajes ?? []);
+		setCurrentPromptId(chat?.id_prompt ?? null);
 	}, [activeChatId, store]);
+
+	useEffect(() => {
+		let cancelled = false;
+		if (!activeChatId || !store) {
+			setMensajes([]);
+			setCurrentPromptId(null);
+			return;
+		}
+		store.readChat(activeChatId).then((chat: any) => {
+			if (cancelled) return;
+			setMensajes(chat?.mensajes ?? []);
+			setCurrentPromptId(chat?.id_prompt ?? null);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [activeChatId, store, version]);
 
 	const copyToClipboard = useCallback(async (text: string) => {
 		try {
@@ -78,7 +98,7 @@ export function useChatMessages({ plugin, store, activeChatId, updateMensaje, de
 	}, []);
 
 	return {
-		mensajes, setMensajes,
+		mensajes, reload,
 		currentPromptId, setCurrentPromptId,
 		editingMsgId, editingMsgText, setEditingMsgText,
 		copyToClipboard, saveAsNote, startEditMessage, saveEditedMessage, handleDeleteMessage, cancelEdit,

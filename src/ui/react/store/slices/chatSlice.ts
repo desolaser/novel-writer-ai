@@ -12,7 +12,19 @@ export const createChatSlice: SliceCreator<ChatSlice> = (set, get) => ({
 		await get().reloadAll();
 		return c;
 	},
-	selectChat: (id) => set({ activeChatId: id }),
+	selectChat: (id) => {
+		set({ activeChatId: id });
+		// Remembered per novel so a reload reopens the same conversation.
+		const settings = get().settings;
+		const novelId = get().activeNovelId;
+		if (!settings || !novelId) return;
+		const prefs = settings.data.uiPrefs;
+		const current = prefs.activeChatIds ?? {};
+		if (id) current[novelId] = id;
+		else delete current[novelId];
+		prefs.activeChatIds = current;
+		void settings.save();
+	},
 	renameChat: async (id, nombre) => {
 		const s = get().store;
 		if (!s) return;

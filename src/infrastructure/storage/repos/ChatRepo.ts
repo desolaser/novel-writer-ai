@@ -1,7 +1,8 @@
 import { App, TFile } from 'obsidian';
-import { Chat, Mensaje, ChatContextItem, EntityId, nowISO, MessageRole } from '../../../domain';
+import { Chat, Mensaje, MensajeToolCall, ChatContextItem, EntityId, nowISO, MessageRole } from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { readJson, writeJson, joinPath, listFiles, deleteFile, ensureFolder } from '../fsHelpers';
+import { withFileLock } from '../fileLock';
 
 const CHATS_DIR = 'chats';
 
@@ -30,8 +31,33 @@ export async function listChats(app: App, folderPath: string): Promise<Chat[]> {
 	return out.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
 }
 
+/**
+ * Reads, changes and writes back one chat file inside its lock. Every change to
+ * a chat goes through here: the file holds the whole conversation, so two
+ * unsynchronized updates (a rename and a new reply) drop one of them.
+ * Returns null without writing when the chat does not exist.
+ */
+async function updateChatFile<T>(
+	app: App,
+	folderPath: string,
+	id: EntityId,
+	change: (chat: ChatFile) => T | null,
+): Promise<T | null> {
+	const path = chatPath(folderPath, id);
+	return withFileLock(path, async () => {
+		const chat = await readJson<ChatFile>(app, path);
+		if (!chat) return null;
+		const result = change(chat);
+		if (result === null) return null;
+		chat.updated_at = nowISO();
+		await writeJson(app, path, chat);
+		return result;
+	});
+}
+
 export async function readChat(app: App, folderPath: string, id: EntityId): Promise<ChatFile | null> {
-	return await readJson<ChatFile>(app, chatPath(folderPath, id));
+	const path = chatPath(folderPath, id);
+	return withFileLock(path, () => readJson<ChatFile>(app, path));
 }
 
 export async function createChat(app: App, folderPath: string, idNovela: EntityId, nombre: string, idPrompt?: EntityId): Promise<ChatFile> {
@@ -43,60 +69,92 @@ export async function createChat(app: App, folderPath: string, idNovela: EntityI
 		created_at: now, updated_at: now,
 	};
 	if (idPrompt) (chat as any).id_prompt = idPrompt;
-	await writeJson(app, chatPath(folderPath, id), chat);
+	await withFileLock(chatPath(folderPath, id), () => writeJson(app, chatPath(folderPath, id), chat));
 	return chat;
 }
 
 export async function renameChat(app: App, folderPath: string, id: EntityId, nombre: string) {
-	const chat = await readChat(app, folderPath, id);
-	if (!chat) return;
-	chat.nombre = nombre;
-	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, id), chat);
+	await updateChatFile(app, folderPath, id, (chat) => {
+		chat.nombre = nombre;
+		return true;
+	});
 }
 
 export async function archiveChat(app: App, folderPath: string, id: EntityId, archivado: boolean) {
-	const chat = await readChat(app, folderPath, id);
-	if (!chat) return;
-	chat.archivado = archivado;
-	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, id), chat);
+	await updateChatFile(app, folderPath, id, (chat) => {
+		chat.archivado = archivado;
+		return true;
+	});
 }
 
 export async function deleteChat(app: App, folderPath: string, id: EntityId) {
-	await deleteFile(app, chatPath(folderPath, id));
+	const path = chatPath(folderPath, id);
+	await withFileLock(path, () => deleteFile(app, path));
 }
 
-export async function appendMensaje(app: App, folderPath: string, idChat: EntityId, role: MessageRole, mensaje: string, imagenes?: string[]): Promise<Mensaje> {
-	const chat = await readChat(app, folderPath, idChat);
-	if (!chat) throw new Error('Chat not found');
+export async function appendMensaje(
+	app: App,
+	folderPath: string,
+	idChat: EntityId,
+	role: MessageRole,
+	mensaje: string,
+	imagenes?: string[],
+	toolCalls?: MensajeToolCall[],
+): Promise<Mensaje> {
 	const msg: Mensaje = {
-		id_mensaje: genId(), id_chat: idChat, role, mensaje, ...(imagenes?.length ? { imagenes } : {}),
+		id_mensaje: genId(), id_chat: idChat, role, mensaje,
+		...(imagenes?.length ? { imagenes } : {}),
+		...(toolCalls?.length ? { toolCalls } : {}),
 		created_at: nowISO(), updated_at: nowISO(),
 	};
-	chat.mensajes.push(msg);
-	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, idChat), chat);
-	return msg;
+	const added = await updateChatFile(app, folderPath, idChat, (chat) => {
+		chat.mensajes.push(msg);
+		return msg;
+	});
+	if (!added) throw new Error('Chat not found');
+	return added;
+}
+
+export interface MensajePatch {
+	mensaje?: string;
+	imagenes?: string[];
+	toolCalls?: MensajeToolCall[];
+}
+
+/** Changes the given fields of one message; the others stay as they are. */
+export async function patchMensaje(
+	app: App,
+	folderPath: string,
+	idChat: EntityId,
+	idMensaje: EntityId,
+	patch: MensajePatch,
+) {
+	await updateChatFile(app, folderPath, idChat, (chat) => {
+		const msg = chat.mensajes.find(m => m.id_mensaje === idMensaje);
+		if (!msg) return null;
+		if (patch.mensaje !== undefined) msg.mensaje = patch.mensaje;
+		if (patch.imagenes !== undefined) {
+			if (patch.imagenes.length) msg.imagenes = patch.imagenes;
+			else delete msg.imagenes;
+		}
+		if (patch.toolCalls !== undefined) {
+			if (patch.toolCalls.length) msg.toolCalls = patch.toolCalls;
+			else delete msg.toolCalls;
+		}
+		msg.updated_at = nowISO();
+		return true;
+	});
 }
 
 export async function updateMensaje(app: App, folderPath: string, idChat: EntityId, idMensaje: EntityId, mensaje: string) {
-	const chat = await readChat(app, folderPath, idChat);
-	if (!chat) return;
-	const msg = chat.mensajes.find(m => m.id_mensaje === idMensaje);
-	if (!msg) return;
-	msg.mensaje = mensaje;
-	msg.updated_at = nowISO();
-	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, idChat), chat);
+	await patchMensaje(app, folderPath, idChat, idMensaje, { mensaje });
 }
 
 export async function deleteMensaje(app: App, folderPath: string, idChat: EntityId, idMensaje: EntityId) {
-	const chat = await readChat(app, folderPath, idChat);
-	if (!chat) return;
-	chat.mensajes = chat.mensajes.filter(m => m.id_mensaje !== idMensaje);
-	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, idChat), chat);
+	await updateChatFile(app, folderPath, idChat, (chat) => {
+		chat.mensajes = chat.mensajes.filter(m => m.id_mensaje !== idMensaje);
+		return true;
+	});
 }
 
 export async function saveChatContext(
@@ -107,16 +165,16 @@ export async function saveChatContext(
 	characterContext: ChatContextItem | null,
 	impersonateContext: ChatContextItem | null,
 ) {
-	const chat = await readChat(app, folderPath, idChat);
-	if (!chat) return;
-	chat.contextItems = contextItems.length > 0 ? contextItems : undefined;
-	chat.characterContext = characterContext ?? undefined;
-	chat.impersonateContext = impersonateContext ?? undefined;
-	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, idChat), chat);
+	await updateChatFile(app, folderPath, idChat, (chat) => {
+		chat.contextItems = contextItems.length > 0 ? contextItems : undefined;
+		chat.characterContext = characterContext ?? undefined;
+		chat.impersonateContext = impersonateContext ?? undefined;
+		return true;
+	});
 }
 
 export async function writeChat(app: App, folderPath: string, chat: ChatFile) {
 	chat.updated_at = nowISO();
-	await writeJson(app, chatPath(folderPath, chat.id_chat), chat);
+	const path = chatPath(folderPath, chat.id_chat);
+	await withFileLock(path, () => writeJson(app, path, chat));
 }

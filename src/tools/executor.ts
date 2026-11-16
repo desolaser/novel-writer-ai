@@ -1,7 +1,8 @@
 import type { ToolCall, ToolResult } from '../types/AiTool';
 import type { ToolContext } from '../interfaces/tool-context';
 import { findToolDefinition, TOOL_DEFINITIONS } from './registry';
-import { createChapter, listChapters, readChapter, writeChapter } from './chapterTools';
+import { createChapter, editChapter, listChapters, readChapter, writeChapter } from './chapterTools';
+import { searchNovel } from './searchTools';
 import { readOutline, writeOutline } from './outlineTools';
 import { createCodexEntry, listCodex, readCodexEntry, updateCodexEntry } from './codexTools';
 
@@ -13,6 +14,8 @@ const HANDLERS: Record<string, ToolHandler> = {
 	read_chapter: readChapter,
 	create_chapter: createChapter,
 	write_chapter: writeChapter,
+	edit_chapter: editChapter,
+	search_novel: searchNovel,
 	read_outline: readOutline,
 	write_outline: writeOutline,
 	list_codex: listCodex,

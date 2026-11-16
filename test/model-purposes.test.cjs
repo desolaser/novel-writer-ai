@@ -70,8 +70,8 @@ const {
 	generateChapterDraftText, requestDraftCompletion,
 } = require('../src/ui/react/outline/outlineGenerators.ts');
 const { useOutlineActions } = require('../src/ui/react/outline/useOutlineActions.ts');
-const { useChatAiTurn } = require(
-	'../src/ui/react/features/chat/hooks/useChatAiTurn.ts'
+const { createChatCompletion } = require(
+	'../src/ui/react/features/chat/session/chatCompletion.ts'
 );
 const { generateChatName } = require('../src/utils/chatNameGeneration.ts');
 const {
@@ -198,13 +198,8 @@ test('utilities and chat titles use the utilities provider and credentials',
 
 test('chat uses its own capabilities rather than the default writing profile',
 	async () => {
-		const turn = useChatAiTurn({
-			plugin: { settings: { data: configuration() } },
-			contextItems: [], characterContext: null, impersonateContext: null,
-			activeNoteItem: null, runner: {}, toolsEnabled: false,
-			activeStoryBible: '',
-		});
-		await turn.runAiTurn({ history: [], userText: 'Hello', images: [] });
+		const complete = createChatCompletion({ settings: { data: configuration() } });
+		await complete('Hello', []);
 		assert.equal(requests[0].model, 'chat');
 		assert.equal(requests[0].token, 'chat-key');
 		assert.deepEqual(requests[0].options.modalities, ['image', 'text']);

@@ -8,7 +8,8 @@ import { CodexTooltip } from './codexTooltip';
 const refreshEffect = StateEffect.define<null>();
 
 export type CodexHighlighterOptions = {
-	onOpenEntry: (entryId: string) => void;
+	/** The click decides between replacing the open entry and a new tab. */
+	onOpenEntry: (entryId: string, event: MouseEvent) => void;
 };
 
 export type CodexHighlighterControl = {
