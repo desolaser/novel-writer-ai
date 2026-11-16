@@ -18,6 +18,11 @@ import { resolveEditorActionContext } from './src/context/editorActionPrompt';
 import { buildEditorActionPrompt } from './src/context/editorActionTemplate';
 import { stopAllChatSessions } from './src/ui/react/features/chat/session/chatSessions';
 import { resolveStartupNovelId } from './src/utils/startupNovel';
+import { createWritingTracker } from './src/factories/writing-tracker-factory';
+import type { WritingTracker } from './src/infrastructure/storage/writingTracker';
+import { registerClipboardTracking } from './src/ui/editor/clipboardTracking';
+import { countProseWords } from './src/utils/textStats';
+import { chapterVaultPaths } from './src/utils/chapterPaths';
 
 // onLayoutReady callbacks from a hot-reloaded plugin instance can overlap with
 // callbacks left by the previous instance. Keep the lock outside the class so
@@ -28,6 +33,8 @@ type MenuItemWithSubmenu = { setSubmenu?: () => Menu };
 export default class NovelWriterPlugin extends Plugin {
 	store!: NovelStore;
 	settings!: SettingsService;
+	/** Words written per day in the active novel (Metrics tab). */
+	writingTracker!: WritingTracker;
 	private openingWorkingViews = false;
 	private operationStatusBarItem: HTMLElement | null = null;
 	private codexHighlighter: CodexHighlighterControl | null = null;
@@ -45,6 +52,14 @@ export default class NovelWriterPlugin extends Plugin {
 			this.store.novels,
 		);
 		if (startupNovelId) await this.store.setActive(startupNovelId);
+
+		this.writingTracker = createWritingTracker(this.app);
+		this.registerEvent(this.app.vault.on('modify', (file) => {
+			if (file instanceof TFile && file.extension === 'md') {
+				void this.writingTracker.onModify(file.path);
+			}
+		}));
+		registerClipboardTracking(this, this.writingTracker);
 
 		const { extension, control } = createCodexHighlighter({
 			onOpenEntry: (entryId, event) => {
@@ -79,7 +94,18 @@ export default class NovelWriterPlugin extends Plugin {
 			let prevEntradas = initial.entradas;
 			let prevCategorias = initial.categorias;
 			if (prevEntradas.length) this.codexHighlighter?.update(prevEntradas, prevCategorias);
+			let prevCapitulos = initial.capitulos;
+			const syncTracker = () => {
+				const folder = this.store.activeFolderPath;
+				const paths = chapterVaultPaths(prevCapitulos, folder);
+				void this.writingTracker.setNovel(folder, paths);
+			};
+			syncTracker();
 			const unsub = useNovelWriter.subscribe((s) => {
+				if (s.capitulos !== prevCapitulos) {
+					prevCapitulos = s.capitulos;
+					syncTracker();
+				}
 				if (s.entradas !== prevEntradas || s.categorias !== prevCategorias) {
 					prevEntradas = s.entradas;
 					prevCategorias = s.categorias;
@@ -344,14 +370,24 @@ export default class NovelWriterPlugin extends Plugin {
 				new Notice('The note changed during generation. No text was replaced.');
 				return;
 			}
+			let replaced = '';
 			if (action.output === 'insert-at-cursor') {
 				editor.replaceRange(result, cursor);
 			} else if (action.input === 'selection-or-note' && !selection.trim()) {
+				replaced = note;
 				editor.setValue(result);
 			} else if (action.input === 'before-cursor') {
+				replaced = beforeCursor;
 				editor.replaceRange(result, { line: 0, ch: 0 }, cursor);
 			} else {
+				replaced = selection;
 				editor.replaceRange(result, from, to);
+			}
+			// Generated text is not the author's (see writingTracker.ts).
+			const actionFile = this.app.workspace.getActiveFile();
+			if (actionFile) {
+				const words = countProseWords(result) - countProseWords(replaced);
+				this.writingTracker.noteEdit(actionFile.path, 'generated', words);
 			}
 		} catch (error: any) {
 			new Notice('AI error: ' + (error?.message ?? String(error)));
@@ -394,10 +430,21 @@ export default class NovelWriterPlugin extends Plugin {
 			const result = await this.requestCompletion(prompt, 'Generating text');
 			// Insert only new text. Replacing the document on every token resets
 			// the editor's viewport; setting the cursor also forces it to scroll.
+			const targetPath = activeView?.file?.path
+				?? this.app.workspace.getActiveFile()?.path ?? null;
+			// Counted on the whole text so far: chunks can split a word in two.
+			let generated = '';
+			let generatedWords = 0;
 			const insertText = (text: string) => {
 				const position = target.offsetToPos(insertionOffset);
 				target.replaceRange(text, position);
 				insertionOffset += text.length;
+				generated += text;
+				const words = countProseWords(generated);
+				if (targetPath) {
+					this.writingTracker.noteEdit(targetPath, 'generated', words - generatedWords);
+				}
+				generatedWords = words;
 			};
 			if (result.text) {
 				insertText(result.text);
@@ -473,6 +520,7 @@ export default class NovelWriterPlugin extends Plugin {
 	onunload() {
 		// A reply still running would keep calling the model after the plugin is gone.
 		stopAllChatSessions();
+		void this.writingTracker?.flush();
 	}
 }
 

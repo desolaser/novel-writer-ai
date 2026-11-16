@@ -28,7 +28,7 @@ import type { SettingsService } from "../../../infrastructure/settings/settings-
 
 export interface UIState {
 	settingsRevision: number;
-	activeSidebarTab: "codex" | "config" | "chats";
+	activeSidebarTab: "codex" | "config" | "chats" | "metrics";
 }
 
 export interface NovelSlice extends UIState {

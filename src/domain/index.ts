@@ -12,3 +12,4 @@ export * from './entities/Chat';
 export * from './entities/CustomPrompt';
 export * from './entities/Junctions';
 export * from './entities/NovelConfig';
+export * from './entities/WritingLog';

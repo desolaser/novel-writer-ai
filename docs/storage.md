@@ -10,6 +10,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | Ruta (relativa a la carpeta) | Contenido | Repo |
 |---|---|---|
 | `__metadata.json` | Metadata de la novela (`Novela`) | `NovelRepo.ts` |
+| `__writing_log.json` | Palabras escritas por día (`WritingLog`), ver [metrics.md](metrics.md#ritmo-de-escritura) | `WritingLogRepo.ts` |
 | `__config.json` | Configuración propia de la novela: hoy, su memoria y nota del autor (`NovelConfig`). Vacío o ausente = usa la global | `NovelConfigRepo.ts` |
 | `escritura/estructura.json` | Actos y capítulos (outline, resumen, orden, archivo) | `EstructuraRepo.ts`, `chapterFiles.ts` |
 | `escritura/capitulos/*.md` | Manuscritos de los capítulos | `chapterFiles.ts` |
@@ -70,10 +71,13 @@ respuesta.
 
 Test: `test/chat-repo-lock.test.cjs`, con caso de control.
 
+El registro de escritura (`__writing_log.json`) también usa `withFileLock`:
+`addWritingDays` relee el archivo y suma los conteos dentro del lock.
+
 ### Copia para deshacer respuestas del chat
 
 `novelSnapshot.ts` (`createNovelFiles`) copia los `.md` y `.json` de la novela (sin
-`chats/`) y restaura los que cambió una respuesta del chat. Lo hace dentro de
+`chats/` ni `__writing_log.json`) y restaura los que cambió una respuesta del chat. Lo hace dentro de
 `withEstructuraLock`, porque `estructura.json` está entre esos archivos; adentro no se
 llama a nada que tome el mismo lock. Ver [chat.md](chat.md#deshacer-una-respuesta).
 

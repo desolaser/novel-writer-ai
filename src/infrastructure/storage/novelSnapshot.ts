@@ -3,10 +3,13 @@ import type { NovelFiles, RevertResult } from '../../interfaces/novel-files';
 import { planRevert, type FileChange, type FileSnapshot } from '../../utils/fileChanges';
 import { ensureParent } from './fsHelpers';
 import { withEstructuraLock } from './repos/estructuraStorage';
+import { markPluginWrite } from './pluginWrites';
+import { WRITING_LOG_FILE } from '../../constants/novel';
 
 /** Data of a novel an answer may change: Markdown and JSON, chats excluded. */
 const TRACKED_EXTENSIONS = new Set(['md', 'json']);
-const UNTRACKED_FOLDERS = ['chats/'];
+// The writing log is not story data: undoing an answer must not rewind it.
+const UNTRACKED_FOLDERS = ['chats/', WRITING_LOG_FILE];
 
 function isTracked(file: TFile, folder: string): boolean {
 	if (!file.path.startsWith(`${folder}/`)) return false;
@@ -40,6 +43,7 @@ async function readCurrent(app: App, path: string): Promise<string | null> {
 
 async function restore(app: App, change: FileChange): Promise<void> {
 	const file = app.vault.getAbstractFileByPath(change.path);
+	markPluginWrite(change.path);
 	if (change.before === null) {
 		// The answer created it: send it to the trash, where the author can still find it.
 		if (file instanceof TFile) await app.vault.trash(file, true);

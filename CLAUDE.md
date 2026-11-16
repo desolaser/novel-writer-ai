@@ -21,7 +21,7 @@ Este archivo solo resume la arquitectura. El detalle de cada módulo está en
 ### Vistas
 | Vista | Dónde | Doc |
 |---|---|---|
-| Companion (`CompanionView`) | Barra izquierda: selector de novela y pestañas Codex, Config y Chats | [codex](docs/codex.md), [chat](docs/chat.md), [editor](docs/editor.md) |
+| Companion (`CompanionView`) | Barra izquierda: selector de novela y pestañas Codex, Config, Chats y Metrics | [codex](docs/codex.md), [chat](docs/chat.md), [editor](docs/editor.md), [metrics](docs/metrics.md) |
 | Outline (`OutlineView`) | Barra derecha: actos, capítulos, outlines y generación con IA | [outline](docs/outline.md) |
 | Entrada del codex (`CodexEntryView`) | Área principal, una pestaña por entrada, se abren como notas | [codex](docs/codex.md) |
 | Editor de Markdown | Autocompletado, acciones de IA y resaltado de entradas del codex | [editor](docs/editor.md) |

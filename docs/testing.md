@@ -21,6 +21,8 @@
 | `file-changes.test.cjs` | Diferencia entre copias de la novela y plan para deshacer una respuesta (conflictos incluidos) |
 | `turn-segments.test.cjs` | Orden de texto y tool calls de una respuesta (con y sin `textOffset`, texto editado) |
 | `codex-schema-merge.test.cjs` | Copia de categorías y detalles entre novelas (ids nuevos, nombres repetidos, vínculos, selección parcial) |
+| `novel-metrics.test.cjs` | Pestaña Metrics: palabras, párrafos, oraciones, diálogo, variedad de vocabulario, largo de capítulos y objetivo, menciones del codex, palabras y frases repetidas |
+| `writing-log.test.cjs` | Registro de escritura: fechas locales, suma de días, log dañado, ritmo, rachas, proyección, marcas de escrituras del plugin y el tracker (línea base, generado, pegado y cortado, borrar lo pegado o generado, IA en el editor, cambio de novela) |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
 | `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control |
 | `model-purposes.test.cjs` | Perfiles por propósito, migraciones de settings, presupuestos de output. Mockea React (`useState`, `useMemo`) y el store (hook con `getState`) para `useOutlineActions` y `OutlineGenerator` |

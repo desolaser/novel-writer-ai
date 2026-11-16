@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { EntityId } from '../../../domain';
 import { basenameNoExt, joinPath, ensureFolder, writeText } from '../fsHelpers';
 import { readEstructuraFile, withEstructuraLock, writeEstructuraFile } from './estructuraStorage';
+import { markPluginWrite } from '../pluginWrites';
 
 /**
  * Chapter manuscript files: creating them, keeping their stored path in sync when
@@ -107,6 +108,8 @@ export async function writeCapituloTexto(app: App, folderPath: string, id: Entit
 	if (!path) return null;
 	const file = await resolveChapterFile(app, folderPath, id, path);
 	if (!file) return null;
+	// Drafts and chat writes are not the author's words (see writingTracker.ts).
+	markPluginWrite(file.path);
 	// Use vault.process() for atomic read-modify-write to avoid corrupting
 	// the editor state when the chapter file is open in an Obsidian pane.
 	await app.vault.process(file, (raw) => {

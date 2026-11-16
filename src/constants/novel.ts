@@ -9,6 +9,9 @@ export const NOVELA_META_FILE = '__metadata.json';
 /** Nombre del archivo de config (overrides) dentro de la carpeta de novela. */
 export const NOVELA_CONFIG_FILE = '__config.json';
 
+/** Words written per day (`WritingLog`). Left out of the chat's undo copies. */
+export const WRITING_LOG_FILE = '__writing_log.json';
+
 /** Subcarpetas creadas por novela. */
 export const NOVELA_SUBFOLDERS = ['escritura', 'codex', 'images'] as const;
 

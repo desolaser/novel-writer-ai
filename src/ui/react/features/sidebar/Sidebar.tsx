@@ -4,6 +4,7 @@ import type NovelWriterPlugin from "../../../../../main";
 import { CodexPanel } from "../codex/CodexPanel";
 import { ConfigPanel } from "./ConfigPanel";
 import { ChatsPanel } from "./ChatsPanel";
+import { MetricsPanel } from "../metrics/MetricsPanel";
 import { Icon } from "../../components/Icon";
 import { openNovelManagementModal } from "./modals/NovelListModal";
 import { openNovelEditModal } from "./modals/NovelEditModal";
@@ -91,11 +92,18 @@ export function Sidebar({ plugin }: { plugin: NovelWriterPlugin }) {
 				>
 					Chats
 				</button>
+				<button
+					className={activeSidebarTab === "metrics" ? "active" : ""}
+					onClick={() => setSidebarTab("metrics")}
+				>
+					Metrics
+				</button>
 			</div>
 			<div className="nw-tab-content">
 				{activeSidebarTab === "codex" && <CodexPanel plugin={plugin} />}
 				{activeSidebarTab === "config" && <ConfigPanel plugin={plugin} />}
 				{activeSidebarTab === "chats" && <ChatsPanel plugin={plugin} />}
+				{activeSidebarTab === "metrics" && <MetricsPanel plugin={plugin} />}
 			</div>
 		</div>
 	);

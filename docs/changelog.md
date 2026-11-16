@@ -5,6 +5,44 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Metrics: lo pegado no cuenta como escrito
+- El texto pegado se contaba como tecleado por el autor. Ahora `clipboardTracking.ts`
+  avisa al tracker lo que entra por `editor-paste` y lo que sale por `cut`, y se guarda
+  aparte (`WritingDay.pasted`). Cortar y pegar dentro de la novela da cero.
+- "Generate text" y las acciones del editor avisan las palabras exactas que insertan
+  (`noteEdit`) en vez de marcar 4 s del archivo: lo que el autor teclea alrededor ya no
+  se cuenta como de la IA.
+- "Writing pace" muestra lo pegado y lo generado de hoy como "no contado".
+- Pegar un texto y después borrarlo restaba esas palabras al autor (el "Today" quedaba
+  negativo). Ahora lo borrado sale primero de las palabras pegadas o generadas que
+  siguen en el archivo, la más reciente primero (`src/utils/writingAttribution.ts`).
+- Tests: `test/writing-log.test.cjs`. Detalle: [metrics.md](metrics.md#qué-se-cuenta).
+
+### Metrics: ritmo de escritura y mapa de apariciones
+- Registro diario de palabras por novela (`__writing_log.json`): `WritingTracker` cuenta
+  la diferencia de palabras cada vez que se guarda un manuscrito de la novela activa.
+  Lo que escribe el plugin (borradores, chat, Generate text, acciones del editor,
+  deshacer) se marca con `markPluginWrite` y se guarda aparte: no cuenta como del autor.
+- Sección "Writing pace": hoy, 7 y 30 días, promedio por día escrito, rachas, mejor
+  día, columnas de 30 días y fecha estimada de fin según el objetivo del Novel Setup.
+- Sección "Appearances by chapter": mapa de calor entradas × capítulos
+  (`EntryMentions.perChapter`).
+- El registro se escribe con `withFileLock` sumando sobre lo que hay en disco, y queda
+  fuera de las copias para deshacer respuestas del chat.
+- Tests: `test/writing-log.test.cjs`, `test/novel-metrics.test.cjs`. Detalle:
+  [metrics.md](metrics.md#ritmo-de-escritura), [storage.md](storage.md).
+
+### Pestaña Metrics en el Companion
+- Nueva pestaña "Metrics" junto a Codex, Config y Chats con estadísticas de la novela
+  activa: resumen (palabras, capítulos escritos y con outline, páginas, tiempo de
+  lectura), largo de capítulos (promedio, mediana, extremos, barras contra el objetivo
+  del Novel Setup), palabras por acto, codex (entradas por categoría, más mencionadas,
+  "gone quiet" y nunca mencionadas), palabras más usadas (con o sin nombres del codex),
+  frases repetidas y estilo (oración, párrafo, diálogo, variedad de vocabulario).
+- El cálculo es puro (`src/utils/novelMetrics.ts`, `src/utils/textStats.ts`) y la UI lo
+  recalcula al editar un manuscrito, con 3 s de espera.
+- Tests: `test/novel-metrics.test.cjs`. Detalle: [metrics.md](metrics.md).
+
 ### Chat: retratos del codex con un modelo de imágenes
 - Nuevo **Images model** en Settings (`imageModelId`), aparte de chat, writing y
   utilities: el chat coordina y otro modelo dibuja. Solo lista perfiles de OpenRouter

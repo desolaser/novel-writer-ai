@@ -56,6 +56,15 @@ Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images
 - Arrastrar `⠿` de un acto y soltarlo sobre otro: reordena los actos.
 - Clic en el nombre de un capítulo o acto: renombrar.
 
+### Metrics
+
+- Clic en la barra de un capítulo: abre su manuscrito (solo si ya tiene archivo).
+- Clic en una entrada (Most mentioned, Gone quiet, Never mentioned): la abre, con las
+  mismas reglas que "Abrir entradas del Codex".
+- Clic en una celda de "Appearances by chapter": abre ese capítulo; clic en el nombre
+  abre la entrada.
+- Clic en el título de una sección: la pliega o despliega.
+
 ### Chat
 
 - Clic en un badge de contexto: abre el elemento (entrada, nota, outline).
