@@ -75,6 +75,23 @@ Todas usan los modelos de propósito `writing` o `utilities` (ver
 antes) lo arma `buildChapterHistory` (`src/context/chapterHistory.ts`): outlines de los
 capítulos recientes y resúmenes de acto para los lejanos, nunca extractos de la prosa.
 
+### Idioma de los resúmenes
+
+Las instrucciones de los prompts están en inglés; sin una regla explícita la IA tiende
+a resumir en inglés aunque la novela esté en español. Por eso el resumen de capítulo,
+el resumen de acto y el outline por memoria terminan con `summaryLanguageRule`
+(`src/context/blueprintPrompt.ts`):
+
+- con idioma en el blueprint, lo nombra ("Write the summary in Spanish...");
+- sin idioma, pide el mismo idioma que el texto resumido (el manuscrito, los outlines
+  del acto o los capítulos previos);
+- va al final del prompt, después del texto, donde más pesa;
+- se manda aunque la story bible esté apagada (`includeInPrompts`): apagarla oculta la
+  premisa, no el idioma.
+
+Un prompt nuevo que resuma texto del autor debe terminar con esta regla. Tests en
+`test/summary-language.test.cjs`.
+
 ## Persistencia
 
 Todas las escrituras van por `updateActo` / `updateCapitulo` del store, que terminan en

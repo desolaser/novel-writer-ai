@@ -20,6 +20,7 @@
 | `model-purposes.test.cjs` | Perfiles por propósito, migraciones de settings, presupuestos de output |
 | `editor-actions.test.cjs` | Acciones del editor |
 | `promptTemplates.test.cjs` | Plantillas de prompt |
+| `summary-language.test.cjs` | Regla de idioma de los resúmenes de capítulo, de acto y del outline por memoria |
 
 ## Cómo cargan el código TypeScript
 

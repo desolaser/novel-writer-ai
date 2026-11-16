@@ -5,6 +5,16 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Outline: resúmenes en el idioma de la novela
+- El resumen de capítulo (outline desde el manuscrito) no decía en qué idioma
+  responder; el de acto solo lo decía si la story bible estaba apagada. Como las
+  instrucciones están en inglés, a veces la IA resumía en inglés una novela en español.
+- Nueva `summaryLanguageRule` (`src/context/blueprintPrompt.ts`): usa el idioma del
+  blueprint y, si no hay, el del texto que se resume. Va al final del prompt, después
+  del texto, y no depende de `includeInPrompts`.
+- La usan el resumen de capítulo, el de acto y el outline por memoria.
+- Tests: `test/summary-language.test.cjs`. Detalle: [outline.md](outline.md).
+
 ### Outline: escribir ya no se traba
 - Los campos de outline y resumen de acto son `AutoSaveTextarea`: el texto vive en el
   campo y una tecla ya no re-renderiza el outline entero. Una recarga del store no pisa

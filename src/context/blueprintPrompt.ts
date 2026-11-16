@@ -110,6 +110,31 @@ export function languageRule(blueprint: NovelBlueprint, subject = 'your answer')
 		: `Write ${subject} in the same language as the description above, regardless of the language of these instructions.`;
 }
 
+/**
+ * Language rule for a summary or outline of text the author already wrote.
+ *
+ * The prompts are in English, so a model left to itself tends to answer in
+ * English even when the chapter is in Spanish. This rule goes last in the
+ * prompt, after the source text, where it weighs the most.
+ *
+ * It does not depend on `includeInPrompts`: turning the story bible off hides
+ * the premise, not the language the novel is written in. Without an explicit
+ * language it points at `source`, the text being summarized.
+ */
+export function summaryLanguageRule(
+	blueprint: NovelBlueprint | null | undefined,
+	subject: string,
+	source: string,
+): string {
+	const language = blueprint?.language?.trim();
+	const target = language
+		? `${language}, the language of the novel`
+		: `the same language as ${source}`;
+	return `Write ${subject} in ${target}. `
+		+ 'Do not switch to the language of these instructions '
+		+ 'and do not translate anything.';
+}
+
 /** Language shown in a context block: the chosen one, or where it comes from. */
 function languageValue(blueprint: NovelBlueprint): string {
 	return blueprint.language.trim() || 'same as the description';

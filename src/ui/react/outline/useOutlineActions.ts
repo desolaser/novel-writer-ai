@@ -266,7 +266,8 @@ export function useOutlineActions(
 				setBatchStatus(`The manuscript for ${chapter.nombre} is empty.`);
 				return;
 			}
-			const prompt = buildOutlinePrompt(chapter, manuscript);
+			const blueprint = await store.readBlueprint();
+			const prompt = buildOutlinePrompt(chapter, manuscript, blueprint);
 			const api = new ApiFactory().createApi(
 				active.providerId,
 				settings.apiToken[active.providerId] ?? ""
@@ -339,7 +340,8 @@ export function useOutlineActions(
 		if (!active) return;
 		const manuscript = await readCapituloTexto(chapter.id_capitulo);
 		if (!manuscript.trim()) return;
-		const prompt = buildOutlinePrompt(chapter, manuscript);
+		const blueprint = await store.readBlueprint();
+		const prompt = buildOutlinePrompt(chapter, manuscript, blueprint);
 		const api = new ApiFactory().createApi(
 			active.providerId,
 			settings.apiToken[active.providerId] ?? ""

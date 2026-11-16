@@ -3,6 +3,7 @@ import type { Acto, Capitulo } from "../../../domain";
 import type { PluginSettings } from "../../../infrastructure/settings/plugin-settings";
 import type { NovelBlueprint } from "../../../domain/entities/NovelBlueprint";
 import { buildScenePrompt } from "../../../context/promptBuilder";
+import { summaryLanguageRule } from "../../../context/blueprintPrompt";
 import type { CompletionOptions } from "../../../utils/provider-options";
 import { chapterOutputBudget } from "../../../utils/chapterOutputBudget";
 
@@ -15,9 +16,58 @@ export function orderedChapters(actos: Acto[], capitulos: Capitulo[]): Capitulo[
 	);
 }
 
-/** Prompt de resumen de un capítulo ya escrito (generación de outline). */
-export function buildOutlinePrompt(chapter: Capitulo, manuscript: string): string {
-	return `Summarize the following chapter in ONE SINGLE short PARAGRAPH, about 80 to 120 words. Prioritize a complete and finished response; do not cut it off in the middle of a sentence. Write a brief narrative summary in continuous prose. Do not use line breaks, bullets, numbered lists, dashes, headings, labels, Markdown formatting, or presentation structure. Mention only the essential events in order, the important changes to the characters, and the final state of the plot. Do not invent information, do not write the chapter, and return only that single paragraph, without any introduction or additional comments.\n\nChapter title: ${chapter.nombre}\n\nChapter text:\n${manuscript}`;
+/**
+ * Prompt de resumen de un capítulo ya escrito (generación de outline).
+ * La regla de idioma va al final, después del manuscrito: ver
+ * `summaryLanguageRule`.
+ */
+export function buildOutlinePrompt(
+	chapter: Capitulo,
+	manuscript: string,
+	blueprint: NovelBlueprint | null,
+): string {
+	const parts: string[] = [];
+	parts.push(
+		'Summarize the following chapter in ONE SINGLE short PARAGRAPH, '
+		+ 'about 80 to 120 words. Prioritize a complete and finished response; '
+		+ 'do not cut it off in the middle of a sentence. Write a brief narrative '
+		+ 'summary in continuous prose. Do not use line breaks, bullets, numbered '
+		+ 'lists, dashes, headings, labels, Markdown formatting, or presentation '
+		+ 'structure. Mention only the essential events in order, the important '
+		+ 'changes to the characters, and the final state of the plot. Do not '
+		+ 'invent information, do not write the chapter, and return only that '
+		+ 'single paragraph, without any introduction or additional comments.'
+	);
+	parts.push('');
+	parts.push(`Chapter title: ${chapter.nombre}`);
+	parts.push('');
+	parts.push('--- CHAPTER TEXT ---');
+	parts.push(manuscript);
+	parts.push('--- END CHAPTER TEXT ---');
+	parts.push('');
+	parts.push(summaryLanguageRule(blueprint, 'the summary', 'the chapter text'));
+	return parts.join('\n');
+}
+
+/**
+ * Regla de idioma del outline "por memoria". Sin idioma explícito toma el de
+ * los capítulos previos; si no hay, el de la descripción de la story bible
+ * (que ya trae su propia regla). Sin ninguno de los dos no hay a qué apuntar.
+ */
+function outlineByMemoryLanguageRule(
+	previousOutlines: string,
+	storyBible: string,
+	blueprint: NovelBlueprint | null,
+): string {
+	if (blueprint?.language?.trim() || previousOutlines) {
+		return summaryLanguageRule(blueprint, 'the outline', 'the previous chapters');
+	}
+	if (storyBible) {
+		return summaryLanguageRule(
+			blueprint, 'the outline', 'the description in the story bible'
+		);
+	}
+	return '';
 }
 
 /** Prompt to generate an outline from previous chapters' outlines. */
@@ -51,9 +101,10 @@ export function buildOutlineByMemoryPrompt(
 	parts.push('- This is a suggestion for the author. Be creative but stay coherent with the story so far.');
 	parts.push('- Prioritize a complete and finished response; do not cut it off in the middle of a sentence.');
 	parts.push('- Return only the outline paragraph, without any introduction or additional comments.');
-	if (!storyBible && blueprint?.language?.trim()) {
-		parts.push(`- Write the outline in ${blueprint.language.trim()}, regardless of the language of these instructions.`);
-	}
+	const languageRule = outlineByMemoryLanguageRule(
+		previousOutlines, storyBible, blueprint
+	);
+	if (languageRule) parts.push(`- ${languageRule}`);
 	return parts.join('\n');
 }
 
@@ -89,9 +140,9 @@ export function buildActSummaryPrompt(
 	parts.push('- Do not summarize chapter by chapter, and do not invent anything that is not in the outlines.');
 	parts.push('- Prioritize a complete and finished response; do not cut it off in the middle of a sentence.');
 	parts.push('- Return only that paragraph, without any introduction or additional comments.');
-	if (!storyBible && blueprint?.language?.trim()) {
-		parts.push(`- Write the summary in ${blueprint.language.trim()}, regardless of the language of these instructions.`);
-	}
+	parts.push(
+		`- ${summaryLanguageRule(blueprint, 'the summary', 'the chapter outlines above')}`
+	);
 	return parts.join('\n');
 }
 
