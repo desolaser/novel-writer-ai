@@ -12,6 +12,12 @@ import * as EstRepo from './repos/EstructuraRepo';
 import * as ChatRepo from './repos/ChatRepo';
 import type { ChatPersistence } from '../../interfaces/chat-persistence';
 import * as BlueprintRepo from './repos/BlueprintRepo';
+import * as SchemaRepo from './repos/CodexSchemaRepo';
+import type {
+	CodexSchema,
+	CodexSchemaMergeSummary,
+	CodexSchemaSelection,
+} from '../../types/CodexSchema';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
 	Acto, Capitulo, Chat, ChatContextItem, EntityId, NovelBlueprint,
@@ -53,8 +59,30 @@ export class NovelStore {
 		return true;
 	}
 
-	async create(name: string, author: string, baseFolder?: string, thumbnailFile: ArrayBuffer | null = null): Promise<Novela> {
+	/**
+	 * `codexSourceNovelId`, when given, copies that novel's custom categories
+	 * and details into the new one (no entries).
+	 */
+	async create(
+		name: string,
+		author: string,
+		baseFolder?: string,
+		thumbnailFile: ArrayBuffer | null = null,
+		codexSourceNovelId: EntityId | null = null,
+	): Promise<Novela> {
+		const sourceFolder = codexSourceNovelId
+			? await findNovelFolder(this.app, codexSourceNovelId)
+			: null;
 		const { folderPath, novela } = await createNovel(this.app, name, author, baseFolder, thumbnailFile);
+		if (sourceFolder) {
+			await SchemaRepo.copyCodexSchema(
+				this.app,
+				sourceFolder,
+				folderPath,
+				novela.id_novela,
+				'all',
+			);
+		}
 		await this.refresh();
 		this.activeId = novela.id_novela; this.activeFolder = folderPath;
 		return novela;
@@ -82,6 +110,30 @@ export class NovelStore {
 	async createCategoriaCustom(name: string, color: string): Promise<Categoria> { return CatRepo.createCategoria(this.app, this.activeFolder!, this.activeId!, name, color); }
 	async updateCategoria(item: Categoria) { await CatRepo.updateCategoria(this.app, this.activeFolder!, item); }
 	async deleteCategoria(id: EntityId) { await CatRepo.deleteCategoria(this.app, this.activeFolder!, id); }
+
+	// Codex schema (categories + custom details) across novels
+	/** Categories and custom details of any novel, active or not. */
+	async readCodexSchemaOf(novelId: EntityId): Promise<CodexSchema | null> {
+		const folder = await findNovelFolder(this.app, novelId);
+		if (!folder) return null;
+		return SchemaRepo.readCodexSchema(this.app, folder);
+	}
+
+	/** Copies categories and details from another novel into the active one. */
+	async importCodexSchema(
+		sourceNovelId: EntityId,
+		selection: CodexSchemaSelection,
+	): Promise<CodexSchemaMergeSummary> {
+		const sourceFolder = await findNovelFolder(this.app, sourceNovelId);
+		if (!sourceFolder) throw new Error('Source novel not found.');
+		return SchemaRepo.copyCodexSchema(
+			this.app,
+			sourceFolder,
+			this.activeFolder!,
+			this.activeId!,
+			selection,
+		);
+	}
 
 	// Etiqueta
 	async listEtiquetas(): Promise<Etiqueta[]> { return EtiRepo.listEtiquetas(this.app, this.activeFolder!); }

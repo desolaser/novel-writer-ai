@@ -93,6 +93,11 @@ export interface PluginSettings {
 	historyOptions: HistoryOptions;
 	/** Id de la ultima novela activa (para restaurar al abrir). */
 	lastActiveNovelId: string | null;
+	/**
+	 * Novel whose categories and custom details the "New novel" dialog copies
+	 * by default. Null means only the default categories.
+	 */
+	newNovelCodexSourceId: string | null;
 	/** Preferencias de UI. */
 	uiPrefs: {
 		activeSidebarTab: 'codex' | string;
@@ -174,6 +179,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	codexOptions: DEFAULT_CODEX_OPTIONS,
 	historyOptions: DEFAULT_HISTORY_OPTIONS,
 	lastActiveNovelId: null,
+	newNovelCodexSourceId: null,
 	uiPrefs: {
 		activeSidebarTab: 'codex',
 		activeChatIds: {},

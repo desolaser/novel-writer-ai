@@ -5,6 +5,21 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-16
 
+### Codex: copiar categorías y detalles entre novelas
+- Las categorías custom y los detalles personalizados eran solo de cada novela, así
+  que una novela nueva empezaba sin ellos.
+- El diálogo "New novel" tiene "Codex structure": copiar todo de otra novela o solo
+  las categorías por defecto (por defecto). Recuerda la última elección
+  (`settings.newNovelCodexSourceId`).
+- "Import from novel..." en los modales "Categories" y "Custom Details" copia lo que
+  se marque de otra novela.
+- Se copian, no se comparten: cada novela sigue siendo independiente. No se copian
+  entradas. Lo que ya existe con el mismo nombre se salta.
+- Lógica pura en `mergeCodexSchema` (`src/utils/codexSchemaMerge.ts`); lectura y
+  escritura en `CodexSchemaRepo.ts`.
+- Tests: `test/codex-schema-merge.test.cjs`. Detalle: [codex.md](codex.md),
+  [novels.md](novels.md), [storage.md](storage.md).
+
 ### Novelas: abrir la última novela, no una borrada
 - Al abrir el vault salía "Novel not found": `lastActiveNovelId` solo se guardaba al
   crear una novela, así que cambiar de novela no lo actualizaba y quedaba apuntando a

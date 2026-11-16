@@ -15,13 +15,19 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `escritura/capitulos/*.md` | Manuscritos de los capítulos | `chapterFiles.ts` |
 | `escritura/blueprint.json` | Novel Setup (premisa, estilo, estructura) | `BlueprintRepo.ts` |
 | `codex/entradas/entrada_<id>.json` | Una entrada del codex por archivo | `CodexEntryRepo.ts` |
-| `codex/detalles.json` | Campos personalizados (detalles) y sus opciones | `DetalleRepo.ts` |
+| `codex/categorias.json` | Categorías (las 6 por defecto y las custom) | `CategoriaRepo.ts` |
+| `codex/detalles.json` | Campos personalizados (detalles), sus opciones y sus categorías | `DetalleRepo.ts` |
 | `chats/chat_<id>.json` | Un chat con todos sus mensajes y su contexto | `ChatRepo.ts` |
 | `images/` | Imágenes de la novela | — |
 
 `NovelStore` (`src/infrastructure/storage/store.ts`) es la fachada: guarda la novela
 activa (`activeNovelId`, `activeFolderPath`) y delega en los repos. Los repos reciben
 siempre `app` y la carpeta; no guardan estado.
+
+`CodexSchemaRepo.ts` es el único repo que trabaja con dos novelas a la vez: copia
+`categorias.json` y `detalles.json` de una carpeta a otra (ver
+[codex.md](codex.md#categorías-y-detalles-entre-novelas)). Lee los dos archivos del
+destino, fusiona en memoria y los reescribe enteros. Estos archivos no usan lock.
 
 ## Escrituras concurrentes: los locks
 

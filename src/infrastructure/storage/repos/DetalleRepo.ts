@@ -33,6 +33,15 @@ export async function listAllDetallesExtended(app: App, fp: string): Promise<Det
 	return readFile(app, fp);
 }
 
+/** Replaces the whole details file (details, options and category links). */
+export async function writeAllDetallesExtended(
+	app: App,
+	fp: string,
+	data: DetallesFile,
+): Promise<void> {
+	await writeFile(app, fp, data);
+}
+
 export async function getDetalleById(app: App, fp: string, id: EntityId): Promise<Detalle | null> {
 	return (await readFile(app, fp)).detalles.find(d => d.id_detalle === id) ?? null;
 }

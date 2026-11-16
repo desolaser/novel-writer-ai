@@ -146,10 +146,29 @@ export default class NovelWriterPlugin extends Plugin {
 	}
 
 	async createNovel() {
-		const result = await promptNovel(this.app);
+		await this.store.refresh();
+		const codexSources = this.store.novels.map(n => ({
+			id: n.novela.id_novela,
+			name: n.novela.nombre,
+		}));
+		const savedSource = this.settings.data.newNovelCodexSourceId;
+		const defaultSource = codexSources.some(s => s.id === savedSource)
+			? savedSource
+			: null;
+		const result = await promptNovel(this.app, codexSources, defaultSource);
 		if (!result) return;
 		if (!result.nombre.trim()) { new Notice('The name is required.'); return; }
-		await this.store.create(result.nombre.trim(), result.autor ?? '', '', result.thumbnail ?? null);
+		if (this.settings.data.newNovelCodexSourceId !== result.codexSourceId) {
+			this.settings.data.newNovelCodexSourceId = result.codexSourceId;
+			await this.settings.save();
+		}
+		await this.store.create(
+			result.nombre.trim(),
+			result.autor ?? '',
+			'',
+			result.thumbnail ?? null,
+			result.codexSourceId,
+		);
 		new Notice(`Novel "${result.nombre}" created.`);
 		const { useNovelWriter } = await import('./src/ui/react/store/novelWriterStore');
 		await useNovelWriter.getState().refreshNovels();
@@ -485,8 +504,23 @@ async function pickLorebookFolder(app: App): Promise<TFolder | null> {
 	});
 }
 
-/** Modal con Nombre (obligatorio), Autor (opcional) y Thumbnail (opcional). */
-async function promptNovel(app: App): Promise<{ nombre: string; autor: string; thumbnail: ArrayBuffer | null } | null> {
+interface NewNovelResult {
+	nombre: string;
+	autor: string;
+	thumbnail: ArrayBuffer | null;
+	/** Novel whose categories and custom details are copied, or null. */
+	codexSourceId: string | null;
+}
+
+/**
+ * Modal with Name (required), Author, Thumbnail and the novel to copy the
+ * codex structure (categories and custom details) from.
+ */
+async function promptNovel(
+	app: App,
+	codexSources: { id: string; name: string }[],
+	defaultSourceId: string | null,
+): Promise<NewNovelResult | null> {
 	return new Promise((resolve) => {
 		const modal = new Modal(app);
 		modal.titleEl.setText('New novel');
@@ -531,6 +565,27 @@ async function promptNovel(app: App): Promise<{ nombre: string; autor: string; t
 				img.src = url;
 			};
 
+		let codexSourceId: string | null = defaultSourceId;
+		if (codexSources.length > 0) {
+			const NO_SOURCE = '';
+			new Setting(wrap)
+				.setName('Codex structure')
+				.setDesc(
+					'Copy custom categories and details (with their options) '
+					+ 'from another novel. Entries are not copied.',
+				)
+				.addDropdown(dropdown => {
+					dropdown.addOption(NO_SOURCE, 'Default categories only');
+					for (const source of codexSources) {
+						dropdown.addOption(source.id, `Copy from "${source.name}"`);
+					}
+					dropdown.setValue(defaultSourceId ?? NO_SOURCE);
+					dropdown.onChange(value => {
+						codexSourceId = value === NO_SOURCE ? null : value;
+					});
+				});
+		}
+
 		const btnRow = wrap.createDiv();
 		btnRow.style.display = 'flex';
 		btnRow.style.justifyContent = 'flex-end';
@@ -542,7 +597,10 @@ async function promptNovel(app: App): Promise<{ nombre: string; autor: string; t
 		let resolved = false;
 		const done = (v: any) => { if (!resolved) { resolved = true; resolve(v); } };
 		cancel.onclick = () => { done(null); modal.close(); };
-		ok.onclick = () => { done({ nombre, autor, thumbnail: thumb }); modal.close(); };
+		ok.onclick = () => {
+			done({ nombre, autor, thumbnail: thumb, codexSourceId });
+			modal.close();
+		};
 		modal.onClose = () => done(null);
 		modal.open();
 	});

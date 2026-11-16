@@ -1,4 +1,9 @@
 import type { StateCreator } from "zustand";
+import type {
+	CodexSchema,
+	CodexSchemaMergeSummary,
+	CodexSchemaSelection,
+} from "../../../types/CodexSchema";
 import {
 	EntradaCodex,
 	Categoria,
@@ -67,6 +72,14 @@ export interface CodexSlice {
 	createCategoria: (nombre: string, color: string) => Promise<void>;
 	updateCategoria: (cat: Categoria) => Promise<void>;
 	deleteCategoria: (id: EntityId) => Promise<void>;
+
+	/** Categories and custom details of another novel, for importing. */
+	readCodexSchemaOf: (novelId: EntityId) => Promise<CodexSchema | null>;
+	/** Copies categories and details from another novel into the active one. */
+	importCodexSchema: (
+		sourceNovelId: EntityId,
+		selection: CodexSchemaSelection,
+	) => Promise<CodexSchemaMergeSummary | null>;
 
 	refreshEntry: (id: EntityId) => Promise<void>;
 }

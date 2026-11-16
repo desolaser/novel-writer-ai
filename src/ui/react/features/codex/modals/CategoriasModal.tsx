@@ -7,6 +7,7 @@ import { Icon } from '../../../components/Icon';
 import { Categoria } from '../../../../../domain';
 import type NovelWriterPlugin from '../../../../../../main';
 import { confirmDialog } from '../../../../modals/ConfirmModal';
+import { CodexSchemaImportModal } from './CodexSchemaImportModal';
 
 export class CategoriasModal extends Modal {
 	private root: Root | null = null;
@@ -62,6 +63,13 @@ function CategoriasView({ plugin }: { plugin: NovelWriterPlugin; close: () => vo
 				<h3>Custom categories</h3>
 				<input className="nw-input" placeholder="Search..." value={query} onChange={e => setQuery(e.target.value)} />
 				<button className="nw-btn nw-btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={() => doCreate()}>+ New category</button>
+				<button
+					className="nw-btn"
+					style={{ width: '100%', marginTop: 4 }}
+					onClick={() => new CodexSchemaImportModal(plugin.app).open()}
+				>
+					Import from novel...
+				</button>
 				<div className="nw-modal-list">
 					{filtered.map(c => (
 						<button key={c.id_categoria} className={`nw-list-item ${c.id_categoria === selected ? 'active' : ''}`} onClick={() => setSelected(c.id_categoria)}>

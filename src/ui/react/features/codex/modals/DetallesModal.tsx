@@ -8,6 +8,7 @@ import { TipoDetalle, OpcionDetalle, nowISO } from '../../../../../domain';
 import { genId } from '../../../../../utils/ids';
 import type NovelWriterPlugin from '../../../../../../main';
 import { confirmDialog } from '../../../../modals/ConfirmModal';
+import { CodexSchemaImportModal } from './CodexSchemaImportModal';
 
 export class DetallesModal extends Modal {
 	private root: Root | null = null;
@@ -115,6 +116,13 @@ function DetallesView({ plugin, initialId, initialTab }: { plugin: NovelWriterPl
 				<h3>Details</h3>
 				<input className="nw-input" placeholder="Search..." value={query} onChange={e => setQuery(e.target.value)} />
 				<button className="nw-btn nw-btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={doCreate}>+ New detail</button>
+				<button
+					className="nw-btn"
+					style={{ width: '100%', marginTop: 4 }}
+					onClick={() => new CodexSchemaImportModal(plugin.app).open()}
+				>
+					Import from novel...
+				</button>
 				<div className="nw-modal-list">
 					{filtered.map((d: any) => {
 						return (

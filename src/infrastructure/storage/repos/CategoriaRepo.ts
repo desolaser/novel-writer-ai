@@ -10,6 +10,15 @@ export async function listCategorias(app: App, folderPath: string): Promise<Cate
 	return repo.readAll(app, folderPath);
 }
 
+/** Replaces the whole categories file. */
+export async function writeAllCategorias(
+	app: App,
+	folderPath: string,
+	items: Categoria[],
+): Promise<void> {
+	await repo.writeAll(app, folderPath, items);
+}
+
 export function getCategoriaById(app: App, folderPath: string, id: EntityId) {
 	return repo.getById(app, folderPath, id);
 }

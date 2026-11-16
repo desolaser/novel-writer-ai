@@ -15,6 +15,7 @@
 | Archivo | Cubre |
 |---|---|
 | `chat-agent.test.cjs` | Loop del agente (rondas, pausa, repeticiones, stop, compactación) y `ChatSession` (aprobación, auto-approve, stop, traza guardada) |
+| `codex-schema-merge.test.cjs` | Copia de categorías y detalles entre novelas (ids nuevos, nombres repetidos, vínculos, selección parcial) |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
 | `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control |
 | `model-purposes.test.cjs` | Perfiles por propósito, migraciones de settings, presupuestos de output |

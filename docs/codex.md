@@ -16,6 +16,9 @@ referencias externas, miniatura y una política de contexto para la IA.
 | `src/ui/react/features/codex/CodexEntryEditor/ai/` | Generación de campos con IA |
 | `src/ui/editor/codexHighlighter.ts`, `codexTooltip.ts`, `codexMatching.ts` | Resaltado de menciones en el manuscrito y tooltip |
 | `src/infrastructure/storage/repos/CodexEntryRepo.ts` | Un JSON por entrada |
+| `src/ui/react/features/codex/modals/CategoriasModal.tsx`, `DetallesModal.tsx` | Categorías custom y detalles personalizados |
+| `src/ui/react/features/codex/modals/CodexSchemaImportModal.tsx`, `SchemaChecklist.tsx` | Importar categorías y detalles de otra novela |
+| `src/utils/codexSchemaMerge.ts` | Fusión de categorías y detalles entre novelas |
 
 ## Vista de entrada (`CodexEntryView`)
 
@@ -71,6 +74,40 @@ Recibe `entryId` por prop; cada vista abierta tiene el suyo. El store ya no tien
 `CodexAiProvider` genera campos (alias, descripción, detalles) de tres formas: un campo,
 campo por campo en secuencia, o todos en una llamada con secciones delimitadas. Cada
 respuesta es una **propuesta** que el autor acepta o descarta; nada se escribe solo.
+
+## Categorías y detalles entre novelas
+
+Las categorías custom y los detalles personalizados (con sus opciones y sus categorías)
+son de cada novela. Para reusarlos se **copian**, nunca se comparten: cambiar o borrar
+uno en una novela no toca a las demás, y cada carpeta de novela sigue siendo
+autosuficiente.
+
+Hay dos formas de copiarlos:
+
+- **Al crear una novela**: el diálogo "New novel" tiene "Codex structure" (ver
+  [novels.md](novels.md)). Copia todo de la novela elegida.
+- **Después**: botón "Import from novel..." en los modales "Categories" y "Custom
+  Details" (`CodexSchemaImportModal`). Se elige la novela y se marcan categorías y
+  detalles; los que ya existen aquí con el mismo nombre aparecen deshabilitados. Avisa
+  si un detalle marcado pertenece a una categoría que no se importa.
+
+Reglas de la copia (`mergeCodexSchema` en `src/utils/codexSchemaMerge.ts`, lógica pura):
+
+- Nunca copia entradas ni sus valores.
+- Todo lo copiado lleva ids nuevos y las referencias se remapean.
+- Se compara por nombre (sin mayúsculas ni espacios en los bordes). Si ya existe, se
+  salta y se deja como está. Los elementos sin nombre nunca cuentan como repetidos.
+- Las 6 categorías por defecto se emparejan por nombre: en cada novela tienen ids
+  distintos.
+- Un vínculo detalle-categoría se copia si los dos extremos existen en el destino y al
+  menos uno se agregó en esta copia. Los vínculos entre dos elementos que el destino ya
+  tenía no se tocan.
+- Los detalles nuevos van después de los existentes, en el orden de la novela origen.
+
+Archivos: `src/types/CodexSchema.ts` (tipos),
+`src/infrastructure/storage/repos/CodexSchemaRepo.ts` (leer, fusionar y escribir),
+`NovelStore.readCodexSchemaOf` / `importCodexSchema`, y las acciones del mismo nombre en
+`codexSlice`. Test: `test/codex-schema-merge.test.cjs`.
 
 ## Privacidad
 

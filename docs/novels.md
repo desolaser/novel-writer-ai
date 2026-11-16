@@ -10,6 +10,21 @@ El Companion (`CompanionView`, barra izquierda) tiene arriba el selector de nove
 - **Novel Setup**: el blueprint de la novela (ver abajo).
 - **Delete Novel**: con opción de borrar también la carpeta (`NovelDeleteModal`).
 
+### Crear una novela
+
+Comando "Create new novel" (también "+ Create new novel" en el selector). El diálogo
+(`promptNovel` en `main.ts`) pide nombre, autor y miniatura, y si hay otras novelas
+muestra **Codex structure**:
+
+- "Default categories only" (por defecto): solo las 6 categorías por defecto.
+- "Copy from <novela>": copia además sus categorías custom y sus detalles
+  personalizados, con opciones y categorías. No copia entradas.
+
+La elección se recuerda en `settings.newNovelCodexSourceId` y se propone la próxima
+vez; si esa novela ya no existe, vuelve a "Default categories only". La copia la hace
+`NovelStore.create` con `copyCodexSchema` (ver
+[codex.md](codex.md#categorías-y-detalles-entre-novelas)).
+
 La novela activa se guarda en `settings.lastActiveNovelId` cada vez que cambia
 (`setActiveNovel`) y se restaura al cargar. Si esa novela ya no existe, se abre la de
 `updated_at` más reciente (`resolveStartupNovelId` en `src/utils/startupNovel.ts`). Ver

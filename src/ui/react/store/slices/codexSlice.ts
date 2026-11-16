@@ -103,6 +103,19 @@ export const createCodexSlice: SliceCreator<CodexSlice> = (set, get) => ({
 		await get().reloadAll();
 	},
 
+	readCodexSchemaOf: async (novelId) => {
+		const s = get().store;
+		if (!s) return null;
+		return s.readCodexSchemaOf(novelId);
+	},
+	importCodexSchema: async (sourceNovelId, selection) => {
+		const s = get().store;
+		if (!s) return null;
+		const summary = await s.importCodexSchema(sourceNovelId, selection);
+		await get().reloadAll();
+		return summary;
+	},
+
 	refreshEntry: async (id) => {
 		const s = get().store;
 		if (!s) return;

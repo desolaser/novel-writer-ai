@@ -1574,3 +1574,35 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-tool-trace { margin-top: 6px; font-size: 12px; }
 .nw-tool-trace > summary { cursor: pointer; color: var(--text-muted); font-size: 11px; user-select: none; }
 .nw-tool-trace > .nw-tool-calls { margin-top: 6px; }
+
+/* Import categories and details from another novel */
+.nw-schema-import-modal { width: 640px; max-width: 92vw; }
+.nw-schema-import-lists {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+	max-height: 50vh;
+	overflow-y: auto;
+}
+@media (max-width: 600px) {
+	.nw-schema-import-lists { grid-template-columns: 1fr; }
+}
+.nw-schema-checklist { display: flex; flex-direction: column; gap: 6px; }
+.nw-schema-checklist-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.nw-schema-checklist-head h4 { margin: 0; }
+.nw-schema-checklist-actions { display: flex; gap: 4px; }
+.nw-schema-checklist .nw-checkbox { display: flex; }
+.nw-schema-checklist .nw-is-disabled { opacity: 0.6; }
+.nw-schema-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+.nw-schema-label { flex: 1; }
