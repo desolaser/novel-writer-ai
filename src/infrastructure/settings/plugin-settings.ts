@@ -4,6 +4,7 @@ import type { CustomPrompt } from '../../domain/entities/CustomPrompt';
 import type { EffortLevel } from '../../utils/provider-options';
 import type { ModelAssignments } from '../../types/ModelPurpose';
 import type { EditorAction } from '../../types/EditorAction';
+import type { ExportPreferences } from '../../types/ManuscriptExport';
 import type { NoteAccess, ToolGroupId } from '../../types/AiTool';
 import { DEFAULT_EDITOR_ACTIONS } from '../../constants/editorActions';
 
@@ -102,6 +103,8 @@ export interface PluginSettings {
 	 * by default. Null means only the default categories.
 	 */
 	newNovelCodexSourceId: string | null;
+	/** Choices of the Export dialog, per novel id. */
+	exportPreferences: Record<string, Partial<ExportPreferences>>;
 	/** Preferencias de UI. */
 	uiPrefs: {
 		activeSidebarTab: 'codex' | string;
@@ -188,6 +191,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 	historyOptions: DEFAULT_HISTORY_OPTIONS,
 	lastActiveNovelId: null,
 	newNovelCodexSourceId: null,
+	exportPreferences: {},
 	uiPrefs: {
 		activeSidebarTab: 'codex',
 		activeChatIds: {},

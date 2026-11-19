@@ -25,6 +25,7 @@ Este archivo solo resume la arquitectura. El detalle de cada módulo está en
 | Outline (`OutlineView`) | Barra derecha: actos, capítulos, outlines y generación con IA | [outline](docs/outline.md) |
 | Entrada del codex (`CodexEntryView`) | Área principal, una pestaña por entrada, se abren como notas | [codex](docs/codex.md) |
 | Editor de Markdown | Autocompletado, acciones de IA y resaltado de entradas del codex | [editor](docs/editor.md) |
+| Export (`ExportModal`, `PublishChapterModal`) | Modales: compilar la novela, copiar un capítulo para publicar | [export](docs/export.md) |
 
 Cada vista es un `ItemView` que monta React. Todas llaman a `initializeStore`, que corre
 una sola vez por instancia del plugin.

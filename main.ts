@@ -1,5 +1,7 @@
 import { Plugin, WorkspaceLeaf, Notice, App, Modal, Setting, Editor, Menu, MarkdownView, TFile, TFolder } from 'obsidian';
-import { CompanionView, VIEW_TYPE_COMPANION } from './src/ui/views/CompanionView';
+import { CompanionView, VIEW_TYPE_COMPANION, initializeStore } from './src/ui/views/CompanionView';
+import { openExportModal } from './src/ui/react/features/export/ExportModal';
+import { openPublishChapterModal } from './src/ui/react/features/export/PublishChapterModal';
 import { OutlineView, VIEW_TYPE_OUTLINE } from './src/ui/views/OutlineView';
 import { NovelStore } from './src/infrastructure/storage/store';
 import { SettingsService } from './src/infrastructure/settings/settings-service';
@@ -125,6 +127,22 @@ export default class NovelWriterPlugin extends Plugin {
 		this.addCommand({ id: 'open-novel-writer-outline', name: 'Open Novel Writer Outline', callback: async () => { await this.activateOutlineView(); } });
 		this.addCommand({ id: 'create-novel', name: 'Create new novel', callback: async () => { await this.createNovel(); } });
 		this.addCommand({ id: 'import-legacy-lorebook', name: 'Import legacy lorebook', callback: async () => { await this.importLorebook(); } });
+		this.addCommand({
+			id: 'export-novel',
+			name: 'Export novel',
+			callback: async () => {
+				await initializeStore(this);
+				openExportModal(this);
+			},
+		});
+		this.addCommand({
+			id: 'copy-chapter-for-publishing',
+			name: 'Copy chapter for publishing',
+			callback: async () => {
+				await initializeStore(this);
+				openPublishChapterModal(this);
+			},
+		});
 		this.addCommand({ id: 'generate-text', name: 'Generate text', editorCallback: async (_editor) => { await this.generateEditorText(_editor); } });
 		this.syncEditorActionCommands();
 		this.register(this.settings.subscribe(() => this.syncEditorActionCommands()));

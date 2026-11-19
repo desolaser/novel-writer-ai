@@ -30,6 +30,7 @@
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.120.0",
+		"fflate": "0.8.2",
 		"js-yaml": "^4.1.0",
 		"openai": "^4.98.0",
 		"react": "^19.1.0",

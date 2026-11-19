@@ -84,7 +84,7 @@ reglas fijas (~385 tokens); con `generate_portrait`, 38 y ~3300 tokens.
 
 | Tool | Tipo | Qué hace |
 |---|---|---|
-| `list_chapters` | read | Capítulos con acto, orden, si tienen outline, palabras, y estado, punto de vista, escenario y tiempo si los tienen |
+| `list_chapters` | read | Capítulos con acto, orden, si tienen outline, palabras, y estado, punto de vista, escenario, tiempo y fecha de publicación si los tienen |
 | `read_chapter` | read | Texto de un capítulo, entero o los párrafos `from`..`to` |
 | `create_chapter` | write | Crea un capítulo (y su archivo), opcionalmente con outline y texto |
 | `write_chapter` | write | Reemplaza o agrega al final del texto de un capítulo |

@@ -11,6 +11,8 @@ import { ActoSection } from "./outline/ActoSection";
 import { ChapterFileModal } from "./outline/modals";
 import { openNovelBlueprintModal } from "./features/blueprint/NovelBlueprintModal";
 import { confirmDialog } from "../modals/ConfirmModal";
+import { openExportModal } from "./features/export/ExportModal";
+import { openPublishChapterModal } from "./features/export/PublishChapterModal";
 
 /** Outline de una columna: orquesta estado de UI y delega en componentes de `./outline`. */
 export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -273,6 +275,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 				onCreateAllManuscripts={() => void createAllManuscripts()}
 				onGenerateDrafts={() => void generateDrafts()}
 				onOpenSetup={() => openNovelBlueprintModal(plugin)}
+				onExport={() => openExportModal(plugin)}
 			/>
 			{batchStatus && (
 				<div className="nw-outline-status">{batchStatus}</div>
@@ -338,6 +341,10 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 							void createChapterManuscript(chapter);
 						}}
 						onLinkChapterFile={linkChapterFile}
+						onCopyChapterForPublishing={(chapter) => {
+							closeChapterMenu();
+							openPublishChapterModal(plugin, chapter.id_capitulo);
+						}}
 						onDeleteChapter={(chapter) => void deleteChapter(chapter)}
 						onDragStartChapter={setDraggedChapter}
 						onDragEndChapter={() => setDraggedChapter(null)}

@@ -33,11 +33,14 @@ export interface ChapterInfo {
 	story_day?: number | null;
 	/** Free label for when it happens ("third moon of winter"). */
 	story_time?: string;
+	/** Local date ("2026-11-19") it was published online; null if not yet. */
+	published_on?: string | null;
 }
 
 /** Keys of `ChapterInfo`, to copy it between chapters without listing them twice. */
 export const CHAPTER_INFO_KEYS: (keyof ChapterInfo)[] = [
 	'status', 'pov_entry_id', 'location_entry_id', 'story_day', 'story_time',
+	'published_on',
 ];
 
 /** Capitulo: pertenece a un Acto y tiene un manuscrito Markdown asociado. */

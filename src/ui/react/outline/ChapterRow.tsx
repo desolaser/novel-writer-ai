@@ -27,6 +27,7 @@ export interface ChapterRowProps {
 	onGenerateMemory: () => void;
 	onGenerateDraft: () => void;
 	onLinkFile: () => void;
+	onCopyForPublishing: () => void;
 	onDelete: () => void;
 	onDragStart: () => void;
 	onDragEnd: () => void;
@@ -55,6 +56,7 @@ export function ChapterRow({
 	onGenerateMemory,
 	onGenerateDraft,
 	onLinkFile,
+	onCopyForPublishing,
 	onDelete,
 	onDragStart,
 	onDragEnd,
@@ -113,6 +115,15 @@ export function ChapterRow({
 						{chapter.outline ? " *" : ""}
 					</button>
 				)}
+				{chapter.published_on && (
+					<span
+						className="nw-chapter-published"
+						title={`Published on ${chapter.published_on}`}
+						aria-label={`Published on ${chapter.published_on}`}
+					>
+						<Icon.Upload width={12} height={12} />
+					</span>
+				)}
 				<span className="nw-chapter-file-status">
 					{chapter.archivo ? "File" : "No file"}
 				</span>
@@ -144,6 +155,7 @@ export function ChapterRow({
 						onGenerateMemory={onGenerateMemory}
 						onGenerateDraft={onGenerateDraft}
 						onLinkFile={onLinkFile}
+						onCopyForPublishing={onCopyForPublishing}
 						onDelete={onDelete}
 					/>
 				)}

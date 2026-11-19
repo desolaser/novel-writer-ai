@@ -14,6 +14,8 @@ defecto; el autor las asigna en Settings → Hotkeys buscando "Novel Writer".
 | Open Novel Writer Outline | `novel-writer-ai:open-novel-writer-outline` | Abre o muestra el Outline |
 | Create new novel | `novel-writer-ai:create-novel` | Crea una novela |
 | Import legacy lorebook | `novel-writer-ai:import-legacy-lorebook` | Importa una carpeta de notas al codex |
+| Export novel | `novel-writer-ai:export-novel` | Compila la novela o la exporta por capítulo ([export.md](export.md)) |
+| Copy chapter for publishing | `novel-writer-ai:copy-chapter-for-publishing` | Copia el siguiente capítulo sin publicar en el formato del sitio |
 | Generate text | `novel-writer-ai:generate-text` | Continúa el texto desde el cursor (solo en un editor) |
 | Acciones del editor | `novel-writer-ai:<id de la acción>` | Una por cada acción con `placement` `command` o `both` |
 
@@ -56,6 +58,8 @@ Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images
 - Arrastrar `⠿` de un acto y soltarlo sobre otro: reordena los actos.
 - Clic en el nombre de un capítulo o acto: renombrar.
 - Día y etiqueta de tiempo del capítulo expandido: Enter guarda, Escape descarta.
+- Botón de descarga en la cabecera: Export novel.
+- Menú "⋯" del capítulo → "Copy for publishing...": copia ese capítulo.
 
 ### Metrics
 

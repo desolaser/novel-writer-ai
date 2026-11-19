@@ -165,3 +165,13 @@ test('Metrics shows no breakdown while nothing is set', () => {
 	});
 	assert.deepEqual(metrics.chapterInfo, { byStatus: [], byPointOfView: [] });
 });
+
+test('the publication date shows to the author and the tools, never in prompts', () => {
+	const info = { status: 'final', published_on: '2026-11-19' };
+	const forTools = chapterInfoFacts(info, entries, { forAi: true, includeStatus: true });
+	assert.deepEqual(forTools, [
+		{ label: 'Status', value: 'Final' },
+		{ label: 'Published', value: '2026-11-19' },
+	]);
+	assert.equal(chapterInfoPromptLine(info, entries), '');
+});

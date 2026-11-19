@@ -5,6 +5,24 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-19
 
+### Exportar la novela y publicar por capítulo
+- "Export novel" (comando y botón en la cabecera del Outline): la novela en un EPUB,
+  DOCX, HTML o Markdown, o un archivo por capítulo en texto plano, HTML, Markdown o
+  BBCode. Encabezados configurables ("Capítulo 3: Título"), cambio de escena, portada,
+  títulos de acto y filtro por estado. Se escribe en `<novela>/export/`.
+- "Copy chapter for publishing" (comando y menú "⋯" del capítulo): copia un capítulo
+  para pegarlo en un sitio de web novels. HTML se copia como texto enriquecido. "Copy
+  and mark as published" guarda la fecha y pasa al siguiente sin publicar.
+- Capítulos: campo `published_on` (fecha de publicación), ícono en el Outline;
+  `list_chapters` lo muestra.
+- Nada del frontmatter sale en un export; `export/` queda fuera de las copias para
+  deshacer respuestas del chat.
+- Al terminar, el modal muestra dónde quedó el export, con "Show in folder" y "Open":
+  el explorador de Obsidian no lista `.epub`, `.docx` ni `.html`.
+- Dependencia nueva: `fflate` 0.8.2 para armar EPUB y DOCX.
+- Tests: `test/manuscript-export.test.cjs`; casos en `chapter-info` y
+  `estructura-lock`. Detalle: [export.md](export.md).
+
 ### Capítulos: estado, punto de vista, escenario y tiempo de la historia
 - Cada capítulo puede tener estado (Idea → Final), punto de vista y escenario (entradas
   del codex), día de la historia y una etiqueta de tiempo libre. Se editan al expandir

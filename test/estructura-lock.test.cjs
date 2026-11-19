@@ -155,6 +155,7 @@ test('rebuilding the structure keeps the info of chapters that keep their name',
 		location_entry_id: 'e2',
 		story_day: 12,
 		story_time: 'third moon',
+		published_on: '2026-11-19',
 	});
 
 	await EstRepo.replaceEstructura(app, folder, 'novel', [
@@ -171,6 +172,7 @@ test('rebuilding the structure keeps the info of chapters that keep their name',
 	assert.equal(kept.location_entry_id, 'e2');
 	assert.equal(kept.story_day, 12);
 	assert.equal(kept.story_time, 'third moon');
+	assert.equal(kept.published_on, '2026-11-19');
 	assert.equal(fresh.status, undefined);
 	assert.equal(fresh.pov_entry_id, undefined);
 });

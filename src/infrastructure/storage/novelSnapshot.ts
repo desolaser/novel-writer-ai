@@ -4,12 +4,13 @@ import { planRevert, type FileChange, type FileSnapshot } from '../../utils/file
 import { ensureParent } from './fsHelpers';
 import { withEstructuraLock } from './repos/estructuraStorage';
 import { markPluginWrite } from './pluginWrites';
-import { WRITING_LOG_FILE } from '../../constants/novel';
+import { EXPORT_FOLDER, WRITING_LOG_FILE } from '../../constants/novel';
 
 /** Data of a novel an answer may change: Markdown and JSON, chats excluded. */
 const TRACKED_EXTENSIONS = new Set(['md', 'json']);
-// The writing log is not story data: undoing an answer must not rewind it.
-const UNTRACKED_FOLDERS = ['chats/', WRITING_LOG_FILE];
+// The writing log and the exports are not story data: undoing an answer must
+// not rewind them, and a compiled novel would be copied on every turn.
+const UNTRACKED_FOLDERS = ['chats/', WRITING_LOG_FILE, `${EXPORT_FOLDER}/`];
 
 function isTracked(file: TFile, folder: string): boolean {
 	if (!file.path.startsWith(`${folder}/`)) return false;

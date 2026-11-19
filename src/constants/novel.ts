@@ -12,6 +12,9 @@ export const NOVELA_CONFIG_FILE = '__config.json';
 /** Words written per day (`WritingLog`). Left out of the chat's undo copies. */
 export const WRITING_LOG_FILE = '__writing_log.json';
 
+/** Folder inside a novel where "Export novel" writes its files. */
+export const EXPORT_FOLDER = 'export';
+
 /** Subcarpetas creadas por novela. */
 export const NOVELA_SUBFOLDERS = ['escritura', 'codex', 'images'] as const;
 

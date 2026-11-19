@@ -8,6 +8,7 @@ export interface OutlineHeaderProps {
 	onCreateAllManuscripts: () => void;
 	onGenerateDrafts: () => void;
 	onOpenSetup: () => void;
+	onExport: () => void;
 }
 
 /**
@@ -22,6 +23,7 @@ export function OutlineHeader({
 	onCreateAllManuscripts,
 	onGenerateDrafts,
 	onOpenSetup,
+	onExport,
 }: OutlineHeaderProps) {
 	const hasChapters = chaptersCount > 0;
 
@@ -60,6 +62,15 @@ export function OutlineHeader({
 					aria-label="Create manuscripts"
 				>
 					<Icon.Save />
+				</button>
+				<button
+					className="nw-btn"
+					disabled={!hasChapters}
+					onClick={onExport}
+					title="Export the novel (EPUB, Word, HTML, Markdown)"
+					aria-label="Export novel"
+				>
+					<Icon.Download />
 				</button>
 				<button
 					className="nw-btn nw-btn-experimental"

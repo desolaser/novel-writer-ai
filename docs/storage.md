@@ -20,6 +20,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `codex/detalles.json` | Campos personalizados (detalles), sus opciones y sus categorías | `DetalleRepo.ts` |
 | `chats/chat_<id>.json` | Un chat con todos sus mensajes y su contexto | `ChatRepo.ts` |
 | `images/` | Imágenes de la novela | — |
+| `export/` | Lo que escribe "Export novel"; fuera de las copias para deshacer. Ver [export.md](export.md) | `exportFiles.ts` |
 
 `NovelStore` (`src/infrastructure/storage/store.ts`) es la fachada: guarda la novela
 activa (`activeNovelId`, `activeFolderPath`) y delega en los repos. Los repos reciben
@@ -77,7 +78,7 @@ El registro de escritura (`__writing_log.json`) también usa `withFileLock`:
 ### Copia para deshacer respuestas del chat
 
 `novelSnapshot.ts` (`createNovelFiles`) copia los `.md` y `.json` de la novela (sin
-`chats/` ni `__writing_log.json`) y restaura los que cambió una respuesta del chat. Lo hace dentro de
+`chats/`, `export/` ni `__writing_log.json`) y restaura los que cambió una respuesta del chat. Lo hace dentro de
 `withEstructuraLock`, porque `estructura.json` está entre esos archivos; adentro no se
 llama a nada que tome el mismo lock. Ver [chat.md](chat.md#deshacer-una-respuesta).
 

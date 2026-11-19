@@ -109,6 +109,18 @@ export function ChapterInfoFields({ chapter }: ChapterInfoFieldsProps) {
 					/>
 				</div>
 			</div>
+			<label className="nw-chapter-info-field">
+				<span>Published</span>
+				<input
+					type="date"
+					className="nw-chapter-info-published"
+					value={chapter.published_on ?? ""}
+					title="Date it went online; empty if not published yet"
+					onChange={(event) =>
+						void save({ published_on: event.target.value || null })
+					}
+				/>
+			</label>
 		</div>
 	);
 }

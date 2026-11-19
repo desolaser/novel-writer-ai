@@ -56,7 +56,10 @@ export interface ChapterInfoFact {
 	value: string;
 }
 
-/** Facts that are set, in a fixed order. Status only when asked for. */
+/**
+ * Facts that are set, in a fixed order. Status and publication date only when
+ * asked for.
+ */
 export function chapterInfoFacts(
 	info: ChapterInfo,
 	entries: EntradaCodex[],
@@ -73,6 +76,10 @@ export function chapterInfoFacts(
 	if (location) facts.push({ label: 'Setting', value: location });
 	const time = formatStoryTime(info);
 	if (time) facts.push({ label: 'Story time', value: time });
+	// Like the status, the publication date says nothing about the story.
+	if (options.includeStatus && info.published_on) {
+		facts.push({ label: 'Published', value: info.published_on });
+	}
 	return facts;
 }
 

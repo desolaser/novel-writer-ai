@@ -902,6 +902,22 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-chapter-info-time { display: flex; gap: 4px; }
 .nw-chapter-info-day { width: 64px; flex: 0 0 auto; }
 .nw-chapter-info-when { flex: 1 1 auto; min-width: 0; }
+.nw-chapter-published { display: inline-flex; color: var(--color-green); }
+/* Export and publishing dialogs */
+.nw-export { display: flex; flex-direction: column; gap: 10px; }
+.nw-export-fields { display: flex; flex-direction: column; gap: 8px; }
+.nw-export-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nw-export-field > span { color: var(--text-muted); flex: 0 0 auto; }
+.nw-export-field select, .nw-export-field input { flex: 0 1 60%; min-width: 0; }
+.nw-export-preview {
+	width: 100%;
+	min-height: 180px;
+	resize: vertical;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+}
+.nw-export-summary { margin: 0; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.nw-export-buttons { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .nw-companion-sidebar { 
 	height: 100%;
 	display: flex; 

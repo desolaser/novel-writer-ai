@@ -58,11 +58,13 @@ Cada capítulo puede tener, además de su outline (`ChapterInfo` en
 | `location_entry_id` | Entrada del codex donde pasa principalmente |
 | `story_day` | Día dentro de la historia (entero, puede ser negativo). Sirve para ordenar por cronología |
 | `story_time` | Etiqueta libre ("tercera luna del invierno"), para calendarios inventados |
+| `published_on` | Fecha local (`YYYY-MM-DD`) en que se publicó online; ver [export.md](export.md#publicar-por-capítulo) |
 
 - **Dónde se edita.** Al expandir un capítulo, arriba de su outline
   (`ChapterInfoFields`). Los selectores guardan al cambiar; día y etiqueta al perder el
-  foco o con Enter (Escape descarta). En la fila colapsada un punto de color muestra el
-  estado (hueco si no tiene).
+  foco o con Enter (Escape descarta); la fecha de publicación, al cambiar. En la fila
+  colapsada un punto de color muestra el estado (hueco si no tiene) y un ícono verde,
+  si está publicado.
 - **Suscripción.** `ChapterInfoFields` lee `entradas` y `categorias` del store por su
   cuenta, no por `outlineRoot.tsx`: así un cambio del codex no re-renderiza el Outline
   entero. Solo se monta con el capítulo expandido.
@@ -79,8 +81,8 @@ Cada capítulo puede tener, además de su outline (`ChapterInfo` en
   [metrics.md](metrics.md#estado-y-punto-de-vista)).
 - **Privacidad.** La IA nunca recibe el nombre de una entrada archivada o con política
   "Never", aunque sea el punto de vista (`chapterInfoPromptLine` en
-  `src/utils/chapterInfo.ts`). El estado no va a los prompts: no dice nada de la
-  historia.
+  `src/utils/chapterInfo.ts`). El estado y la fecha de publicación no van a los
+  prompts: no dicen nada de la historia.
 
 Tests: `test/chapter-info.test.cjs`, `test/estructura-lock.test.cjs` (rebuild) y
 `test/chat-tools.test.cjs` (tools).
@@ -181,6 +183,12 @@ el resumen de acto y el outline por memoria terminan con `summaryLanguageRule`
 
 Un prompt nuevo que resuma texto del autor debe terminar con esta regla. Tests en
 `test/summary-language.test.cjs`.
+
+## Exportar y publicar
+
+El botón de descarga de la cabecera abre "Export novel" y el menú "⋯" del capítulo
+tiene "Copy for publishing..." (deshabilitado sin manuscrito). Ver
+[export.md](export.md).
 
 ## Persistencia
 
