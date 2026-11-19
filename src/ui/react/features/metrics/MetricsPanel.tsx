@@ -11,6 +11,7 @@ import { WordsSection } from "./WordsSection";
 import { StyleSection } from "./StyleSection";
 import { WritingPaceSection } from "./WritingPaceSection";
 import { MentionsHeatmap } from "./MentionsHeatmap";
+import { ChapterInfoSection } from "./ChapterInfoSection";
 import type NovelWriterPlugin from "../../../../../main";
 
 /** Metrics tab of the Companion: statistics of the active novel. */
@@ -54,6 +55,7 @@ export function MetricsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 				<WritingPaceSection pace={pace} targetWords={metrics.totals.targetWords} />
 			)}
 			<ChapterLengthSection metrics={metrics} onOpenChapter={openChapter} />
+			<ChapterInfoSection metrics={metrics} onOpenEntry={openEntry} />
 			<CodexMetricsSection metrics={metrics} onOpenEntry={openEntry} />
 			<MentionsHeatmap
 				metrics={metrics}

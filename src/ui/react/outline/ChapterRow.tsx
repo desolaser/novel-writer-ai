@@ -4,6 +4,8 @@ import { InlineRename } from "./InlineRename";
 import { ChapterActionsMenu } from "./ChapterActionsMenu";
 import { AutoSaveTextarea } from "../components/AutoSaveTextarea";
 import { CHAPTER_DRAG_TYPE, carriesDragType } from "./dragTypes";
+import { ChapterInfoFields } from "./ChapterInfoFields";
+import { ChapterStatusDot } from "./ChapterStatusDot";
 
 export interface ChapterRowProps {
 	chapter: Capitulo;
@@ -94,6 +96,7 @@ export function ChapterRow({
 				>
 					{expanded ? "▾" : "▸"}
 				</button>
+				<ChapterStatusDot status={chapter.status} />
 				{editing ? (
 					<InlineRename
 						defaultValue={chapter.nombre}
@@ -145,6 +148,7 @@ export function ChapterRow({
 					/>
 				)}
 			</div>
+			{expanded && <ChapterInfoFields chapter={chapter} />}
 			{expanded && (
 				<AutoSaveTextarea
 					className="nw-outline-inline-editor"

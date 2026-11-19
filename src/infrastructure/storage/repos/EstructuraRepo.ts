@@ -1,5 +1,5 @@
 import { App } from 'obsidian';
-import { Acto, Capitulo, EntityId, nowISO } from '../../../domain';
+import { Acto, Capitulo, CHAPTER_INFO_KEYS, ChapterInfo, EntityId, nowISO } from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { joinPath } from '../fsHelpers';
 import {
@@ -139,6 +139,16 @@ export interface ActoDraft {
 	capitulos: { nombre: string; outline: string }[];
 }
 
+/** Chapter information of a chapter that survives a structure rebuild. */
+function keptInfo(chapter: Capitulo | undefined): ChapterInfo {
+	const info: ChapterInfo = {};
+	if (!chapter) return info;
+	for (const key of CHAPTER_INFO_KEYS) {
+		if (chapter[key] !== undefined) (info as any)[key] = chapter[key];
+	}
+	return info;
+}
+
 function matchKey(nombre: string): string {
 	return (nombre || '').trim().toLowerCase();
 }
@@ -193,6 +203,8 @@ function buildEstructura(
 		draft.capitulos.forEach((chapter, orden) => {
 			const kept = previous.get(matchKey(chapter.nombre));
 			capitulos.push({
+				// A kept chapter keeps its status, point of view and story time.
+				...keptInfo(kept),
 				id_capitulo: kept?.id_capitulo ?? genId(),
 				nombre: chapter.nombre,
 				outline: chapter.outline,

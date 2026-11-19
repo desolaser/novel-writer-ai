@@ -21,6 +21,7 @@ import {
 	updateActTool,
 } from './structureTools';
 import { novelStatus } from './novelTools';
+import { setChapterInfo } from './chapterInfoTools';
 import { readBlueprintTool, updateBlueprintTool } from './blueprintTools';
 import { generatePortrait } from './portraitTools';
 import {
@@ -51,6 +52,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	update_act: updateActTool,
 	rename_chapter: renameChapter,
 	move_chapter: moveChapter,
+	set_chapter_info: setChapterInfo,
 	delete_chapter: deleteChapter,
 
 	list_codex: listCodex,

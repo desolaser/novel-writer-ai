@@ -882,6 +882,26 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-btn-experimental { border-color: var(--text-muted); color: var(--text-muted); }
 .nw-outline-status { color: var(--text-muted); font-size: 11px; margin: 5px 0; }
 .nw-chapter-file-status { color: var(--text-muted); font-size: 10px; opacity: .7; }
+/* Chapter info (status, point of view, setting, story time) */
+.nw-chapter-status-dot {
+	flex: 0 0 auto;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+.nw-chapter-status-dot.is-empty { border: 1px solid var(--text-faint); }
+.nw-chapter-info {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 6px 10px;
+	padding: 4px 6px 8px 28px;
+}
+.nw-chapter-info-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nw-chapter-info-field > span { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.nw-chapter-info-select { width: 100%; min-width: 0; }
+.nw-chapter-info-time { display: flex; gap: 4px; }
+.nw-chapter-info-day { width: 64px; flex: 0 0 auto; }
+.nw-chapter-info-when { flex: 1 1 auto; min-width: 0; }
 .nw-companion-sidebar { 
 	height: 100%;
 	display: flex; 

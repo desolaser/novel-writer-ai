@@ -55,6 +55,7 @@ Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images
   mueve a ese acto.
 - Arrastrar `⠿` de un acto y soltarlo sobre otro: reordena los actos.
 - Clic en el nombre de un capítulo o acto: renombrar.
+- Día y etiqueta de tiempo del capítulo expandido: Enter guarda, Escape descarta.
 
 ### Metrics
 
@@ -63,6 +64,8 @@ Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images
   mismas reglas que "Abrir entradas del Codex".
 - Clic en una celda de "Appearances by chapter": abre ese capítulo; clic en el nombre
   abre la entrada.
+- Clic en un punto de vista de "Status and point of view": abre su entrada, con las
+  mismas reglas que "Abrir entradas del Codex".
 - Clic en el título de una sección: la pliega o despliega.
 
 ### Chat

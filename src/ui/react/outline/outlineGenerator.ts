@@ -7,6 +7,7 @@ import { resolveChapterFile } from '../../../infrastructure/storage/repos/Estruc
 import { buildStoryBibleBlock } from '../../../context/blueprintPrompt';
 import { buildChapterHistory } from '../../../context/chapterHistory';
 import type { ScenePromptMeta } from '../../../context/promptBuilder';
+import { chapterInfoPromptLine } from '../../../utils/chapterInfo';
 import { readFrontmatterValue, readInheritedPromptMeta } from '../../../context/promptMeta';
 import type { PromptMetaKey } from '../../../types/PromptMeta';
 import { draftLengthFromRange, type DraftLength } from '../../../utils/draftLength';
@@ -274,6 +275,12 @@ export class OutlineGenerator {
 		const read = async (key: PromptMetaKey) =>
 			(await readFrontmatterValue(app, file, key))
 				?? readInheritedPromptMeta(app, settings, file.parent, key);
-		return { memory: await read('memoryContent'), authorNote: await read('authorNote') };
+		const current = this.state.capitulos
+			.find((item) => item.id_capitulo === chapter.id_capitulo) ?? chapter;
+		return {
+			memory: await read('memoryContent'),
+			authorNote: await read('authorNote'),
+			chapterInfo: chapterInfoPromptLine(current, this.state.entradas),
+		};
 	}
 }

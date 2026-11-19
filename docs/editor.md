@@ -28,6 +28,22 @@ el ícono de la ribbon, el comando "Generate text" o el menú contextual del edi
 - Con streaming se inserta solo el texto nuevo en la posición guardada. Reemplazar el
   documento en cada token reseteaba el viewport.
 
+## Información del capítulo
+
+Si la nota es el manuscrito de un capítulo de la novela activa y
+`includeOutlineInContext` está activo, "Generate text" recibe además el punto de
+vista, el escenario y el tiempo de la historia de ese capítulo (ver
+[outline.md](outline.md#información-del-capítulo)).
+
+- `readEditorChapterContext` (`src/context/editorChapterContext.ts`) busca el capítulo
+  de la nota y devuelve su outline y la línea `Chapter info: ...`. Lo usan `main.ts`
+  y "View context" de la pestaña Config, así los dos mandan lo mismo.
+- La línea va dentro del bloque `{{chapter_outline}}`, antes del outline: las
+  plantillas custom la reciben sin un bloque nuevo.
+- Se agrega al final del texto de detección del codex (que solo mira los últimos
+  `searchRange` caracteres), así las entradas del punto de vista y del escenario
+  siempre llegan.
+
 ## Memoria y nota del autor
 
 `getPromptMetaCascading` busca el valor en este orden:

@@ -15,6 +15,10 @@ capítulo y el resumen de cada acto, y generar outlines, memorias y borradores c
 | `src/ui/react/outline/ActSummary.tsx` | Resumen del acto + "Generate with AI" |
 | `src/ui/react/outline/ChapterRow.tsx` | Fila de capítulo y su outline |
 | `src/ui/react/outline/ChapterActionsMenu.tsx` | Menú "⋯" del capítulo |
+| `src/ui/react/outline/ChapterInfoFields.tsx` | Estado, punto de vista, escenario y tiempo de la historia del capítulo expandido |
+| `src/ui/react/outline/ChapterStatusDot.tsx` | Punto de color con el estado, en la fila del capítulo |
+| `src/ui/react/outline/CodexEntrySelect.tsx` | Selector de una entrada del codex, agrupado por categoría |
+| `src/ui/react/components/CommitInput.tsx` | Input de una línea que guarda al perder el foco o con Enter |
 | `src/ui/react/outline/useOutlineActions.ts` | Acciones de IA y batch: mensajes de progreso y confirmaciones |
 | `src/ui/react/outline/outlineGenerator.ts` | `OutlineGenerator`: los generadores sin React (también los usa el chat) |
 | `src/ui/react/outline/outlineGenerators.ts` | Generación de borradores de capítulo |
@@ -41,6 +45,45 @@ bajo el cursor. El autor lo veía como "se bloquea la escritura".
 
 Un campo nuevo con auto-guardado debe usar `AutoSaveTextarea`, no copiar la lógica. Un
 guardado que falla muestra un `Notice`.
+
+## Información del capítulo
+
+Cada capítulo puede tener, además de su outline (`ChapterInfo` en
+`src/domain/entities/Estructura.ts`; todos los campos son opcionales):
+
+| Campo | Qué es |
+|---|---|
+| `status` | Etapa: `idea`, `outlined`, `drafted`, `revised`, `final` (`src/constants/chapterStatus.ts`). Vacío = "Not set" |
+| `pov_entry_id` | Entrada del codex desde cuyo punto de vista se narra |
+| `location_entry_id` | Entrada del codex donde pasa principalmente |
+| `story_day` | Día dentro de la historia (entero, puede ser negativo). Sirve para ordenar por cronología |
+| `story_time` | Etiqueta libre ("tercera luna del invierno"), para calendarios inventados |
+
+- **Dónde se edita.** Al expandir un capítulo, arriba de su outline
+  (`ChapterInfoFields`). Los selectores guardan al cambiar; día y etiqueta al perder el
+  foco o con Enter (Escape descarta). En la fila colapsada un punto de color muestra el
+  estado (hueco si no tiene).
+- **Suscripción.** `ChapterInfoFields` lee `entradas` y `categorias` del store por su
+  cuenta, no por `outlineRoot.tsx`: así un cambio del codex no re-renderiza el Outline
+  entero. Solo se monta con el capítulo expandido.
+- **Selector de entradas.** Agrupa por categoría y pone primero "Characters" (punto de
+  vista) o "Locations" (escenario). Las entradas archivadas no aparecen, salvo la ya
+  elegida. Cualquier entrada sirve, aunque no sea de esa categoría.
+- **Rebuild de la estructura.** `replaceEstructura` conserva la información de los
+  capítulos que mantienen su nombre, igual que su id y su archivo (`keptInfo` en
+  `EstructuraRepo.ts`).
+- **Dónde se usa.** Los borradores y el autocompletado reciben punto de vista,
+  escenario y tiempo (ver abajo y [editor.md](editor.md#información-del-capítulo)); el
+  chat los lee con `list_chapters` y los escribe con `set_chapter_info` (ver
+  [chat-tools.md](chat-tools.md)); Metrics los agrupa (ver
+  [metrics.md](metrics.md#estado-y-punto-de-vista)).
+- **Privacidad.** La IA nunca recibe el nombre de una entrada archivada o con política
+  "Never", aunque sea el punto de vista (`chapterInfoPromptLine` en
+  `src/utils/chapterInfo.ts`). El estado no va a los prompts: no dice nada de la
+  historia.
+
+Tests: `test/chapter-info.test.cjs`, `test/estructura-lock.test.cjs` (rebuild) y
+`test/chat-tools.test.cjs` (tools).
 
 ## Suscripción al store
 
@@ -114,6 +157,10 @@ capítulos recientes y resúmenes de acto para los lejanos, nunca extractos de l
 - **Codex.** Las entradas se detectan en el outline además del texto ya escrito. Antes
   solo en el texto, y en la primera petición no hay texto: el modelo no recibía los
   lugares y personajes que el outline nombra.
+- **Información del capítulo.** `chapterMeta` agrega a `ScenePromptMeta` la línea
+  `Chapter info: Point of view: X. Setting: Y. Story time: day 12 (...)`. Va después de
+  la nota del autor, y también entra en el texto de detección del codex: el punto de
+  vista y el escenario llegan al bloque del codex aunque el texto no los nombre.
 
 Tests: `test/draft-length.test.cjs`, `test/draft-ending.test.cjs` y
 `test/model-purposes.test.cjs`.

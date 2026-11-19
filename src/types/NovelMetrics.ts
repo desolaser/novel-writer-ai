@@ -104,11 +104,31 @@ export interface CodexMetrics {
 	goneQuiet: EntryMentions[];
 }
 
+/** Chapters that share a status or a point of view. */
+export interface ChapterGroupMetrics {
+	/** Status id or entry id; "" for chapters without one. */
+	key: string;
+	name: string;
+	color: string;
+	chapters: number;
+	words: number;
+	/** Reading-order number of its last chapter. */
+	lastChapter: number | null;
+}
+
+export interface ChapterInfoMetrics {
+	/** Empty until at least one chapter has a status. */
+	byStatus: ChapterGroupMetrics[];
+	/** Empty until at least one chapter has a point of view. */
+	byPointOfView: ChapterGroupMetrics[];
+}
+
 export interface NovelMetrics {
 	totals: TotalsMetrics;
 	chapterLength: ChapterLengthMetrics;
 	acts: ActMetrics[];
 	chapters: ChapterMetrics[];
+	chapterInfo: ChapterInfoMetrics;
 	style: StyleMetrics;
 	codex: CodexMetrics;
 	topWords: TermCount[];

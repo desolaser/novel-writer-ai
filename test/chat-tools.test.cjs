@@ -567,3 +567,58 @@ test('generate_portrait is offered only with an images model in Settings', () =>
 	assert.ok(!names(noImages).includes('generate_portrait'));
 	assert.ok(names(noImages).includes('draft_chapter'));
 });
+
+test('set_chapter_info sets, keeps and clears chapter info', async () => {
+	const { data, context } = fakeNovel();
+	const set = await run(context, 'set_chapter_info', {
+		chapter: 'Arrival',
+		status: 'Drafted',
+		pov: 'Lena',
+		setting: 'Marco',
+		day: '12',
+		when: 'third moon',
+	});
+	assert.ok(set.ok, set.output);
+	const chapter = () => data.chapters.find((item) => item.id_capitulo === 'c1');
+	assert.equal(chapter().status, 'drafted');
+	assert.equal(chapter().pov_entry_id, 'e1');
+	assert.equal(chapter().location_entry_id, 'e3');
+	assert.equal(chapter().story_day, 12);
+	assert.equal(chapter().story_time, 'third moon');
+
+	const list = await run(context, 'list_chapters');
+	assert.match(
+		list.output,
+		/#1 Arrival .*\| status: Drafted \| point of view: Elena \| setting: Marco \| story time: day 12 \(third moon\)/,
+	);
+
+	const partial = await run(context, 'set_chapter_info', { chapter: '#1', setting: 'none' });
+	assert.ok(partial.ok, partial.output);
+	assert.equal(chapter().location_entry_id, null);
+	assert.equal(chapter().pov_entry_id, 'e1', 'omitted fields stay');
+});
+
+test('set_chapter_info rejects hidden entries, bad values and empty calls', async () => {
+	const { data, context } = fakeNovel();
+	const hidden = await run(context, 'set_chapter_info', { chapter: 'Arrival', pov: 'Shadow' });
+	assert.equal(hidden.ok, false);
+
+	const status = await run(context, 'set_chapter_info', { chapter: 'Arrival', status: 'done' });
+	assert.equal(status.ok, false);
+	assert.match(status.output, /idea, outlined, drafted, revised, final/);
+
+	const day = await run(context, 'set_chapter_info', { chapter: 'Arrival', day: 'soon' });
+	assert.equal(day.ok, false);
+
+	const nothing = await run(context, 'set_chapter_info', { chapter: 'Arrival' });
+	assert.equal(nothing.ok, false);
+	assert.equal(data.chapters[0].status, undefined);
+});
+
+test('list_chapters never names a point of view hidden from the AI', async () => {
+	const { data, context } = fakeNovel();
+	data.chapters[0] = { ...data.chapters[0], pov_entry_id: 'e2' };
+	const list = await run(context, 'list_chapters');
+	assert.ok(!list.output.includes('Shadow'));
+	assert.ok(!list.output.includes('point of view'));
+});

@@ -23,8 +23,9 @@
 | `codex-schema-merge.test.cjs` | Copia de categorías y detalles entre novelas (ids nuevos, nombres repetidos, vínculos, selección parcial) |
 | `novel-metrics.test.cjs` | Pestaña Metrics: palabras, párrafos, oraciones, diálogo, variedad de vocabulario, largo de capítulos y objetivo, menciones del codex, palabras y frases repetidas |
 | `writing-log.test.cjs` | Registro de escritura: fechas locales, suma de días, log dañado, ritmo, rachas, proyección, marcas de escrituras del plugin y el tracker (línea base, generado, pegado y cortado, borrar lo pegado o generado, IA en el editor, cambio de novela) |
+| `chapter-info.test.cjs` | Información del capítulo: línea del prompt, entradas ocultas a la IA, días y tiempo de la historia, estados, agrupado en Metrics |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
-| `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control |
+| `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control; el rebuild conserva la información de los capítulos |
 | `model-purposes.test.cjs` | Perfiles por propósito, migraciones de settings, presupuestos de output. Mockea React (`useState`, `useMemo`) y el store (hook con `getState`) para `useOutlineActions` y `OutlineGenerator` |
 | `editor-actions.test.cjs` | Acciones del editor |
 | `promptTemplates.test.cjs` | Plantillas de prompt |

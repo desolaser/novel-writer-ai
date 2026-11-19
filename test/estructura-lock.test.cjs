@@ -33,9 +33,6 @@ Module._load = function (name, parent, isMain) {
 	if (name === 'obsidian') {
 		return { TFile, TFolder, TAbstractFile: class {} };
 	}
-	if (name.endsWith('/domain')) {
-		return { nowISO: () => new Date().toISOString() };
-	}
 	if (name.endsWith('/utils/ids')) {
 		return { genId: () => `id${++idCounter}` };
 	}
@@ -146,4 +143,34 @@ test('errors raised inside the lock still reach the caller', async () => {
 		EstRepo.deleteActo(app, 'Novel', acto.id_acto),
 		/still contains chapters/
 	);
+});
+
+test('rebuilding the structure keeps the info of chapters that keep their name', async () => {
+	const app = fakeApp();
+	const folder = 'Novel';
+	const { caps } = await seed(app, folder);
+	await EstRepo.updateCapitulo(app, folder, caps[0].id_capitulo, {
+		status: 'drafted',
+		pov_entry_id: 'e1',
+		location_entry_id: 'e2',
+		story_day: 12,
+		story_time: 'third moon',
+	});
+
+	await EstRepo.replaceEstructura(app, folder, 'novel', [
+		{ nombre: 'Act 1', capitulos: [
+			{ nombre: 'Ch 0', outline: 'new outline' },
+			{ nombre: 'Brand new', outline: '' },
+		] },
+	]);
+
+	const [kept, fresh] = await EstRepo.listCapitulos(app, folder);
+	assert.equal(kept.id_capitulo, caps[0].id_capitulo);
+	assert.equal(kept.status, 'drafted');
+	assert.equal(kept.pov_entry_id, 'e1');
+	assert.equal(kept.location_entry_id, 'e2');
+	assert.equal(kept.story_day, 12);
+	assert.equal(kept.story_time, 'third moon');
+	assert.equal(fresh.status, undefined);
+	assert.equal(fresh.pov_entry_id, undefined);
 });

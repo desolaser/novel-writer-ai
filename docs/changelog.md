@@ -3,6 +3,28 @@
 Un registro por cambio, el más reciente arriba. Cada entrada dice qué cambió, por qué, y
 qué documento de módulo tiene el detalle.
 
+## 2026-11-19
+
+### Capítulos: estado, punto de vista, escenario y tiempo de la historia
+- Cada capítulo puede tener estado (Idea → Final), punto de vista y escenario (entradas
+  del codex), día de la historia y una etiqueta de tiempo libre. Se editan al expandir
+  el capítulo en el Outline; la fila muestra el estado con un punto de color.
+- Los borradores y "Generate text" reciben punto de vista, escenario y tiempo, y esas
+  entradas entran al bloque del codex aunque el texto no las nombre. Nunca el nombre
+  de una entrada "Never" o archivada.
+- Chat: `list_chapters` muestra la información y la tool nueva `set_chapter_info` la
+  escribe (grupo Structure, ~135 tokens más).
+- Metrics: sección "Status and point of view" con capítulos y palabras por estado y por
+  narrador.
+- Rebuild de la estructura conserva la información de los capítulos que mantienen su
+  nombre.
+- Base para la línea de tiempo (por `story_day`) y la publicación por capítulos (por
+  estado).
+- Tests: `test/chapter-info.test.cjs`, `test/chat-tools.test.cjs`,
+  `test/estructura-lock.test.cjs`. Detalle:
+  [outline.md](outline.md#información-del-capítulo), [editor.md](editor.md),
+  [chat-tools.md](chat-tools.md), [metrics.md](metrics.md#estado-y-punto-de-vista).
+
 ## 2026-11-16
 
 ### Metrics: lo pegado no cuenta como escrito

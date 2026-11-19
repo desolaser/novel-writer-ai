@@ -3,6 +3,7 @@ import { useNovelWriter } from '../../store/novelWriterStore';
 import type NovelWriterPlugin from '../../../../../main';
 import { Modal, App, MarkdownView } from 'obsidian';
 import { buildEditorPromptDetails, estimateTokens } from '../../../../context/promptBuilder';
+import { readEditorChapterContext } from '../../../../context/editorChapterContext';
 import { getPromptMetaCascading, writePromptMeta } from '../../../../context/promptMeta';
 import { buildStoryBibleBlock } from '../../../../context/blueprintPrompt';
 import { NovelMemorySection } from './NovelMemorySection';
@@ -102,21 +103,12 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 			const usedFullDocument = !hasManuscriptBeforeCursor &&
 				fullText.trim().length > 0;
 			const storyText = currentText.replace(/^---\s*[\s\S]*?---\s*/, '');
-			let outline = '';
-			if (settings.includeOutlineInContext) {
-				const chapters = await store.listCapitulos();
-				const match = chapters.find(chapter => {
-					if (!chapter.archivo) return false;
-					const path = chapter.archivo.startsWith('escritura/')
-						? `${store.activeFolderPath}/${chapter.archivo}`
-						: chapter.archivo;
-					return path === contextFile.path;
-				});
-				outline = match?.outline?.trim() ?? '';
-			}
+			const chapter = settings.includeOutlineInContext
+				? await readEditorChapterContext(store, contextFile.path)
+				: { outline: '', chapterInfo: '' };
 			const details = await buildEditorPromptDetails(
 				plugin.app, store.activeFolderPath, settings,
-				outline, storyText,
+				chapter.outline, storyText, chapter.chapterInfo,
 			);
 			new ContextModal(
 				plugin.app, details.prompt, details.blocks,

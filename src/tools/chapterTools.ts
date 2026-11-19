@@ -1,6 +1,11 @@
-import type { Capitulo } from '../domain';
-import type { ChapterToolContext as ToolContext } from '../interfaces/tool-context';
+import type { Capitulo, ChapterInfo } from '../domain';
+import type {
+	ChapterToolContext as ToolContext,
+	CodexToolContext,
+} from '../interfaces/tool-context';
 import { resolveByName } from '../utils/toolCallParsing';
+import { chapterInfoFacts } from '../utils/chapterInfo';
+import { visibleEntries } from './codexShared';
 
 /**
  * Chapter tools: listing, reading and writing manuscripts. Every function returns
@@ -10,6 +15,19 @@ import { resolveByName } from '../utils/toolCallParsing';
  */
 
 export const countWords = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+
+/** "status: Drafted | Point of view: Elena" or "" when nothing is set. */
+export function describeChapterInfo(
+	info: ChapterInfo,
+	context: CodexToolContext,
+): string {
+	return chapterInfoFacts(info, visibleEntries(context), {
+		forAi: true,
+		includeStatus: true,
+	})
+		.map((fact) => `${fact.label.toLowerCase()}: ${fact.value}`)
+		.join(' | ');
+}
 
 /** Chapters in reading order: by act order first, then by their own order. */
 export function orderedChapters(context: ToolContext): Capitulo[] {
@@ -29,7 +47,10 @@ export function resolveChapter(reference: string, context: ToolContext): Capitul
 	return chapter;
 }
 
-export async function listChapters(_args: Record<string, string>, context: ToolContext): Promise<string> {
+export async function listChapters(
+	_args: Record<string, string>,
+	context: ToolContext & CodexToolContext,
+): Promise<string> {
 	const chapters = orderedChapters(context);
 	if (!chapters.length) return 'The novel has no chapters yet.';
 	const acts = context.listActs();
@@ -37,7 +58,10 @@ export async function listChapters(_args: Record<string, string>, context: ToolC
 		const act = acts.find((item) => item.id_acto === chapter.id_acto)?.nombre ?? 'no act';
 		const text = await context.readChapterText(chapter.id_capitulo);
 		const outline = chapter.outline?.trim() ? 'outline: yes' : 'outline: no';
-		return `#${index + 1} ${chapter.nombre} | act: ${act} | ${outline} | ${countWords(text)} words`;
+		const base = `#${index + 1} ${chapter.nombre} | act: ${act} | ${outline}`
+			+ ` | ${countWords(text)} words`;
+		const info = describeChapterInfo(chapter, context);
+		return info ? `${base} | ${info}` : base;
 	}));
 	return lines.join('\n');
 }

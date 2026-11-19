@@ -71,20 +71,20 @@ para "View context".
 | Grupo | Tools | Tokens aprox. |
 |---|---|---|
 | Manuscript | 8 | 680 |
-| Structure | 6 | 365 |
+| Structure | 7 | 500 |
 | Codex | 8 | 630 |
 | Novel | 5 | 480 |
 | Workspace | 5 | 250 |
 | Generators | 4 | 295 |
 
-Con todo encendido son 36 tools y ~12 600 caracteres (~3150 tokens), contando las
-reglas fijas (~460 tokens).
+Con todo encendido son 37 tools y ~12 900 caracteres (~3220 tokens), contando las
+reglas fijas (~385 tokens); con `generate_portrait`, 38 y ~3300 tokens.
 
 ### Manuscrito (`manuscriptDefinitions.ts`)
 
 | Tool | Tipo | Qué hace |
 |---|---|---|
-| `list_chapters` | read | Capítulos con acto, orden, si tienen outline y palabras |
+| `list_chapters` | read | Capítulos con acto, orden, si tienen outline, palabras, y estado, punto de vista, escenario y tiempo si los tienen |
 | `read_chapter` | read | Texto de un capítulo, entero o los párrafos `from`..`to` |
 | `create_chapter` | write | Crea un capítulo (y su archivo), opcionalmente con outline y texto |
 | `write_chapter` | write | Reemplaza o agrega al final del texto de un capítulo |
@@ -102,6 +102,7 @@ reglas fijas (~460 tokens).
 | `update_act` | write | Renombra un acto o reemplaza/extiende su resumen |
 | `rename_chapter` | write | Renombra un capítulo; su manuscrito se renombra también |
 | `move_chapter` | write | Mueve un capítulo a una posición de su acto o de otro acto |
+| `set_chapter_info` | write | Estado, punto de vista, escenario, día y etiqueta de tiempo de un capítulo. Lo omitido no cambia; `none` borra |
 | `delete_chapter` | write, `alwaysAsk` | Borra un capítulo y manda su manuscrito a la papelera |
 
 ### Codex (`codexDefinitions.ts`)
@@ -180,6 +181,10 @@ que usa la vista Outline (ver [outline.md](outline.md#acciones-de-ia)). El adapt
   en las rondas siguientes.
 - `move_chapter` renumera `orden` en el acto destino y, si cambió de acto, en el de
   origen, igual que el arrastre del outline.
+- `set_chapter_info` (`src/tools/chapterInfoTools.ts`) resuelve `pov` y `setting` con
+  `resolveEntry`, así que no acepta entradas "Never"; `list_chapters` tampoco las
+  nombra (`describeChapterInfo` en `chapterTools.ts`). El estado acepta id o etiqueta;
+  el día, un entero (`day 12` también).
 - `find_mentions` usa `src/utils/codexMentions.ts`, la misma lógica que la pestaña
   Mentions de la entrada, así cuentan lo mismo.
 - `read_note` corta en 20 000 caracteres y, si no encuentra la nota, sugiere nombres

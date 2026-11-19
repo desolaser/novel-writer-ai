@@ -56,6 +56,19 @@ export const STRUCTURE_TOOLS: ToolDefinition[] = [
 		],
 	},
 	{
+		name: 'set_chapter_info',
+		kind: 'write',
+		description: 'Set the status, point of view, setting or story time of a chapter. Omitted fields stay; "none" clears one.',
+		args: [
+			CHAPTER_ARG,
+			{ name: 'status', description: 'idea, outlined, drafted, revised or final.' },
+			{ name: 'pov', description: 'Codex entry whose point of view tells it.' },
+			{ name: 'setting', description: 'Codex entry where it mainly happens.' },
+			{ name: 'day', description: 'Day inside the story (a number), for chronology.' },
+			{ name: 'when', description: 'Free label of when it happens.' },
+		],
+	},
+	{
 		name: 'delete_chapter',
 		kind: 'write',
 		alwaysAsk: true,

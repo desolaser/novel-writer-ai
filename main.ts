@@ -7,6 +7,7 @@ import { NovelWriterSettingsTab } from './src/ai-plugin-settings-tab-v2';
 import { prepareImport, runImportGrouped, findExistingCategoria, listExistingCategorias } from './src/utils/lorebookImport';
 import { LorebookImportReviewModal, type ImportReviewGroup } from './src/ui/react/features/codex/modals/LorebookImportReviewModal';
 import { buildEditorPrompt } from './src/context/promptBuilder';
+import { readEditorChapterContext } from './src/context/editorChapterContext';
 import { ApiFactory } from './src/factories/api-factory';
 import { getActiveModelConfig } from './src/infrastructure/settings/active-model';
 import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
@@ -407,25 +408,18 @@ export default class NovelWriterPlugin extends Plugin {
 		try {
 			const settings = this.settings.data;
 			let chapterOutline = '';
-			if (settings.includeOutlineInContext && this.store.activeFolderPath) {
-				const activeFile = this.app.workspace.getActiveFile();
-				if (activeFile) {
-					const chapters = await this.store.listCapitulos();
-					const match = chapters.find(c => {
-						if (!c.archivo) return false;
-						const resolved = c.archivo.startsWith('escritura/')
-							? `${this.store.activeFolderPath}/${c.archivo}`
-							: c.archivo;
-						return resolved === activeFile.path;
-					});
-					if (match?.outline?.trim()) chapterOutline = match.outline;
-				}
+			let chapterInfo = '';
+			const activeFile = this.app.workspace.getActiveFile();
+			if (settings.includeOutlineInContext && activeFile) {
+				const chapter = await readEditorChapterContext(this.store, activeFile.path);
+				chapterOutline = chapter.outline;
+				chapterInfo = chapter.chapterInfo;
 			}
 			const prompt = await buildEditorPrompt(
 				this.app,
 				this.store.activeFolderPath ??
 					(this.app.workspace.getActiveFile()?.parent?.path ?? ''),
-				settings, chapterOutline, storyBeforeCursor,
+				settings, chapterOutline, storyBeforeCursor, chapterInfo,
 			);
 			const result = await this.requestCompletion(prompt, 'Generating text');
 			// Insert only new text. Replacing the document on every token resets

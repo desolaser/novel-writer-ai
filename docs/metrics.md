@@ -31,6 +31,7 @@ manuscritos con `readCapituloTexto` (pasa por `withEstructuraLock`) a través de
 | Overview | Palabras, capítulos escritos/total, actos, capítulos con outline, páginas (250 palabras/página), tiempo de lectura (250 palabras/minuto), entradas del codex, palabras distintas |
 | Chapter length | Promedio, mediana, más corto y más largo (solo capítulos con texto); barras por capítulo en orden de lectura con la banda del objetivo; cuántos quedan dentro, debajo o encima |
 | Words per act | Barras por acto |
+| Status and point of view | Capítulos y palabras por estado y por punto de vista |
 | Codex | Entradas activas, nombradas en el manuscrito, nunca nombradas, archivadas; entradas por categoría |
 | Most mentioned | Entradas por cantidad de menciones (15, con "Show all") |
 | Gone quiet | Entradas con 3+ menciones que no aparecen hace 3+ capítulos escritos |
@@ -70,6 +71,22 @@ con las reglas de `openCodexEntry` (Ctrl/Cmd + clic, pestaña nueva, etc.).
 
 Lee todos los manuscritos cada vez. Para novelas muy largas, si se vuelve lento, el
 lugar para cachear es el hook (por ruta y `mtime`), no `computeNovelMetrics`.
+
+## Estado y punto de vista
+
+`chapterInfoMetrics` (`src/utils/chapterInfoMetrics.ts`, puro) agrupa los capítulos por
+`status` y por `pov_entry_id` (ver [outline.md](outline.md#información-del-capítulo)).
+Cada grupo lleva capítulos, palabras y el número del último capítulo (en el tooltip),
+útil para ver un narrador que lleva mucho sin aparecer.
+
+- Por estado: en el orden de las etapas, más "Not set" al final. Vacío mientras ningún
+  capítulo tenga estado.
+- Por punto de vista: más capítulos primero, más "No point of view" al final. Vacío
+  mientras ningún capítulo tenga punto de vista. Clic en un nombre abre la entrada.
+- Sin nada de esto, la sección aparece plegada con un aviso de dónde se configura.
+- Aquí sí se muestran entradas "Never": Metrics no llega a la IA.
+
+UI: `ChapterInfoSection.tsx`. Tests: `test/chapter-info.test.cjs`.
 
 ## Mapa de calor de apariciones
 

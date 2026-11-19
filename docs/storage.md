@@ -12,7 +12,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `__metadata.json` | Metadata de la novela (`Novela`) | `NovelRepo.ts` |
 | `__writing_log.json` | Palabras escritas por día (`WritingLog`), ver [metrics.md](metrics.md#ritmo-de-escritura) | `WritingLogRepo.ts` |
 | `__config.json` | Configuración propia de la novela: hoy, su memoria y nota del autor (`NovelConfig`). Vacío o ausente = usa la global | `NovelConfigRepo.ts` |
-| `escritura/estructura.json` | Actos y capítulos (outline, resumen, orden, archivo) | `EstructuraRepo.ts`, `chapterFiles.ts` |
+| `escritura/estructura.json` | Actos y capítulos (outline, resumen, orden, archivo, estado, punto de vista, escenario, tiempo de la historia) | `EstructuraRepo.ts`, `chapterFiles.ts` |
 | `escritura/capitulos/*.md` | Manuscritos de los capítulos | `chapterFiles.ts` |
 | `escritura/blueprint.json` | Novel Setup (premisa, estilo, estructura) | `BlueprintRepo.ts` |
 | `codex/entradas/entrada_<id>.json` | Una entrada del codex por archivo | `CodexEntryRepo.ts` |

@@ -12,6 +12,7 @@ import type {
 	TermCount,
 } from '../types/NovelMetrics';
 import { STOPWORDS } from '../constants/stopwords';
+import { chapterInfoMetrics } from './chapterInfoMetrics';
 import { findMentions, stripAccents } from './codexMentions';
 import {
 	cleanMarkdown,
@@ -132,6 +133,9 @@ export function computeNovelMetrics(input: NovelMetricsInput): NovelMetrics {
 		chapterLength: chapterLength(written, target),
 		acts: actMetrics(input.acts, chapters),
 		chapters,
+		chapterInfo: chapterInfoMetrics(
+			ordered, chapters, input.entries, input.categories,
+		),
 		style: styleMetrics(tally),
 		codex: codexMetrics(input, activeEntries, mentionTallies, lastWritten),
 		topWords: topWords(tally.words, new Set()),

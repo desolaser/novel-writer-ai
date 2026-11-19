@@ -123,10 +123,12 @@ export async function buildCodexEntryYaml(app: App, folderPath: string, entry: E
 	return yaml.dump(formatCodexEntryItem(entry, maps), { lineWidth: 0 });
 }
 
-/** Memory and author note of the chapter a draft is for. */
+/** Memory, author note and chapter info of the chapter a draft is for. */
 export interface ScenePromptMeta {
 	memory: string;
 	authorNote: string;
+	/** Point of view, setting and story time (`chapterInfoPromptLine`). */
+	chapterInfo?: string;
 }
 
 /**
@@ -165,7 +167,12 @@ export async function buildScenePrompt(
 	// needs the places and people it is about.
 	const range = settings.codexOptions.searchRange;
 	const recentText = storyText.slice(-Math.max(0, range));
-	const detectionText = outline ? `${outline}\n\n${recentText}` : recentText;
+	// The point of view and the setting are named in the chapter info, so their
+	// entries reach the codex block even before the text mentions them.
+	const chapterInfo = meta?.chapterInfo?.trim() ?? '';
+	const detectionText = [chapterInfo, outline, recentText]
+		.filter(Boolean)
+		.join('\n\n');
 	const codexYaml = await buildCodexYaml(app, folderPath, undefined, detectionText, detectionText.length);
 	const parts: string[] = [];
 	parts.push("--- Codex ---");
@@ -179,6 +186,7 @@ export async function buildScenePrompt(
 	const authorNote = meta?.authorNote ?? await getPromptMetaCascading(app, settings, 'authorNote');
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());
 	if (authorNote.trim()) parts.push("Author note: " + authorNote.trim());
+	if (chapterInfo) parts.push(chapterInfo);
 	if (outline) {
 		parts.push("Chapter outline: " + outline);
 		if (storyText) {
@@ -200,22 +208,33 @@ export async function buildScenePrompt(
 /** Builds only the Markdown editor's generate-at-cursor request. */
 export async function buildEditorPrompt(
 	app: App, folderPath: string, settings: PluginSettings,
-	outline: string, currentText: string,
+	outline: string, currentText: string, chapterInfo = '',
 ): Promise<string> {
 	const result = await buildEditorPromptDetails(
-		app, folderPath, settings, outline, currentText,
+		app, folderPath, settings, outline, currentText, chapterInfo,
 	);
 	return result.prompt;
 }
 
+/**
+ * `chapterInfo` (point of view, setting, story time) travels in the
+ * `{{chapter_outline}}` block, so custom templates get it without a new block.
+ */
 export async function buildEditorPromptDetails(
 	app: App, folderPath: string, settings: PluginSettings,
-	outline: string, currentText: string,
+	outline: string, currentText: string, chapterInfo = '',
 ): Promise<{ prompt: string; blocks: ResolvedTemplateBlock[] }> {
 	const manuscript = (currentText || '').replace(/^---\s*[\s\S]*?---\s*/, '');
+	const info = chapterInfo.trim();
+	// Detection only looks at the end of the text, so the chapter info goes
+	// last: its point of view and setting always reach the codex block.
+	const range = settings.codexOptions.searchRange;
+	const detectionText = info
+		? `${manuscript.slice(-Math.max(0, range))}\n\n${info}`
+		: manuscript;
 	const codex = await buildCodexYaml(
-		app, folderPath, undefined, manuscript,
-		settings.codexOptions.searchRange,
+		app, folderPath, undefined, detectionText,
+		info ? detectionText.length : range,
 	);
 	const storyBible = buildStoryBibleBlock(await readBlueprint(app, folderPath));
 	const memory = await getPromptMetaCascading(app, settings, 'memoryContent');
@@ -224,9 +243,10 @@ export async function buildEditorPromptDetails(
 	const selected = settings.customPrompts?.find(prompt => {
 		return prompt.id_prompt === id && prompt.tipo === 'text';
 	}) ?? settings.customPrompts?.find(prompt => prompt.tipo === 'text');
-	const outlineBlock = outline.trim()
-		? `Chapter outline: ${outline.trim()}`
-		: '';
+	const outlineBlock = [
+		info,
+		outline.trim() ? `Chapter outline: ${outline.trim()}` : '',
+	].filter(Boolean).join('\n');
 	const blocks = {
 		instructions: selected?.texto ?? settings.prefix,
 		codex: `--- Codex ---\n${codex || '(empty)'}\n--- End Codex ---`,
