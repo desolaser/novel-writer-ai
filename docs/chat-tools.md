@@ -70,27 +70,29 @@ para "View context".
 
 | Grupo | Tools | Tokens aprox. |
 |---|---|---|
-| Manuscript | 8 | 680 |
+| Manuscript | 10 | 955 |
 | Structure | 7 | 500 |
 | Codex | 8 | 630 |
 | Novel | 5 | 480 |
 | Workspace | 5 | 250 |
 | Generators | 4 | 295 |
 
-Con todo encendido son 37 tools y ~12 900 caracteres (~3220 tokens), contando las
-reglas fijas (~385 tokens); con `generate_portrait`, 38 y ~3300 tokens.
+Con todo encendido son 39 tools y ~14 000 caracteres (~3500 tokens), contando las
+reglas fijas (~385 tokens); con `generate_portrait`, 40 y ~3575 tokens.
 
 ### Manuscrito (`manuscriptDefinitions.ts`)
 
 | Tool | Tipo | Qué hace |
 |---|---|---|
-| `list_chapters` | read | Capítulos con acto, orden, si tienen outline, palabras, y estado, punto de vista, escenario, tiempo y fecha de publicación si los tienen |
+| `list_chapters` | read | Capítulos con acto, orden, si tienen outline, palabras, cuántas escenas, y estado, punto de vista, escenario, tiempo y fecha de publicación si los tienen |
 | `read_chapter` | read | Texto de un capítulo, entero o los párrafos `from`..`to` |
 | `create_chapter` | write | Crea un capítulo (y su archivo), opcionalmente con outline y texto |
 | `write_chapter` | write | Reemplaza o agrega al final del texto de un capítulo |
 | `edit_chapter` | write | Reemplaza un pasaje exacto (`find` → `replace`); `all: yes` reemplaza todas las ocurrencias |
 | `search_novel` | read | Busca un texto en manuscritos, outlines y codex (`scope`) y devuelve fragmentos |
-| `read_outline` | read | Outline de un capítulo |
+| `read_outline` | read | Outline y plan de escenas de un capítulo |
+| `set_scene` | write | Agrega una escena (`scene` vacío o `new`, `position` opcional) o cambia una (`scene: 2`); los campos omitidos quedan, "none" borra |
+| `delete_scene` | write | Quita una escena del plan; el manuscrito no se toca |
 | `write_outline` | write | Reemplaza o agrega al outline de un capítulo |
 
 ### Estructura (`structureDefinitions.ts`)
@@ -148,7 +150,7 @@ contexto del chat: el modelo recibe un reporte corto y lee más si lo necesita.
 |---|---|---|
 | `generate_outline` | write | Outline de un capítulo desde su manuscrito (`source: manuscript`) o desde la historia previa (`story_so_far`) |
 | `summarize_act` | write | Resumen de un acto desde los outlines de sus capítulos |
-| `draft_chapter` | write | Borrador completo desde el outline con el modelo `writing`, con el largo del Story Bible (`words` lo reemplaza, con ±10 %). Pide outline; si el capítulo ya tiene texto, exige `overwrite: yes` |
+| `draft_chapter` | write | Borrador completo desde el outline con el modelo `writing`, con el largo del Story Bible (`words` lo reemplaza, con ±10 %); con escenas, escena por escena. Pide outline o escenas; si el capítulo ya tiene texto, exige `overwrite: yes` |
 | `refresh_story_context` | write | Reescribe "la historia hasta aquí" en la memoria de un capítulo o de todos. Sin IA |
 | `generate_portrait` | write | Retrato de una entrada del codex con el Images model; queda como su imagen (reemplaza la anterior) |
 
@@ -185,6 +187,10 @@ que usa la vista Outline (ver [outline.md](outline.md#acciones-de-ia)). El adapt
   `resolveEntry`, así que no acepta entradas "Never"; `list_chapters` tampoco las
   nombra (`describeChapterInfo` en `chapterTools.ts`). El estado acepta id o etiqueta;
   el día, un entero (`day 12` también).
+- `set_scene` y `delete_scene` (`src/tools/sceneTools.ts`) cambian las escenas con
+  `changeChapterScenes` (`SceneToolContext`), atómico contra el archivo. `pov` y
+  `setting` pasan por `resolveEntry`: no aceptan entradas "Never". `read_outline` no
+  nombra entradas ocultas (`describeScenes`).
 - `find_mentions` usa `src/utils/codexMentions.ts`, la misma lógica que la pestaña
   Mentions de la entrada, así cuentan lo mismo.
 - `read_note` corta en 20 000 caracteres y, si no encuentra la nota, sugiere nombres

@@ -8,6 +8,7 @@ import type { DraftLength } from "../../../utils/draftLength";
 import { summaryLanguageRule } from "../../../context/blueprintPrompt";
 import type { CompletionOptions } from "../../../utils/provider-options";
 import { chapterOutputBudget } from "../../../utils/chapterOutputBudget";
+import { DRAFT_SCENE_BREAK } from "../../../utils/sceneSections";
 
 /** Helpers puros del outline: sin React, sin Obsidian, sin efectos. */
 
@@ -224,39 +225,37 @@ function wordCount(text: string): number {
 	return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** Where a draft piece stands before its next request. */
+export interface DraftStep {
+	currentWords: number;
+	remainingWords: number;
+	/** It reached its length but was cut mid-sentence: only close it. */
+	needsEnding: boolean;
+}
+
+/** Model and settings of one draft (a chapter or a scene). */
+export interface DraftRequest {
+	app: App;
+	activeFolderPath: string;
+	api: any;
+	model: string;
+	options: CompletionOptions;
+	settings: PluginSettings;
+	onCorrupt?: () => void;
+}
+
 /**
- * Generates one chapter's draft text, retrying with the remaining word count
- * until the draft reaches the minimum of `length` (or generation stalls or
- * corrupts). Any length inside the range is fine; the model aims at its target
- * and must not pass its maximum. Shared by
- * the batch ("generate all drafts") and single-chapter draft actions, which only
- * differ in how they word the "how much is left" instruction sent on each retry —
- * that wording is left to the caller via `buildLengthControl` so neither prompt's
- * exact phrasing changes.
- *
- * A request that hits the output limit stops mid-sentence. The half sentence is
- * cut back to the last complete one, and if the draft already reached its
- * length, one short request closes the scene instead of leaving it cut off.
- *
- * `meta` is the memory and author note of the chapter being drafted. Without
- * it the prompt falls back to the note open in the editor, which is the wrong
- * chapter whenever the draft is started from the outline or the chat.
+ * Asks for text until it reaches the minimum of `length` (or generation stalls
+ * or corrupts). A request that hits the output limit stops mid-sentence: the
+ * half sentence is cut back to the last complete one, and if the piece already
+ * reached its length, one short request closes it instead of leaving it cut
+ * off. `buildPrompt` gets the piece written so far.
  */
-export async function generateChapterDraftText(
-	app: App,
-	activeFolderPath: string,
-	api: any,
-	model: string,
-	options: CompletionOptions,
-	settings: PluginSettings,
-	outline: string,
+async function draftToLength(
+	request: DraftRequest,
 	length: DraftLength,
-	buildLengthControl: (info: { currentWords: number; remainingWords: number }) => string,
-	onCorrupt?: () => void,
-	meta?: ScenePromptMeta,
+	buildPrompt: (text: string, step: DraftStep) => Promise<string>,
 ): Promise<string> {
-	// Validate before building prompts or making a paid request.
-	chapterOutputBudget(length.target);
 	let text = "";
 	let attempts = 0;
 	let closed = false;
@@ -267,24 +266,19 @@ export async function generateChapterDraftText(
 		const needsEnding = !needsLength && !closed && cutOff;
 		if (!needsLength && !needsEnding) break;
 		const remainingWords = Math.max(100, length.target - currentWords);
-		const control = needsEnding
-			? `The draft was cut off before its ending. Do not add new events: write only `
-				+ `the end of the current scene and close the chapter in at most ${CLOSING_WORDS} words.`
-			: buildLengthControl({ currentWords, remainingWords });
-		const scene = await buildScenePrompt(
-			app, activeFolderPath, settings, outline, text, length, meta,
+		const prompt = await buildPrompt(
+			text, { currentWords, remainingWords, needsEnding },
 		);
-		const prompt = `${scene}\n\n[Length control]\nThe current draft has ${currentWords} words; `
-			+ `the chapter must end between ${length.min} and ${length.max} (about ${length.target}). `
-			+ control;
-		const requestTokens = chapterOutputBudget(needsEnding ? CLOSING_WORDS : remainingWords);
+		const requestTokens = chapterOutputBudget(
+			needsEnding ? CLOSING_WORDS : remainingWords
+		);
 		const result = await requestDraftCompletion(
-			api, prompt, model, requestTokens, options
+			request.api, prompt, request.model, requestTokens, request.options
 		);
 		const addition = result.text ?? "";
 		if (!addition.trim()) break;
 		if (isCorruptGeneration(addition)) {
-			onCorrupt?.();
+			request.onCorrupt?.();
 			break;
 		}
 		if (needsEnding) closed = true;
@@ -293,4 +287,88 @@ export async function generateChapterDraftText(
 		text += `${text ? "\n\n" : ""}${kept}`;
 	}
 	return text;
+}
+
+/**
+ * Generates one chapter's draft text, retrying with the remaining word count
+ * until the draft reaches the minimum of `length`. Any length inside the range
+ * is fine; the model aims at its target and must not pass its maximum. Shared
+ * by the batch ("generate all drafts") and single-chapter draft actions, which
+ * only differ in how they word the "how much is left" instruction sent on each
+ * retry — that wording is left to the caller via `buildLengthControl`.
+ *
+ * `meta` is the memory and author note of the chapter being drafted. Without
+ * it the prompt falls back to the note open in the editor, which is the wrong
+ * chapter whenever the draft is started from the outline or the chat.
+ */
+export async function generateChapterDraftText(
+	request: DraftRequest,
+	outline: string,
+	length: DraftLength,
+	buildLengthControl: (info: { currentWords: number; remainingWords: number }) => string,
+	meta?: ScenePromptMeta,
+): Promise<string> {
+	// Validate before building prompts or making a paid request.
+	chapterOutputBudget(length.target);
+	return draftToLength(request, length, async (text, step) => {
+		const control = step.needsEnding
+			? `The draft was cut off before its ending. Do not add new events: write only `
+				+ `the end of the current scene and close the chapter in at most ${CLOSING_WORDS} words.`
+			: buildLengthControl(step);
+		const scene = await buildScenePrompt(
+			request.app, request.activeFolderPath, request.settings,
+			outline, text, length, meta,
+		);
+		return `${scene}\n\n[Length control]\nThe current draft has ${step.currentWords} words; `
+			+ `the chapter must end between ${length.min} and ${length.max} (about ${length.target}). `
+			+ control;
+	});
+}
+
+/** "How much is left" of one scene, for its length control. */
+function sceneLengthControl(length: DraftLength, step: DraftStep): string {
+	const status = `This scene has ${step.currentWords} words so far; it must `
+		+ `end between ${length.min} and ${length.max} words (about ${length.target}). `;
+	if (step.needsEnding) {
+		return status + 'It was cut off before its ending. Do not add new events: '
+			+ `write only the end of this scene in at most ${CLOSING_WORDS} words.`;
+	}
+	if (step.currentWords === 0) return status + 'Write the complete scene.';
+	return status + `About ${step.remainingWords} words remain. Continue exactly `
+		+ 'from the end of the scene without restarting it.';
+}
+
+/** What a scene follows: the earlier scenes and the break before it. */
+function textBeforeScene(previous: string): string {
+	return previous.trim() ? `${previous.trim()}\n\n${DRAFT_SCENE_BREAK}` : "";
+}
+
+/**
+ * Generates one scene of a chapter. `previous` is the chapter text before it
+ * (earlier scenes), which the model reads but doesn't rewrite; `sceneBlock` is
+ * the plan and the scene to write (`sceneDraftBlock`). Returns only the scene.
+ */
+export async function generateSceneDraftText(
+	request: DraftRequest,
+	outline: string,
+	previous: string,
+	sceneBlock: string,
+	length: DraftLength,
+	meta?: ScenePromptMeta,
+): Promise<string> {
+	chapterOutputBudget(length.target);
+	const before = textBeforeScene(previous);
+	const sceneMeta: ScenePromptMeta | undefined = meta
+		? { ...meta, scene: sceneBlock }
+		: undefined;
+	return draftToLength(request, length, async (text, step) => {
+		const story = [before, text].filter(Boolean).join("\n\n");
+		const prompt = await buildScenePrompt(
+			request.app, request.activeFolderPath, request.settings,
+			outline, story, undefined, sceneMeta ?? {
+				memory: "", authorNote: "", scene: sceneBlock,
+			},
+		);
+		return `${prompt}\n\n[Length control]\n${sceneLengthControl(length, step)}`;
+	});
 }

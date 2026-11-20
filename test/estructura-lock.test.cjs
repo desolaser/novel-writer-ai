@@ -156,6 +156,7 @@ test('rebuilding the structure keeps the info of chapters that keep their name',
 		story_day: 12,
 		story_time: 'third moon',
 		published_on: '2026-11-19',
+		scenes: [{ id: 's1', title: 'Docks', summary: 'They land.' }],
 	});
 
 	await EstRepo.replaceEstructura(app, folder, 'novel', [
@@ -173,6 +174,60 @@ test('rebuilding the structure keeps the info of chapters that keep their name',
 	assert.equal(kept.story_day, 12);
 	assert.equal(kept.story_time, 'third moon');
 	assert.equal(kept.published_on, '2026-11-19');
+	assert.deepEqual(kept.scenes.map((scene) => scene.title), ['Docks']);
 	assert.equal(fresh.status, undefined);
+	assert.equal(fresh.scenes, undefined);
 	assert.equal(fresh.pov_entry_id, undefined);
+});
+
+/** Ten scene edits at once to one chapter: each adds its own scene. */
+const SCENE_EDITS = 10;
+
+test('concurrent edits to the scenes of one chapter are all kept', async () => {
+	const app = fakeApp();
+	const folder = 'Novel';
+	const { caps } = await seed(app, folder);
+	const id = caps[0].id_capitulo;
+
+	await Promise.all(Array.from({ length: SCENE_EDITS }, (_, i) =>
+		EstRepo.changeChapterScenes(app, folder, id, (scenes) => [
+			...scenes,
+			{ id: `s${i}`, title: `Scene ${i}`, summary: '' },
+		])));
+
+	const [chapter] = await EstRepo.listCapitulos(app, folder);
+	assert.equal(chapter.scenes.length, SCENE_EDITS);
+});
+
+test('the same scene edits through updateCapitulo lose scenes', async () => {
+	// Control case: each edit reads the scenes, adds one and writes the whole
+	// list back as a patch, the way the UI would without changeChapterScenes.
+	const app = fakeApp();
+	const folder = 'Novel';
+	const { caps } = await seed(app, folder);
+	const id = caps[0].id_capitulo;
+
+	await Promise.all(Array.from({ length: SCENE_EDITS }, async (_, i) => {
+		const [chapter] = await EstRepo.listCapitulos(app, folder);
+		const scenes = [
+			...(chapter.scenes ?? []),
+			{ id: `s${i}`, title: `Scene ${i}`, summary: '' },
+		];
+		await EstRepo.updateCapitulo(app, folder, id, { scenes });
+	}));
+
+	const [chapter] = await EstRepo.listCapitulos(app, folder);
+	assert.ok(
+		chapter.scenes.length < SCENE_EDITS,
+		`expected lost scenes, kept ${chapter.scenes.length}`,
+	);
+});
+
+test('changing the scenes of a chapter that is gone fails', async () => {
+	const app = fakeApp();
+	await seed(app, 'Novel');
+	await assert.rejects(
+		EstRepo.changeChapterScenes(app, 'Novel', 'missing', (scenes) => scenes),
+		/no longer exists/,
+	);
 });

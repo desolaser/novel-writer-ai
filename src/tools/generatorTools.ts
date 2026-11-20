@@ -57,7 +57,7 @@ export async function draftChapterTool(
 	context: ToolContext,
 ): Promise<string> {
 	const chapter = resolveChapter(args.chapter ?? '', context);
-	if (!chapter.outline?.trim()) {
+	if (!chapter.outline?.trim() && !chapter.scenes?.length) {
 		throw new Error(`"${chapter.nombre}" has no outline to draft from. `
 			+ 'Write one first with write_outline or generate_outline.');
 	}

@@ -903,6 +903,31 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-chapter-info-day { width: 64px; flex: 0 0 auto; }
 .nw-chapter-info-when { flex: 1 1 auto; min-width: 0; }
 .nw-chapter-published { display: inline-flex; color: var(--color-green); }
+.nw-chapter-scene-count { color: var(--text-faint); font-size: var(--font-ui-smaller); white-space: nowrap; }
+/* Scenes of an expanded chapter */
+.nw-scenes { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px 27px; }
+.nw-scenes-header { display: flex; align-items: center; gap: 4px; }
+.nw-scenes-title { flex: 1 1 auto; color: var(--text-muted); font-size: var(--font-ui-smaller); font-weight: 600; }
+.nw-scenes-empty { margin: 0; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.nw-scene {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+.nw-scene-head { display: flex; align-items: center; gap: 4px; }
+.nw-scene-number { flex: 0 0 auto; min-width: 16px; color: var(--text-muted); font-size: var(--font-ui-smaller); text-align: right; }
+.nw-scene-title { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.nw-scene-summary { display: block; width: 100%; min-height: 44px; resize: vertical; box-sizing: border-box; }
+.nw-scene-more { align-self: flex-start; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.nw-scene-details {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 6px 10px;
+}
+.nw-scene-details .nw-scene-wide { grid-column: 1 / -1; }
 /* Export and publishing dialogs */
 .nw-export { display: flex; flex-direction: column; gap: 10px; }
 .nw-export-fields { display: flex; flex-direction: column; gap: 8px; }

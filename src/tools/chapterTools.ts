@@ -60,8 +60,11 @@ export async function listChapters(
 		const outline = chapter.outline?.trim() ? 'outline: yes' : 'outline: no';
 		const base = `#${index + 1} ${chapter.nombre} | act: ${act} | ${outline}`
 			+ ` | ${countWords(text)} words`;
+		const scenes = chapter.scenes?.length
+			? ` | scenes: ${chapter.scenes.length}`
+			: '';
 		const info = describeChapterInfo(chapter, context);
-		return info ? `${base} | ${info}` : base;
+		return info ? `${base}${scenes} | ${info}` : `${base}${scenes}`;
 	}));
 	return lines.join('\n');
 }

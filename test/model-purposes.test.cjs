@@ -19,6 +19,9 @@ require.extensions['.ts'] = (module, filename) => {
 
 let requests = [];
 let responses = [];
+// Arguments of each buildScenePrompt call: [app, folder, settings, outline,
+// text, length, meta].
+let scenePrompts = [];
 let novelState;
 const originalLoad = Module._load;
 Module._load = function (name, parent, isMain) {
@@ -59,7 +62,10 @@ Module._load = function (name, parent, isMain) {
 	if (name.endsWith('/context/promptBuilder')
 		|| (name === './promptBuilder' && parent.filename.includes('context'))) {
 		return {
-			buildScenePrompt: async () => 'Write the chapter.',
+			buildScenePrompt: async (...args) => {
+				scenePrompts.push(args);
+				return 'Write the chapter.';
+			},
 			estimateTokens: (text) => Math.ceil(text.length / 4),
 		};
 	}
@@ -81,6 +87,7 @@ const {
 	generateChapterDraftText, requestDraftCompletion,
 } = require('../src/ui/react/outline/outlineGenerators.ts');
 const { useOutlineActions } = require('../src/ui/react/outline/useOutlineActions.ts');
+const { OutlineGenerator } = require('../src/ui/react/outline/outlineGenerator.ts');
 const { createChatCompletion } = require(
 	'../src/ui/react/features/chat/session/chatCompletion.ts'
 );
@@ -126,6 +133,7 @@ async function serviceFor(raw) {
 }
 beforeEach(() => {
 	requests = [];
+	scenePrompts = [];
 	responses = [];
 });
 
@@ -247,7 +255,10 @@ test('chapter continuations recalculate output while preserving profile options'
 			return { text: words(1000) };
 		} };
 		const draft = await generateChapterDraftText(
-			{}, '', api, active.modelName, active.options, configuration(),
+			{
+				app: {}, activeFolderPath: '', api, model: active.modelName,
+				options: active.options, settings: configuration(),
+			},
 			'An outline', { min: 1900, max: 2200, target: 2000 }, () => 'Finish the chapter.'
 		);
 		assert.equal(draft.split(/\s+/).length, 2000);
@@ -269,7 +280,10 @@ test('a draft cut mid-sentence is trimmed and closed with a short request',
 			return { text: answers.shift() ?? '' };
 		} };
 		const draft = await generateChapterDraftText(
-			{}, '', api, active.modelName, active.options, configuration(),
+			{
+				app: {}, activeFolderPath: '', api, model: active.modelName,
+				options: active.options, settings: configuration(),
+			},
 			'An outline', { min: 1900, max: 2200, target: 2000 }, () => 'Write the chapter.'
 		);
 		assert.ok(!draft.includes('opened the door and'), 'the half sentence is cut');
@@ -323,3 +337,102 @@ test('a draft workflow summarizes with utilities then writes with writing',
 		assert.deepEqual(requests.map((r) => r.options.max_tokens), [800, 5625]);
 		assert.equal(manuscript.split(/\s+/).length, 2000);
 	});
+
+/** A novel in memory whose chapter has three scenes. */
+function sceneNovel(initialText = '') {
+	const chapter = {
+		id_capitulo: 'c', id_acto: 'a', nombre: 'Chapter', orden: 1,
+		archivo: 'chapter.md', outline: 'Kael steals the map.',
+		scenes: [
+			{ id: 's1', title: 'Market', summary: 'Kael arrives.' },
+			{ id: 's2', title: 'The deal', summary: 'It goes wrong.' },
+			{ id: 's3', title: 'Sewers', summary: 'He escapes.' },
+		],
+	};
+	const novel = { chapter, manuscript: initialText };
+	novelState = {
+		actos: [{ id_acto: 'a', nombre: 'Act', orden: 1, resumen: '' }],
+		capitulos: [chapter],
+		entradas: [],
+		store: { activeFolderPath: 'novel', readBlueprint: async () => null },
+		ensureCapituloArchivo: async () => 'chapter.md',
+		readCapituloTexto: async () => novel.manuscript,
+		writeCapituloTexto: async (_, text) => { novel.manuscript = text; },
+		updateCapitulo: async () => {},
+	};
+	return novel;
+}
+
+test('a chapter with scenes is drafted one scene at a time', async () => {
+	const novel = sceneNovel();
+	// Default range 2000-4000 aiming at 3000: 1000 words for each scene.
+	responses = [words(1000), words(1000), words(1000)];
+	const generator = new OutlineGenerator({
+		settings: { data: configuration() },
+		app: { vault: { process: async () => {} } },
+	});
+	const progress = [];
+	const text = await generator.draftText(
+		novel.chapter,
+		await generator.draftLength(),
+		() => 'unused for scenes',
+		() => {},
+		(index, count) => progress.push(`${index + 1}/${count}`),
+	);
+	assert.deepEqual(progress, ['1/3', '2/3', '3/3']);
+	assert.equal(requests.length, 3, 'one request per scene');
+	assert.equal(text.split('* * *').length, 3, 'scenes joined by breaks');
+	assert.match(requests[0].prompt, /This scene has 0 words so far; it must end between 667 and 1333/);
+	assert.ok(!/the chapter must end between/.test(requests[0].prompt));
+	// The second scene reads the first one, ending in the break, and gets
+	// only its own block; no chapter length rule.
+	const second = scenePrompts[1];
+	assert.ok(second[4].endsWith('* * *'));
+	assert.equal(second[5], undefined);
+	assert.match(second[6].scene, /Now write scene 2 of 3, "The deal"/);
+	assert.match(second[6].scene, /What happens: It goes wrong\./);
+});
+
+test('drafting one scene adds it after the scenes already written', async () => {
+	const novel = sceneNovel('Kael arrives at the market.');
+	responses = [`### The deal\n\n${words(1000)}\n\n***`];
+	const generator = new OutlineGenerator({
+		settings: { data: configuration() },
+		app: { vault: { process: async () => {} } },
+	});
+	assert.equal(await generator.isSceneWritten(novel.chapter, 's1'), true);
+	assert.equal(await generator.isSceneWritten(novel.chapter, 's2'), false);
+	const count = await generator.draftScene(novel.chapter, 's2', () => {});
+	assert.equal(count, 1000);
+	assert.equal(
+		novel.manuscript,
+		`Kael arrives at the market.\n\n* * *\n\n${words(1000)}`,
+		'heading and trailing break of the answer are dropped',
+	);
+	assert.equal(scenePrompts[0][4], 'Kael arrives at the market.\n\n* * *');
+});
+
+test('a scene can be redone, keeping the author\'s breaks around it', async () => {
+	const novel = sceneNovel('Old first scene.\n\n#\n\nSecond scene.');
+	responses = [words(1000)];
+	const generator = new OutlineGenerator({
+		settings: { data: configuration() },
+		app: { vault: { process: async () => {} } },
+	});
+	await generator.draftScene(novel.chapter, 's1', () => {});
+	assert.equal(novel.manuscript, `${words(1000)}\n\n#\n\nSecond scene.`);
+	assert.equal(scenePrompts[0][4], '', 'nothing comes before the first scene');
+});
+
+test('a scene further ahead than the next one fails before any request', async () => {
+	const novel = sceneNovel('Only the first scene.');
+	const generator = new OutlineGenerator({
+		settings: { data: configuration() },
+		app: { vault: { process: async () => {} } },
+	});
+	await assert.rejects(
+		generator.draftScene(novel.chapter, 's3', () => {}),
+		/Write scene 2 first/,
+	);
+	assert.equal(requests.length, 0);
+});

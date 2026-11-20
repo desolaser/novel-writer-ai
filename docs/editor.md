@@ -43,6 +43,11 @@ vista, el escenario y el tiempo de la historia de ese capítulo (ver
 - Se agrega al final del texto de detección del codex (que solo mira los últimos
   `searchRange` caracteres), así las entradas del punto de vista y del escenario
   siempre llegan.
+- **Escena del cursor.** Si el capítulo tiene escenas, `readEditorChapterContext`
+  recibe el texto antes del cursor, cuenta los cambios de escena (`sceneIndexAt`) y
+  suma el plan y la escena actual (`sceneEditorBlock`, sin la regla de "termina aquí"
+  de los borradores) a la misma línea. Pasada la última escena del plan no suma nada.
+  Ver [outline.md](outline.md#escenas).
 
 ## Memoria y nota del autor
 

@@ -5,6 +5,12 @@ import { confirmDialog } from "../../modals/ConfirmModal";
 import { isCorruptGeneration } from "./outlineGenerators";
 import { OutlineGenerator } from "./outlineGenerator";
 import { useNovelWriter } from "../store/novelWriterStore";
+import { sceneLabel } from "../../../utils/chapterScenes";
+
+/** "Ch. 3 — scene 2/4" while a chapter with scenes is drafted. */
+function sceneStatus(prefix: string, index: number, count: number): string {
+	return `${prefix} — scene ${index + 1}/${count}`;
+}
 
 /** Operaciones de IA / batch del outline, desacopladas de la UI. */
 export interface OutlineActions {
@@ -20,6 +26,8 @@ export interface OutlineActions {
 	createChapterManuscript: (chapter: Capitulo) => Promise<void>;
 	generateDrafts: () => Promise<void>;
 	generateSingleDraft: (chapter: Capitulo) => Promise<void>;
+	splitIntoScenes: (chapter: Capitulo) => Promise<void>;
+	draftScene: (chapter: Capitulo, sceneId: string) => Promise<void>;
 }
 
 /**
@@ -163,6 +171,11 @@ export function useOutlineActions(plugin: NovelWriterPlugin): OutlineActions {
 							: "Do not close the chapter prematurely yet."
 					}`,
 					() => setBatchStatus(`The AI returned an invalid response for ${c.nombre}; the chapter was stopped.`),
+					(index, count) => setBatchStatus(sceneStatus(
+						`Generating draft: ${i + 1}/${list.length} — ${c.nombre}`,
+						index,
+						count,
+					)),
 				);
 				if (text.trim() && !isCorruptGeneration(text)) {
 					await writeCapituloTexto(c.id_capitulo, text);
@@ -203,10 +216,71 @@ export function useOutlineActions(plugin: NovelWriterPlugin): OutlineActions {
 						: "Keep developing the chapter without restarting it."
 				}`,
 				() => setBatchStatus(`The AI returned an invalid response for ${chapter.nombre}; the chapter was stopped.`),
+				(index, count) => setBatchStatus(sceneStatus(
+					`Generating draft: ${chapter.nombre}`, index, count,
+				)),
 			);
 			await ensureCapituloArchivo(chapter.id_capitulo);
 			await writeCapituloTexto(chapter.id_capitulo, text);
 			setBatchStatus(`Draft ready: ${chapter.nombre}`);
+		});
+	}
+
+	async function splitIntoScenes(chapter: Capitulo) {
+		if (!store) return;
+		const current = useNovelWriter.getState().capitulos
+			.find((item) => item.id_capitulo === chapter.id_capitulo) ?? chapter;
+		const existing = current.scenes?.length ?? 0;
+		if (
+			existing &&
+			!(await confirmDialog(
+				plugin.app,
+				`"${chapter.nombre}" already has ${existing} scene(s). `
+					+ "Replace them with a new split of the outline?"
+			))
+		)
+			return;
+		await run(`Splitting into scenes: ${chapter.nombre}`, async () => {
+			const scenes = await generator.splitIntoScenes(chapter);
+			setBatchStatus(`${scenes.length} scenes: ${chapter.nombre}`);
+		});
+	}
+
+	async function draftScene(chapter: Capitulo, sceneId: string) {
+		if (!store) return;
+		try {
+			generator.modelFor("writing");
+		} catch (e: any) {
+			setBatchStatus(e?.message ?? String(e));
+			return;
+		}
+		const scenes = useNovelWriter.getState().capitulos
+			.find((item) => item.id_capitulo === chapter.id_capitulo)?.scenes ?? [];
+		const index = scenes.findIndex((scene) => scene.id === sceneId);
+		if (index < 0) return;
+		const label = sceneLabel(scenes[index], index);
+		try {
+			if (
+				(await generator.isSceneWritten(chapter, sceneId)) &&
+				!(await confirmDialog(
+					plugin.app,
+					`Scene ${index + 1} ("${label}") already has text in the `
+						+ "manuscript. Replace it with a new draft?"
+				))
+			)
+				return;
+		} catch (e: any) {
+			setBatchStatus("Error: " + (e?.message ?? String(e)));
+			return;
+		}
+		await run(`Drafting scene ${index + 1}: ${label}`, async () => {
+			await generator.ensureActSummaries(setBatchStatus);
+			const words = await generator.draftScene(
+				chapter,
+				sceneId,
+				() => setBatchStatus(`The AI returned an invalid response for "${label}".`),
+			);
+			setBatchStatus(`Scene ${index + 1} drafted (${words} words): ${chapter.nombre}`);
 		});
 	}
 
@@ -223,5 +297,7 @@ export function useOutlineActions(plugin: NovelWriterPlugin): OutlineActions {
 		createChapterManuscript,
 		generateDrafts,
 		generateSingleDraft,
+		splitIntoScenes,
+		draftScene,
 	};
 }

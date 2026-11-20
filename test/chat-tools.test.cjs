@@ -127,6 +127,12 @@ function fakeNovel() {
 		updateChapter: async (id, patch) => {
 			data.chapters = data.chapters.map((item) => (item.id_capitulo === id ? { ...item, ...patch } : item));
 		},
+		changeChapterScenes: async (id, change) => {
+			const owner = data.chapters.find((item) => item.id_capitulo === id);
+			const scenes = change(owner.scenes ?? []);
+			await context.updateChapter(id, { scenes });
+			return scenes;
+		},
 		writeChapterText: async (id, content) => {
 			data.texts[id] = content;
 			return 'path';
@@ -621,4 +627,77 @@ test('list_chapters never names a point of view hidden from the AI', async () =>
 	const list = await run(context, 'list_chapters');
 	assert.ok(!list.output.includes('Shadow'));
 	assert.ok(!list.output.includes('point of view'));
+});
+
+test('set_scene adds scenes and changes them; read_outline shows the plan', async () => {
+	const { data, context } = fakeNovel();
+	const scenes = () => data.chapters.find((item) => item.id_capitulo === 'c1').scenes;
+
+	const first = await run(context, 'set_scene', {
+		chapter: 'Arrival', title: 'Docks', summary: 'They land.', pov: 'Lena',
+	});
+	assert.ok(first.ok, first.output);
+	const second = await run(context, 'set_scene', {
+		chapter: 'Arrival', scene: 'new', title: 'Inn', goal: 'Find a bed', words: '800',
+	});
+	assert.ok(second.ok, second.output);
+	const before = await run(context, 'set_scene', {
+		chapter: 'Arrival', title: 'Storm at sea', position: '1',
+	});
+	assert.ok(before.ok, before.output);
+	assert.deepEqual(scenes().map((item) => item.title), ['Storm at sea', 'Docks', 'Inn']);
+	assert.equal(scenes()[1].pov_entry_id, 'e1');
+	assert.equal(scenes()[2].target_words, 800);
+
+	const changed = await run(context, 'set_scene', {
+		chapter: 'Arrival', scene: '2', pov: 'none', outcome: 'Marco waits.', position: '3',
+	});
+	assert.ok(changed.ok, changed.output);
+	assert.deepEqual(scenes().map((item) => item.title), ['Storm at sea', 'Inn', 'Docks']);
+	assert.equal(scenes()[2].pov_entry_id, null);
+	assert.equal(scenes()[2].summary, 'They land.', 'omitted fields stay');
+
+	const outline = await run(context, 'read_outline', { chapter: 'Arrival' });
+	assert.match(outline.output, /They arrive\.\n\nScenes:\n1\. Storm at sea\n2\. Inn\n   goal: Find a bed \| words: 800\n3\. Docks — They land\.\n   outcome: Marco waits\./);
+
+	const list = await run(context, 'list_chapters');
+	assert.match(list.output, /#1 Arrival .*\| scenes: 3/);
+});
+
+test('set_scene and delete_scene reject what they cannot resolve', async () => {
+	const { data, context } = fakeNovel();
+	const hidden = await run(context, 'set_scene', {
+		chapter: 'Arrival', title: 'Night', pov: 'Shadow',
+	});
+	assert.equal(hidden.ok, false, 'an entry hidden from the AI is not accepted');
+	const empty = await run(context, 'set_scene', { chapter: 'Arrival', goal: 'x' });
+	assert.equal(empty.ok, false);
+	assert.match(empty.output, /title or a summary/);
+	const missing = await run(context, 'set_scene', { chapter: 'Arrival', scene: '4', title: 'x' });
+	assert.equal(missing.ok, false);
+	const words = await run(context, 'set_scene', { chapter: 'Arrival', title: 'x', words: 'many' });
+	assert.equal(words.ok, false);
+	assert.equal(data.chapters[0].scenes, undefined, 'nothing was written');
+});
+
+test('delete_scene removes a scene from the plan and leaves the manuscript', async () => {
+	const { data, context } = fakeNovel();
+	await run(context, 'set_scene', { chapter: 'Arrival', title: 'Docks' });
+	await run(context, 'set_scene', { chapter: 'Arrival', title: 'Inn' });
+	const text = data.texts.c1;
+	const deleted = await run(context, 'delete_scene', { chapter: 'Arrival', scene: '1' });
+	assert.ok(deleted.ok, deleted.output);
+	assert.deepEqual(data.chapters[0].scenes.map((item) => item.title), ['Inn']);
+	assert.equal(data.texts.c1, text);
+	const unapproved = await run(context, 'delete_scene', { chapter: 'Arrival', scene: '1' }, false);
+	assert.equal(unapproved.ok, false, 'a write tool needs approval');
+	assert.equal(data.chapters[0].scenes.length, 1);
+});
+
+test('draft_chapter accepts a chapter with scenes and no outline', async () => {
+	const { data, context } = fakeNovel();
+	await run(context, 'set_scene', { chapter: 'Aftermath', title: 'Ruins', summary: 'They count the dead.' });
+	const drafted = await run(context, 'draft_chapter', { chapter: 'Aftermath' });
+	assert.ok(drafted.ok, drafted.output);
+	assert.ok(data.texts.c3.length > 0);
 });

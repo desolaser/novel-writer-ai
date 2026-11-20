@@ -5,6 +5,24 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-19
 
+### Escenas dentro del capítulo
+- Cada capítulo puede tener un plan de escenas debajo de su outline: título, qué pasa
+  y, plegados, punto de vista, escenario, objetivo, conflicto, desenlace y palabras.
+  El outline sigue siendo el resumen del capítulo.
+- "Split into scenes" (✨) divide el outline en escenas con el modelo `utilities`.
+- Con escenas, el borrador se escribe una escena a la vez, cada una con su parte del
+  largo del capítulo, unidas con `* * *`: la causa de raíz de los borradores que no
+  llegaban al largo o se cortaban. Una escena se puede escribir o rehacer sola, en su
+  lugar del manuscrito.
+- "Generate text" sabe en qué escena está el cursor (cuenta los cambios de escena).
+- Chat: `set_scene` y `delete_scene`; `read_outline` muestra el plan; `list_chapters`,
+  cuántas escenas; `draft_chapter` escribe por escenas.
+- Las escenas se guardan con `changeChapterScenes`, dentro del lock y sobre la lista
+  del archivo; el rebuild de la estructura las conserva.
+- Tests: `test/chapter-scenes.test.cjs` nuevo; casos en `model-purposes`,
+  `estructura-lock` (con caso de control) y `chat-tools`. Detalle:
+  [outline.md](outline.md#escenas).
+
 ### Exportar la novela y publicar por capítulo
 - "Export novel" (comando y botón en la cabecera del Outline): la novela en un EPUB,
   DOCX, HTML o Markdown, o un archivo por capítulo en texto plano, HTML, Markdown o

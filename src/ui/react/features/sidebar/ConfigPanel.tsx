@@ -104,7 +104,7 @@ export function ConfigPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 				fullText.trim().length > 0;
 			const storyText = currentText.replace(/^---\s*[\s\S]*?---\s*/, '');
 			const chapter = settings.includeOutlineInContext
-				? await readEditorChapterContext(store, contextFile.path)
+				? await readEditorChapterContext(store, contextFile.path, storyText)
 				: { outline: '', chapterInfo: '' };
 			const details = await buildEditorPromptDetails(
 				plugin.app, store.activeFolderPath, settings,

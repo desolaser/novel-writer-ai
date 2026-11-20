@@ -6,6 +6,7 @@ import { AutoSaveTextarea } from "../components/AutoSaveTextarea";
 import { CHAPTER_DRAG_TYPE, carriesDragType } from "./dragTypes";
 import { ChapterInfoFields } from "./ChapterInfoFields";
 import { ChapterStatusDot } from "./ChapterStatusDot";
+import { ChapterScenes } from "./ChapterScenes";
 
 export interface ChapterRowProps {
 	chapter: Capitulo;
@@ -124,6 +125,14 @@ export function ChapterRow({
 						<Icon.Upload width={12} height={12} />
 					</span>
 				)}
+				{!expanded && Boolean(chapter.scenes?.length) && (
+					<span
+						className="nw-chapter-scene-count"
+						title={`${chapter.scenes!.length} scenes`}
+					>
+						{chapter.scenes!.length} sc.
+					</span>
+				)}
 				<span className="nw-chapter-file-status">
 					{chapter.archivo ? "File" : "No file"}
 				</span>
@@ -170,6 +179,7 @@ export function ChapterRow({
 					rows={6}
 				/>
 			)}
+			{expanded && <ChapterScenes chapter={chapter} />}
 		</div>
 	);
 }

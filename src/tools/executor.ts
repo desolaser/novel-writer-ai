@@ -4,6 +4,7 @@ import { findToolDefinition, TOOL_DEFINITIONS } from './registry';
 import { createChapter, editChapter, listChapters, readChapter, writeChapter } from './chapterTools';
 import { findMentionsTool, searchNovel } from './searchTools';
 import { readOutline, writeOutline } from './outlineTools';
+import { deleteScene, setScene } from './sceneTools';
 import {
 	archiveCodexEntry,
 	createCodexEntry,
@@ -46,6 +47,8 @@ const HANDLERS: Record<string, ToolHandler> = {
 	search_novel: searchNovel,
 	read_outline: readOutline,
 	write_outline: writeOutline,
+	set_scene: setScene,
+	delete_scene: deleteScene,
 
 	read_act: readAct,
 	create_act: createActTool,

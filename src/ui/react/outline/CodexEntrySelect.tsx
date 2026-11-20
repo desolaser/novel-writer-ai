@@ -6,6 +6,8 @@ export interface CodexEntrySelectProps {
 	categories: Categoria[];
 	/** Category listed first (e.g. "Characters" for the point of view). */
 	preferredCategory: string;
+	/** Text of the empty choice. Defaults to "None". */
+	emptyLabel?: string;
 	ariaLabel: string;
 	onChange: (id: EntityId | null) => void;
 }
@@ -52,7 +54,7 @@ export function CodexEntrySelect(props: CodexEntrySelectProps) {
 			value={props.value ?? ""}
 			onChange={(event) => props.onChange(event.target.value || null)}
 		>
-			<option value="">None</option>
+			<option value="">{props.emptyLabel ?? "None"}</option>
 			{groups.map((group) => (
 				<optgroup key={group.name} label={group.name}>
 					{group.entries.map((entry) => (

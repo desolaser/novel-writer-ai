@@ -24,6 +24,11 @@ export function stripObsidianSyntax(markdown: string): string {
 }
 
 const SCENE_BREAK = /^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,}|#|⁂|~{3,})\s*$/;
+/** A line that only marks a scene change: `***`, `---`, `* * *`, `#`, `⁂`... */
+export function isSceneBreakLine(line: string): boolean {
+	return SCENE_BREAK.test(line);
+}
+
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const QUOTE = /^>\s?(.*)$/;
 

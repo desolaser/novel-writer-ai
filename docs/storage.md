@@ -12,7 +12,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `__metadata.json` | Metadata de la novela (`Novela`) | `NovelRepo.ts` |
 | `__writing_log.json` | Palabras escritas por día (`WritingLog`), ver [metrics.md](metrics.md#ritmo-de-escritura) | `WritingLogRepo.ts` |
 | `__config.json` | Configuración propia de la novela: hoy, su memoria y nota del autor (`NovelConfig`). Vacío o ausente = usa la global | `NovelConfigRepo.ts` |
-| `escritura/estructura.json` | Actos y capítulos (outline, resumen, orden, archivo, estado, punto de vista, escenario, tiempo de la historia) | `EstructuraRepo.ts`, `chapterFiles.ts` |
+| `escritura/estructura.json` | Actos y capítulos (outline, escenas, resumen, orden, archivo, estado, punto de vista, escenario, tiempo de la historia) | `EstructuraRepo.ts`, `chapterFiles.ts` |
 | `escritura/capitulos/*.md` | Manuscritos de los capítulos | `chapterFiles.ts` |
 | `escritura/blueprint.json` | Novel Setup (premisa, estilo, estructura) | `BlueprintRepo.ts` |
 | `codex/entradas/entrada_<id>.json` | Una entrada del codex por archivo | `CodexEntryRepo.ts` |
@@ -52,6 +52,9 @@ escrituras se cruzan: la segunda pisa a la primera. Hay dos colas:
   lock, releer la estructura y aplicar. Ver `reconcileCapituloArchivos`
   (`scanLinkedChapterNotes` fuera) y `ensureCapituloArchivo` (dentro vuelve a comprobar
   si otra llamada ya creó el archivo).
+- Una lista guardada dentro de un capítulo (las escenas) no se reescribe entera con
+  `updateCapitulo`: `changeChapterScenes(id, cambio)` aplica el cambio a la lista del
+  archivo dentro del lock. Ver [outline.md](outline.md#escenas).
 - Una tarea que falla rechaza solo su propia promesa; la cola sigue.
 - Disparar eventos del vault dentro del lock está bien (por ejemplo `vault.rename`,
   cuyo listener en `main.ts` llama a `reloadAll`): esa recarga se encola después.

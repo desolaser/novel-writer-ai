@@ -1,6 +1,7 @@
 import type {
 	Acto,
 	Capitulo,
+	ChapterScene,
 	Categoria,
 	Detalle,
 	EntradaCodex,
@@ -36,6 +37,14 @@ export interface ChapterToolContext {
 	/** Removes the chapter and sends its manuscript to the trash. */
 	deleteChapter(id: EntityId): Promise<void>;
 	writeChapterText(id: EntityId, content: string): Promise<string | null>;
+}
+
+/** A chapter's scene plan, changed atomically against the file. */
+export interface SceneToolContext {
+	changeChapterScenes(
+		id: EntityId,
+		change: (scenes: ChapterScene[]) => ChapterScene[],
+	): Promise<ChapterScene[]>;
 }
 
 export interface CodexToolContext {
@@ -143,7 +152,10 @@ export interface PortraitToolContext {
 }
 
 /** Data of the novel, served by the store adapter. */
-export type NovelToolContext = ChapterToolContext & CodexToolContext & BlueprintToolContext;
+export type NovelToolContext = ChapterToolContext
+	& SceneToolContext
+	& CodexToolContext
+	& BlueprintToolContext;
 
 /** Obsidian's workspace and vault, served by the workspace adapter. */
 export type WorkspaceToolContext = NavigationToolContext

@@ -1,5 +1,7 @@
 import { App } from 'obsidian';
-import { Acto, Capitulo, CHAPTER_INFO_KEYS, ChapterInfo, EntityId, nowISO } from '../../../domain';
+import {
+	Acto, Capitulo, CHAPTER_INFO_KEYS, ChapterInfo, ChapterScene, EntityId, nowISO,
+} from '../../../domain';
 import { genId } from '../../../utils/ids';
 import { joinPath } from '../fsHelpers';
 import {
@@ -103,6 +105,29 @@ export async function updateCapitulo(app: App, fp: string, id: EntityId, patch: 
 	});
 }
 
+/**
+ * Changes the scenes of a chapter inside the lock: `change` receives the scenes
+ * as they are in the file, so two edits to different scenes never undo each
+ * other. Returns the scenes written.
+ */
+export async function changeChapterScenes(
+	app: App,
+	fp: string,
+	id: EntityId,
+	change: (scenes: ChapterScene[]) => ChapterScene[],
+): Promise<ChapterScene[]> {
+	return withEstructuraLock(fp, async () => {
+		const data = await readEstructuraFile(app, fp);
+		const chapter = data.capitulos.find((item) => item.id_capitulo === id);
+		if (!chapter) throw new Error('The chapter no longer exists.');
+		const scenes = change(chapter.scenes ?? []);
+		chapter.scenes = scenes;
+		chapter.updated_at = nowISO();
+		await writeEstructuraFile(app, fp, data);
+		return scenes;
+	});
+}
+
 /** Renames the manuscript to follow a new chapter name and stores its new path. */
 async function renameChapterFile(app: App, fp: string, c: Capitulo, nombre: string) {
 	const file = await resolveChapterFile(app, fp, c.id_capitulo, c.archivo!);
@@ -140,12 +165,15 @@ export interface ActoDraft {
 }
 
 /** Chapter information of a chapter that survives a structure rebuild. */
-function keptInfo(chapter: Capitulo | undefined): ChapterInfo {
-	const info: ChapterInfo = {};
+function keptInfo(
+	chapter: Capitulo | undefined,
+): ChapterInfo & Pick<Capitulo, 'scenes'> {
+	const info: ChapterInfo & Pick<Capitulo, 'scenes'> = {};
 	if (!chapter) return info;
 	for (const key of CHAPTER_INFO_KEYS) {
 		if (chapter[key] !== undefined) (info as any)[key] = chapter[key];
 	}
+	if (chapter.scenes?.length) info.scenes = chapter.scenes;
 	return info;
 }
 

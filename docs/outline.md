@@ -18,6 +18,10 @@ capítulo y el resumen de cada acto, y generar outlines, memorias y borradores c
 | `src/ui/react/outline/ChapterInfoFields.tsx` | Estado, punto de vista, escenario y tiempo de la historia del capítulo expandido |
 | `src/ui/react/outline/ChapterStatusDot.tsx` | Punto de color con el estado, en la fila del capítulo |
 | `src/ui/react/outline/CodexEntrySelect.tsx` | Selector de una entrada del codex, agrupado por categoría |
+| `src/ui/react/outline/ChapterScenes.tsx` | Escenas del capítulo expandido: agregar, dividir con IA, lista |
+| `src/ui/react/outline/SceneCard.tsx` | Una escena: título, qué pasa, mover, escribir, borrar |
+| `src/ui/react/outline/SceneDetailFields.tsx` | Campos plegados de una escena ("More") |
+| `src/ui/react/outline/sceneActionsContext.ts` | Contexto de React con las acciones de IA de las escenas |
 | `src/ui/react/components/CommitInput.tsx` | Input de una línea que guarda al perder el foco o con Enter |
 | `src/ui/react/outline/useOutlineActions.ts` | Acciones de IA y batch: mensajes de progreso y confirmaciones |
 | `src/ui/react/outline/outlineGenerator.ts` | `OutlineGenerator`: los generadores sin React (también los usa el chat) |
@@ -87,6 +91,63 @@ Cada capítulo puede tener, además de su outline (`ChapterInfo` en
 Tests: `test/chapter-info.test.cjs`, `test/estructura-lock.test.cjs` (rebuild) y
 `test/chat-tools.test.cjs` (tools).
 
+## Escenas
+
+El outline del capítulo sigue siendo su resumen (lo usan el historial y las memorias
+de los capítulos siguientes). Las escenas lo desglosan, son opcionales y, si existen,
+el borrador se escribe **una escena a la vez**.
+
+| Campo (`ChapterScene`) | Qué es |
+|---|---|
+| `title` | Pocas palabras. Vacío: "Scene N" |
+| `summary` | Qué pasa |
+| `pov_entry_id`, `location_entry_id` | Punto de vista y escenario si cambian; vacío = los del capítulo |
+| `goal`, `conflict`, `outcome` | Qué quiere el personaje, qué se lo impide, cómo termina o el gancho |
+| `target_words` | Palabras de la escena; vacío = una parte pareja del largo del capítulo |
+
+- **Dónde se editan.** Debajo del outline del capítulo expandido (`ChapterScenes`).
+  "Qué pasa" siempre a la vista (`AutoSaveTextarea`); el resto bajo "More" (un punto
+  avisa si hay algo puesto). Título y campos de una línea guardan al perder el foco o
+  con Enter. ↑/↓ reordenan. La fila colapsada muestra "3 sc.".
+- **Guardado atómico.** Todo cambio pasa por `changeChapterScenes(id, cambio)`
+  (`EstructuraRepo.ts`): el cambio se aplica a las escenas **del archivo**, dentro de
+  `withEstructuraLock`. Guardar la lista entera con `updateCapitulo` perdía escenas
+  cuando dos ediciones se cruzaban (hay un test de control). Las operaciones de lista
+  son puras (`src/utils/chapterScenes.ts`).
+- **Dividir con IA** (botón ✨, pide outline). `OutlineGenerator.splitIntoScenes` manda
+  outline, información del capítulo, historial y story bible al modelo `utilities` y
+  pide un JSON de 2 a 6 escenas (`buildSplitScenesPrompt` en
+  `src/context/scenePrompt.ts`). `parseScenesResponse` tolera texto y bloques de código
+  alrededor, resuelve punto de vista y escenario por nombre o alias solo entre entradas
+  visibles para la IA, y deja vacíos los iguales a los del capítulo. Si ya había
+  escenas, pregunta antes de reemplazarlas.
+- **Borrador por escenas.** `draftText` ve escenas y escribe cada una con su largo
+  (`sceneLengths`: la escena con `target_words` lo conserva, las demás se reparten lo
+  que queda del objetivo del capítulo, mínimo 150; mínimo y máximo con la misma
+  proporción que el rango del capítulo). Cada pedido lleva el plan de escenas y la
+  escena actual (`sceneDraftBlock`), lee las escenas anteriores y termina en esa
+  escena. Se unen con `* * *`. El progreso dice "scene 2/4". Vale para el botón del
+  capítulo, "Generate drafts" y `draft_chapter` del chat.
+- **Una escena sola** (ícono de lápiz). La escena N del plan es la sección N del
+  manuscrito, contando cambios de escena (`src/utils/sceneSections.ts`). Si esa sección
+  tiene texto, pregunta y la reemplaza; si es la siguiente, la agrega al final; si
+  falta una anterior, avisa sin gastar un pedido. Se coloca sobre el manuscrito tal
+  como está al terminar (el autor pudo seguir escribiendo) y respeta sus separadores.
+  Al texto de la IA se le quitan títulos y separadores en los bordes (`trimSceneEdges`).
+- **Acciones de IA sin prop drilling.** `outlineRoot.tsx` da `SceneActionsProvider`
+  (dividir, escribir escena, confirmar); solo `ChapterScenes` lo lee.
+- **Privacidad.** Punto de vista y escenario de una escena pasan por
+  `linkedEntryName(..., forAi)`: una entrada "Never" o archivada no se nombra.
+- **Rebuild.** `replaceEstructura` conserva las escenas de los capítulos que mantienen
+  su nombre.
+
+El editor sabe en qué escena está el cursor (ver
+[editor.md](editor.md#información-del-capítulo)) y el chat las lee y escribe (ver
+[chat-tools.md](chat-tools.md)).
+
+Tests: `test/chapter-scenes.test.cjs`, `test/model-purposes.test.cjs` (borradores),
+`test/estructura-lock.test.cjs` (lock y rebuild) y `test/chat-tools.test.cjs`.
+
 ## Suscripción al store
 
 `outlineRoot.tsx` usa `useNovelWriter(useShallow(...))` con solo lo que dibuja (actos,
@@ -116,7 +177,8 @@ Desde la cabecera (`OutlineHeader`) y el menú de cada capítulo:
   fuera de ellos es del autor y no se toca),
 - generar el resumen de un acto,
 - crear los manuscritos que faltan,
-- generar borradores de capítulo, con el largo del Story Bible (ver abajo).
+- generar borradores de capítulo, con el largo del Story Bible (ver abajo),
+- dividir el outline en escenas y escribir una escena (ver [Escenas](#escenas)).
 
 El trabajo lo hace `OutlineGenerator`, sin React: lee el store con `getState()` y lanza
 errores con mensajes para el autor. `useOutlineActions` solo agrega el estado de
@@ -132,7 +194,9 @@ capítulos recientes y resúmenes de acto para los lejanos, nunca extractos de l
 ### Borradores: largo, final y contexto
 
 `generateChapterDraftText` (`outlineGenerators.ts`) pide el capítulo con el modelo
-`writing` y sigue pidiendo hasta llegar al mínimo del rango.
+`writing` y sigue pidiendo hasta llegar al mínimo del rango. El bucle (`draftToLength`)
+es el mismo para una escena (`generateSceneDraftText`, ver [Escenas](#escenas)); cambia
+el prompt y el control de largo.
 
 - **De dónde sale el largo.** Solo del Story Bible: "words per chapter" de cada novela
   (`DraftLength`, `src/utils/draftLength.ts`). Cualquier largo dentro del rango sirve; el

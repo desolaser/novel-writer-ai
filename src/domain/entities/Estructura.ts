@@ -43,12 +43,36 @@ export const CHAPTER_INFO_KEYS: (keyof ChapterInfo)[] = [
 	'published_on',
 ];
 
+/**
+ * One scene of a chapter's plan. The chapter outline stays as the summary;
+ * scenes break it down so a draft can be written one scene at a time.
+ * Empty point of view or setting means "same as the chapter".
+ */
+export interface ChapterScene {
+	id: EntityId;
+	title: string;
+	/** What happens in the scene. */
+	summary: string;
+	pov_entry_id?: EntityId | null;
+	location_entry_id?: EntityId | null;
+	/** What the point-of-view character wants in the scene. */
+	goal?: string;
+	/** What stands in the way. */
+	conflict?: string;
+	/** How it ends, or the hook into the next scene. */
+	outcome?: string;
+	/** Words for this scene; empty shares the chapter's length. */
+	target_words?: number | null;
+}
+
 /** Capitulo: pertenece a un Acto y tiene un manuscrito Markdown asociado. */
 export interface Capitulo extends ChapterInfo {
 	id_capitulo: EntityId;
 	nombre: string;
 	/** Resumen / outline de lo que pasara en el capitulo. */
 	outline: string;
+	/** Scenes of the chapter, in order. Absent or empty: no scene plan. */
+	scenes?: ChapterScene[];
 	/** Path relativo al vault del manuscrito asociado, si ya fue creado. */
 	archivo: string | null;
 	id_acto: EntityId;

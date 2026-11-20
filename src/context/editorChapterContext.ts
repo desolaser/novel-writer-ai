@@ -1,5 +1,7 @@
 import type { Capitulo, EntradaCodex } from '../domain';
 import { chapterInfoPromptLine } from '../utils/chapterInfo';
+import { sceneIndexAt } from '../utils/sceneSections';
+import { sceneEditorBlock } from './scenePrompt';
 
 /** What this module reads from the novel; `NovelStore` provides it. */
 export interface ChapterContextSource {
@@ -11,7 +13,10 @@ export interface ChapterContextSource {
 /** Outline and chapter info of the chapter a note belongs to. */
 export interface EditorChapterContext {
 	outline: string;
-	/** "Chapter info: Point of view: ..." or "" when nothing is set. */
+	/**
+	 * "Chapter info: Point of view: ..." and, when the chapter has scenes, the
+	 * scene plan and the scene the cursor is in. "" when nothing is set.
+	 */
 	chapterInfo: string;
 }
 
@@ -34,11 +39,14 @@ function chapterOfNote(
 /**
  * Chapter context for "Generate text" and its "View context": the outline and
  * the point of view, setting and story time of the chapter the note is.
- * Empty when the note is not a chapter of the active novel.
+ * With `textBeforeCursor`, a chapter with scenes adds the scene the cursor is
+ * in (counted by the scene breaks before it). Empty when the note is not a
+ * chapter of the active novel.
  */
 export async function readEditorChapterContext(
 	source: ChapterContextSource,
 	notePath: string,
+	textBeforeCursor?: string,
 ): Promise<EditorChapterContext> {
 	const folderPath = source.activeFolderPath;
 	if (!folderPath) return EMPTY;
@@ -46,8 +54,13 @@ export async function readEditorChapterContext(
 	const chapter = chapterOfNote(chapters, folderPath, notePath);
 	if (!chapter) return EMPTY;
 	const entries = await source.listEntries();
+	const scene = textBeforeCursor === undefined
+		? ''
+		: sceneEditorBlock(chapter, sceneIndexAt(textBeforeCursor), entries);
 	return {
 		outline: chapter.outline?.trim() ?? '',
-		chapterInfo: chapterInfoPromptLine(chapter, entries),
+		chapterInfo: [chapterInfoPromptLine(chapter, entries), scene]
+			.filter(Boolean)
+			.join('\n'),
 	};
 }

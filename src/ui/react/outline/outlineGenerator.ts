@@ -27,13 +27,33 @@ import {
 	normalizeOutline,
 	requestDraftCompletion,
 	generateChapterDraftText,
+	generateSceneDraftText,
+	type DraftRequest,
 } from './outlineGenerators';
+import { sceneLengths } from '../../../utils/chapterScenes';
+import {
+	joinSceneSections,
+	placeScene,
+	splitSceneSections,
+	trimSceneEdges,
+} from '../../../utils/sceneSections';
+import {
+	buildSplitScenesPrompt,
+	parseScenesResponse,
+	sceneDraftBlock,
+} from '../../../context/scenePrompt';
 
 /** Builds the instruction that steers each continuation of a long draft. */
 export type DraftGuidance = (progress: { currentWords: number; remainingWords: number }) => string;
 
 /** Output budget of an outline or a summary. */
 const SHORT_OUTPUT_TOKENS = 800;
+
+/** Output budget of a scene plan (JSON with up to six scenes). */
+const SCENE_PLAN_TOKENS = 2000;
+
+/** Reports which scene a chapter draft is writing (0-based). */
+export type SceneProgress = (index: number, count: number) => void;
 
 function toYaml(value: string): string {
 	if (!value.trim()) return 'memoryContent: ""';
@@ -225,36 +245,162 @@ export class OutlineGenerator {
 	/**
 	 * Draft of a chapter from its outline, with the writing model. Prepares the
 	 * manuscript and its story context first; returns the text without saving it.
+	 * A chapter with scenes is written one scene at a time, each with its share
+	 * of `length`, joined by scene breaks.
 	 */
 	async draftText(
 		chapter: Capitulo,
 		length: DraftLength,
 		guidance: DraftGuidance,
 		onInvalid: () => void,
+		onScene?: SceneProgress,
 	): Promise<string> {
+		const { request, meta, current } = await this.prepareDraft(chapter, onInvalid);
+		if (current.scenes?.length) {
+			return this.draftScenes(current, length, request, meta, onScene);
+		}
+		return generateChapterDraftText(
+			request,
+			current.outline ?? '',
+			length,
+			guidance,
+			meta,
+		);
+	}
+
+	/**
+	 * Whether scene `sceneId` already has text in the manuscript: the section
+	 * after as many scene breaks as scenes before it.
+	 */
+	async isSceneWritten(chapter: Capitulo, sceneId: string): Promise<boolean> {
+		const index = this.sceneIndex(chapter, sceneId);
+		const manuscript = await this.state.readCapituloTexto(chapter.id_capitulo);
+		const { sections } = splitSceneSections(manuscript);
+		return Boolean(sections[index]?.trim());
+	}
+
+	/**
+	 * Drafts one scene and writes it into the manuscript, replacing that
+	 * scene's section or adding it after the last one. The earlier scenes are
+	 * what the model reads first. Returns the scene's word count.
+	 */
+	async draftScene(
+		chapter: Capitulo,
+		sceneId: string,
+		onInvalid: () => void,
+	): Promise<number> {
+		const index = this.sceneIndex(chapter, sceneId);
+		const manuscript = await this.state.readCapituloTexto(chapter.id_capitulo);
+		const before = splitSceneSections(manuscript);
+		// Fails before spending a request when an earlier scene is missing.
+		placeScene(before, index, '');
+		const { request, meta, current } = await this.prepareDraft(chapter, onInvalid);
+		const lengths = sceneLengths(current.scenes ?? [], await this.draftLength());
+		const previous = joinSceneSections({
+			sections: before.sections.slice(0, index),
+			breaks: before.breaks,
+		});
+		const text = trimSceneEdges(await generateSceneDraftText(
+			request,
+			current.outline ?? '',
+			previous,
+			sceneDraftBlock(current, index, this.state.entradas),
+			lengths[index],
+			meta,
+		));
+		if (!text) throw new Error('The AI returned no text for the scene.');
+		// Placed in the manuscript as it is now: the author may have kept writing.
+		const latest = splitSceneSections(
+			await this.state.readCapituloTexto(chapter.id_capitulo),
+		);
+		await this.state.writeCapituloTexto(
+			chapter.id_capitulo,
+			joinSceneSections(placeScene(latest, index, text)),
+		);
+		return text.split(/\s+/).filter(Boolean).length;
+	}
+
+	/** Breaks the chapter outline into scenes and saves them. */
+	async splitIntoScenes(chapter: Capitulo) {
+		const store = this.store();
+		const current = this.currentChapter(chapter);
+		if (!current.outline?.trim()) {
+			throw new Error(`"${current.nombre}" has no outline to split into scenes.`);
+		}
+		this.modelFor('utilities');
+		const blueprint = await store.readBlueprint();
+		const prompt = buildSplitScenesPrompt({
+			chapter: current,
+			chapterInfo: chapterInfoPromptLine(current, this.state.entradas),
+			history: this.historyFor(current),
+			storyBible: buildStoryBibleBlock(blueprint),
+			blueprint,
+		});
+		const answer = await runModelCompletion(this.plugin, prompt, SCENE_PLAN_TOKENS);
+		const scenes = parseScenesResponse(answer, current, this.state.entradas);
+		return this.state.changeChapterScenes(chapter.id_capitulo, () => scenes);
+	}
+
+	private currentChapter(chapter: Capitulo): Capitulo {
+		return this.state.capitulos
+			.find((item) => item.id_capitulo === chapter.id_capitulo) ?? chapter;
+	}
+
+	private sceneIndex(chapter: Capitulo, sceneId: string): number {
+		const scenes = this.currentChapter(chapter).scenes ?? [];
+		const index = scenes.findIndex((scene) => scene.id === sceneId);
+		if (index < 0) throw new Error('That scene no longer exists.');
+		return index;
+	}
+
+	/** Model, manuscript and story context of a draft. */
+	private async prepareDraft(chapter: Capitulo, onInvalid: () => void) {
 		const store = this.store();
 		const settings = this.plugin.settings.data;
 		const active = this.modelFor('writing');
 		await this.state.ensureCapituloArchivo(chapter.id_capitulo);
 		await this.refreshStoryContext(chapter);
 		const meta = await this.chapterMeta(chapter);
-		const api = new ApiFactory().createApi(
-			active.providerId,
-			settings.apiToken[active.providerId] ?? '',
-		);
-		return generateChapterDraftText(
-			this.plugin.app,
-			store.activeFolderPath!,
-			api,
-			active.modelName,
-			active.options,
+		const request: DraftRequest = {
+			app: this.plugin.app,
+			activeFolderPath: store.activeFolderPath!,
+			api: new ApiFactory().createApi(
+				active.providerId,
+				settings.apiToken[active.providerId] ?? '',
+			),
+			model: active.modelName,
+			options: active.options,
 			settings,
-			chapter.outline ?? '',
-			length,
-			guidance,
-			onInvalid,
-			meta,
-		);
+			onCorrupt: onInvalid,
+		};
+		return { request, meta, current: this.currentChapter(chapter) };
+	}
+
+	private async draftScenes(
+		chapter: Capitulo,
+		length: DraftLength,
+		request: DraftRequest,
+		meta: ScenePromptMeta | undefined,
+		onScene?: SceneProgress,
+	): Promise<string> {
+		const scenes = chapter.scenes ?? [];
+		const lengths = sceneLengths(scenes, length);
+		const sections: string[] = [];
+		for (let index = 0; index < scenes.length; index++) {
+			onScene?.(index, scenes.length);
+			const text = trimSceneEdges(await generateSceneDraftText(
+				request,
+				chapter.outline ?? '',
+				joinSceneSections({ sections, breaks: [] }),
+				sceneDraftBlock(chapter, index, this.state.entradas),
+				lengths[index],
+				meta,
+			));
+			// A corrupt or empty answer stops the chapter where it got to.
+			if (!text) break;
+			sections.push(text);
+		}
+		return joinSceneSections({ sections, breaks: [] });
 	}
 
 	/**

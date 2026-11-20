@@ -107,7 +107,18 @@ Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images
 | Enter | Renombrando acto o capítulo | Guardar |
 | Escape | Renombrando acto o capítulo | Cancelar |
 
-Los outlines y resúmenes se guardan solos; no hace falta ninguna tecla.
+| Enter | Título o campo de una escena | Guardar |
+| Escape | Título o campo de una escena | Descartar el cambio |
+
+Los outlines, resúmenes y el "qué pasa" de cada escena se guardan solos; no hace falta
+ninguna tecla.
+
+Clics en las escenas del capítulo expandido:
+
+- `+`: agrega una escena al final. ✨: divide el outline en escenas con IA.
+- ↑ / ↓: mueve la escena. Lápiz: escribe esa escena en el manuscrito. Papelera: la
+  quita del plan (el manuscrito no se toca).
+- "More": muestra punto de vista, escenario, objetivo, conflicto, desenlace y palabras.
 
 ### Codex
 

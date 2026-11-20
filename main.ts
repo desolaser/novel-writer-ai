@@ -429,7 +429,9 @@ export default class NovelWriterPlugin extends Plugin {
 			let chapterInfo = '';
 			const activeFile = this.app.workspace.getActiveFile();
 			if (settings.includeOutlineInContext && activeFile) {
-				const chapter = await readEditorChapterContext(this.store, activeFile.path);
+				const chapter = await readEditorChapterContext(
+					this.store, activeFile.path, storyBeforeCursor,
+				);
 				chapterOutline = chapter.outline;
 				chapterInfo = chapter.chapterInfo;
 			}

@@ -36,6 +36,7 @@ export function createStoreToolContext(): NovelToolContext {
 		updateAct: (id, patch) => state().updateActo(id, patch),
 		createChapter: (idActo, nombre, orden) => state().createCapitulo(idActo, nombre, orden),
 		updateChapter: (id, patch) => state().updateCapitulo(id, patch),
+		changeChapterScenes: (id, change) => state().changeChapterScenes(id, change),
 		deleteChapter: (id) => state().deleteCapitulo(id),
 		writeChapterText: (id, content) => state().writeCapituloTexto(id, content),
 		createCodexEntry: (idCategoria, nombre) => state().createEntry(idCategoria, nombre),

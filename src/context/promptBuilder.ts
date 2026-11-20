@@ -129,6 +129,11 @@ export interface ScenePromptMeta {
 	authorNote: string;
 	/** Point of view, setting and story time (`chapterInfoPromptLine`). */
 	chapterInfo?: string;
+	/**
+	 * Scene plan and the one scene to write (`sceneDraftBlock`). When set, the
+	 * request writes only that scene and its length rule comes from the caller.
+	 */
+	scene?: string;
 }
 
 /**
@@ -170,7 +175,8 @@ export async function buildScenePrompt(
 	// The point of view and the setting are named in the chapter info, so their
 	// entries reach the codex block even before the text mentions them.
 	const chapterInfo = meta?.chapterInfo?.trim() ?? '';
-	const detectionText = [chapterInfo, outline, recentText]
+	const scene = meta?.scene?.trim() ?? '';
+	const detectionText = [chapterInfo, scene, outline, recentText]
 		.filter(Boolean)
 		.join('\n\n');
 	const codexYaml = await buildCodexYaml(app, folderPath, undefined, detectionText, detectionText.length);
@@ -187,8 +193,10 @@ export async function buildScenePrompt(
 	if (memory.trim()) parts.push("Memory content: " + memory.trim());
 	if (authorNote.trim()) parts.push("Author note: " + authorNote.trim());
 	if (chapterInfo) parts.push(chapterInfo);
-	if (outline) {
-		parts.push("Chapter outline: " + outline);
+	if (outline) parts.push("Chapter outline: " + outline);
+	if (scene) {
+		parts.push(scene);
+	} else if (outline) {
 		if (storyText) {
 			parts.push("The outline describes what should happen in this chapter. Some of it may already be written in the manuscript above. Do not repeat what is already written — identify where the manuscript left off relative to the outline and continue from that point forward.");
 		}

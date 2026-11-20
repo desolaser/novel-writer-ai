@@ -12,6 +12,7 @@ import {
 	Tag,
 	Acto,
 	Capitulo,
+	ChapterScene,
 	Chat,
 	ChatContextItem,
 	EntityId,
@@ -96,6 +97,11 @@ export interface OutlineSlice {
 	createCapitulo: (idActo: EntityId, nombre: string, orden: number) => Promise<Capitulo>;
 	updateCapitulo: (id: EntityId, patch: Partial<Capitulo>) => Promise<void>;
 	deleteCapitulo: (id: EntityId) => Promise<void>;
+	/** Changes a chapter's scenes atomically (see `changeChapterScenes`). */
+	changeChapterScenes: (
+		id: EntityId,
+		change: (scenes: ChapterScene[]) => ChapterScene[],
+	) => Promise<ChapterScene[]>;
 	ensureCapituloArchivo: (id: EntityId, targetFolder?: string) => Promise<string | null>;
 	writeCapituloTexto: (id: EntityId, content: string) => Promise<string | null>;
 	readCapituloTexto: (id: EntityId) => Promise<string>;

@@ -137,7 +137,7 @@ of this answer"). Deshace todo lo que hizo esa respuesta, sea con la tool que se
 ## Footer
 
 - **Tools**: incluye las instrucciones de las tools que Settings deja encendidas (hasta
-  ~3300 tokens por request con todos los grupos; ver
+  ~3575 tokens por request con todos los grupos; ver
   [chat-tools.md](chat-tools.md#grupos-y-settings)). Se apaga solo en roleplay.
 - **Auto-approve**: ver arriba. Deshabilitado si las tools están apagadas.
 - **Story bible**: manda premisa, estilo, tiempo verbal e idioma de la novela; en

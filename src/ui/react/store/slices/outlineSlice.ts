@@ -55,6 +55,13 @@ export const createOutlineSlice: SliceCreator<OutlineSlice> = (set, get) => ({
 		if (patch.nombre !== undefined) await get().reloadAll();
 		else await get().reloadEstructura();
 	},
+	changeChapterScenes: async (id, change) => {
+		const s = get().store;
+		if (!s) return [];
+		const scenes = await s.changeChapterScenes(id, change);
+		await get().reloadEstructura();
+		return scenes;
+	},
 	deleteCapitulo: async (id) => {
 		const s = get().store;
 		if (!s) return;

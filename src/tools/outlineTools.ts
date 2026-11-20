@@ -1,15 +1,25 @@
-import type { ChapterToolContext as ToolContext } from '../interfaces/tool-context';
+import type {
+	ChapterToolContext as ToolContext,
+	CodexToolContext,
+} from '../interfaces/tool-context';
 import { resolveChapter } from './chapterTools';
+import { describeScenes } from './sceneTools';
 
 /**
  * Outline tools. An outline belongs to a chapter (`Capitulo.outline`), so creating
  * one for a chapter that does not exist is done through `create_chapter` instead.
  */
 
-export async function readOutline(args: Record<string, string>, context: ToolContext): Promise<string> {
+export async function readOutline(
+	args: Record<string, string>,
+	context: ToolContext & CodexToolContext,
+): Promise<string> {
 	const chapter = resolveChapter(args.chapter ?? '', context);
-	if (!chapter.outline?.trim()) return `Chapter "${chapter.nombre}" has no outline yet.`;
-	return `Outline of "${chapter.nombre}":\n\n${chapter.outline.trim()}`;
+	const scenes = describeScenes(chapter, context);
+	const outline = chapter.outline?.trim()
+		? `Outline of "${chapter.nombre}":\n\n${chapter.outline.trim()}`
+		: `Chapter "${chapter.nombre}" has no outline yet.`;
+	return scenes ? `${outline}\n\n${scenes}` : outline;
 }
 
 export async function writeOutline(args: Record<string, string>, context: ToolContext): Promise<string> {

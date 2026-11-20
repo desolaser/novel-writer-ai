@@ -30,7 +30,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
 	{
 		id: 'manuscript',
 		label: 'Manuscript',
-		description: 'Read, write, edit and search the text and the outline of each chapter.',
+		description: 'Read, write, edit and search the text, the outline and the scenes of each chapter.',
 		tools: MANUSCRIPT_TOOLS,
 	},
 	{

@@ -20,7 +20,7 @@ import type {
 } from '../../types/CodexSchema';
 import {
 	Novela, Categoria, Etiqueta, Tag, Detalle, OpcionDetalle, EntradaCodex,
-	Acto, Capitulo, Chat, ChatContextItem, EntityId, NovelBlueprint,
+	Acto, Capitulo, ChapterScene, Chat, ChatContextItem, EntityId, NovelBlueprint,
 } from '../../domain';
 
 export type { NovelScanResult };
@@ -186,6 +186,12 @@ export class NovelStore {
 	async listCapitulos() { return EstRepo.listCapitulos(this.app, this.activeFolder!); }
 	async createCapitulo(idActo: EntityId, nombre: string, orden: number) { return EstRepo.createCapitulo(this.app, this.activeFolder!, idActo, nombre, orden); }
 	async updateCapitulo(id: EntityId, patch: Partial<Capitulo>) { await EstRepo.updateCapitulo(this.app, this.activeFolder!, id, patch); }
+	async changeChapterScenes(
+		id: EntityId,
+		change: (scenes: ChapterScene[]) => ChapterScene[],
+	) {
+		return EstRepo.changeChapterScenes(this.app, this.activeFolder!, id, change);
+	}
 	async deleteCapitulo(id: EntityId) { await EstRepo.deleteCapitulo(this.app, this.activeFolder!, id); }
 	async ensureCapituloArchivo(id: EntityId, targetFolder?: string) { return EstRepo.ensureCapituloArchivo(this.app, this.activeFolder!, id, targetFolder); }
 	async writeCapituloTexto(id: EntityId, content: string) { return EstRepo.writeCapituloTexto(this.app, this.activeFolder!, id, content); }

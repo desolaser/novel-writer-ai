@@ -75,8 +75,35 @@ export const MANUSCRIPT_TOOLS: ToolDefinition[] = [
 	{
 		name: 'read_outline',
 		kind: 'read',
-		description: 'Read the outline of one chapter.',
+		description: 'Read the outline and the scene plan of one chapter.',
 		args: [CHAPTER_ARG],
+	},
+	{
+		name: 'set_scene',
+		kind: 'write',
+		description: 'Add a scene to a chapter\'s scene plan, or change one. Drafts are written scene by scene. Omitted fields stay; "none" clears one.',
+		args: [
+			CHAPTER_ARG,
+			{ name: 'scene', description: 'Scene number to change, or new (default) to add one.' },
+			{ name: 'title', description: 'A few words.' },
+			{ name: 'summary', description: 'What happens.', multiline: true },
+			{ name: 'pov', description: 'Codex entry, only if it differs from the chapter.' },
+			{ name: 'setting', description: 'Codex entry, only if it differs from the chapter.' },
+			{ name: 'goal', description: 'What the point-of-view character wants.' },
+			{ name: 'conflict', description: 'What stands in the way.' },
+			{ name: 'outcome', description: 'How it ends, or the hook.' },
+			{ name: 'words', description: 'Words for this scene; otherwise a share of the chapter.' },
+			{ name: 'position', description: 'Place in the plan (1 = first). Defaults to the end.' },
+		],
+	},
+	{
+		name: 'delete_scene',
+		kind: 'write',
+		description: 'Remove a scene from a chapter\'s scene plan. The manuscript is not touched.',
+		args: [
+			CHAPTER_ARG,
+			{ name: 'scene', description: 'Scene number.', required: true },
+		],
 	},
 	{
 		name: 'write_outline',
