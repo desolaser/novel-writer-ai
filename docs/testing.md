@@ -26,6 +26,7 @@
 | `chapter-scenes.test.cjs` | Escenas: operaciones de la lista, largo de cada escena, manuscrito por escenas (separadores, frontmatter, escena del cursor), bloques del prompt y su privacidad, prompt y respuesta de "Split into scenes" |
 | `continuity.test.cjs` | Continuidad: hash del texto, fusión de hechos (los del autor quedan), bloque de hechos anteriores, ubicar una cita, prompts y respuestas, archivo bajo lock con caso de control, archivo dañado, aviso a quien escucha, limpieza |
 | `continuity-checker.test.cjs` | `ContinuityChecker` con modelo, store y vault falsos: qué capítulos se extraen, reporte guardado, hechos del autor en la revisión, capítulo ilegible saltado, capítulo sin texto |
+| `name-candidates.test.cjs` | Nombres sin entrada: inicios de oración y diálogo, títulos, palabras en minúscula, nombres de varias palabras, entradas existentes (partes, signos, archivadas), ignorados, en Metrics; guardado en `__config.json` |
 | `chapter-info.test.cjs` | Información del capítulo: línea del prompt, entradas ocultas a la IA, días y tiempo de la historia, estados, fecha de publicación, agrupado en Metrics |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
 | `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control (también para las escenas de un capítulo); el rebuild conserva la información y las escenas de los capítulos |

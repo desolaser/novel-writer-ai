@@ -123,6 +123,10 @@ Clics en las escenas del capítulo expandido:
   quita del plan (el manuscrito no se toca).
 - "More": muestra punto de vista, escenario, objetivo, conflicto, desenlace y palabras.
 
+Metrics, "Names without an entry": "Create" crea la entrada en la categoría elegida y la
+abre; "Ignore" deja de sugerir ese nombre en esta novela; el enlace del final vuelve a
+sugerir los ignorados.
+
 Continuidad:
 
 - Menú "⋯" del capítulo → "Check continuity...": abre el último reporte o revisa.

@@ -5,6 +5,17 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-19
 
+### Nombres sin entrada en Metrics
+- Sección "Names without an entry": nombres propios que aparecen 3+ veces (una a mitad
+  de oración) y no son entradas del codex. Local, sin IA ni tokens. "Create" crea la
+  entrada y la abre; "Ignore" deja de sugerirla en esa novela.
+- Evita falsas alarmas: inicios de oración y de diálogo, títulos, días y meses,
+  palabras también usadas en minúscula, partes de nombres más largos y de entradas.
+- Nombres ignorados en `__config.json` (`ignoredNames`); `NovelConfigRepo` escribe ahora
+  dentro de `withFileLock`.
+- Tests: `test/name-candidates.test.cjs`. Detalle:
+  [metrics.md](metrics.md#nombres-sin-entrada).
+
 ### Información, escenas y hechos plegables en el Outline
 - En el capítulo expandido, "Details" (estado, punto de vista, escenario, tiempo,
   publicación), "Scenes" y "Facts" son secciones plegables, cerradas por defecto: una

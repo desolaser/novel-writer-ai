@@ -9,6 +9,7 @@ se calcula en local y nada llega a la IA.
 |---|---|
 | Cálculo (puro) | `src/utils/novelMetrics.ts` (`computeNovelMetrics`) |
 | Análisis de texto (puro) | `src/utils/textStats.ts` |
+| Nombres sin entrada (puro) | `src/utils/nameCandidates.ts` (`findNameCandidates`) |
 | Palabras vacías (es + en) | `src/constants/stopwords.ts` |
 | Tipos del resultado | `src/types/NovelMetrics.ts` |
 | Contrato de lectura | `src/interfaces/metrics-source.ts` (`MetricsSource`) |
@@ -36,6 +37,7 @@ manuscritos con `readCapituloTexto` (pasa por `withEstructuraLock`) a través de
 | Most mentioned | Entradas por cantidad de menciones (15, con "Show all") |
 | Gone quiet | Entradas con 3+ menciones que no aparecen hace 3+ capítulos escritos |
 | Never mentioned | Entradas activas sin ninguna mención, como chips |
+| Names without an entry | Nombres propios frecuentes del manuscrito que no son entradas, con "Create" e "Ignore" |
 | Appearances by chapter | Mapa de calor: entradas más mencionadas (12, con "Show all") × capítulos |
 | Most used words | Top 25 sin palabras vacías ni números; "Hide codex names" quita nombres y alias |
 | Repeated phrases | Frases de 3 palabras repetidas, con al menos 2 palabras que no sean vacías |
@@ -71,6 +73,34 @@ con las reglas de `openCodexEntry` (Ctrl/Cmd + clic, pestaña nueva, etc.).
 
 Lee todos los manuscritos cada vez. Para novelas muy largas, si se vuelve lento, el
 lugar para cachear es el hook (por ruta y `mtime`), no `computeNovelMetrics`.
+
+## Nombres sin entrada
+
+`findNameCandidates` (`src/utils/nameCandidates.ts`, puro, sin IA) busca nombres propios
+que todavía no tienen entrada en el codex. Aparece sola, sin que el autor tenga que
+preguntarle al chat, y no cuesta tokens.
+
+- **Qué es un nombre.** Una palabra con mayúscula, o una serie ("Port Vey", "Juan de la
+  Cruz", "Isle of Mists": `de`, `del`, `la`, `of`, `the`... solo cuentan entre dos
+  mayúsculas; `y` no, "Kael y Marta" son dos nombres). Hasta 4 palabras.
+- **La prueba.** Al menos 3 apariciones y una en medio de una oración. Lo que abre una
+  oración o una línea de diálogo (después de raya, comillas, `¿`, `¡`, `:` o `(`) cuenta
+  como aparición pero no prueba nada: "Vamos" abre diálogos todo el tiempo.
+- **Lo que se descarta:** palabras vacías al inicio ("Cuando Marta" → Marta), títulos
+  ("Señor Okonkwo" → Okonkwo; "Rey" solo no es nombre), días y meses, palabras en
+  mayúsculas ("OK"), y una palabra que el texto usa en minúscula tantas veces como con
+  mayúscula ("Dios" y "dios"). Un nombre que solo aparece dentro de otro más largo
+  ("Vey" de "Port Vey") no se sugiere aparte.
+- **Ya en el codex:** se compara con el nombre y los alias de **todas** las entradas
+  (archivadas y "Never" incluidas: ya existen), y con sus partes ("Elena" de "Elena
+  Vargas"). Las entradas se separan por cualquier signo: "Dr. Stein", "R0X4N3 (Roxane)".
+- **UI** (`NameCandidatesSection.tsx`): 10 con "Show all", cantidad de menciones,
+  capítulos y el primero; el ejemplo va en el tooltip. "Create" crea la entrada en la
+  categoría elegida arriba ("Characters" por defecto) y la abre; al recalcular desaparece
+  de la lista. "Ignore" la guarda en `ignoredNames` del `__config.json` de la novela
+  (`changeIgnoredNames`, bajo `withFileLock`); un enlace vuelve a sugerir las ignoradas.
+
+Tests: `test/name-candidates.test.cjs`.
 
 ## Estado y punto de vista
 

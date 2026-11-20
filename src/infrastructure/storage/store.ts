@@ -13,6 +13,7 @@ import * as ChatRepo from './repos/ChatRepo';
 import type { ChatPersistence } from '../../interfaces/chat-persistence';
 import * as BlueprintRepo from './repos/BlueprintRepo';
 import * as SchemaRepo from './repos/CodexSchemaRepo';
+import * as NovelConfigRepo from './repos/NovelConfigRepo';
 import type {
 	CodexSchema,
 	CodexSchemaMergeSummary,
@@ -199,6 +200,14 @@ export class NovelStore {
 	async linkCapituloArchivo(id: EntityId, path: string) { await EstRepo.linkCapituloArchivo(this.app, this.activeFolder!, id, path); }
 	async reconcileCapituloArchivos() { await EstRepo.reconcileCapituloArchivos(this.app, this.activeFolder!); }
 	async replaceEstructura(drafts: EstRepo.ActoDraft[]) { await EstRepo.replaceEstructura(this.app, this.activeFolder!, this.activeId!, drafts); }
+
+	// Names the Metrics tab does not suggest for a codex entry
+	async readIgnoredNames(): Promise<string[]> {
+		return NovelConfigRepo.readIgnoredNames(this.app, this.activeFolder!);
+	}
+	async changeIgnoredNames(change: (names: string[]) => string[]) {
+		return NovelConfigRepo.changeIgnoredNames(this.app, this.activeFolder!, change);
+	}
 
 	// Blueprint
 	async readBlueprint(): Promise<NovelBlueprint | null> { return BlueprintRepo.readBlueprint(this.app, this.activeFolder!); }

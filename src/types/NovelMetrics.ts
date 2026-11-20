@@ -123,6 +123,19 @@ export interface ChapterInfoMetrics {
 	byPointOfView: ChapterGroupMetrics[];
 }
 
+/** A proper name of the manuscript with no codex entry (`findNameCandidates`). */
+export interface NameCandidate {
+	/** As written most often. */
+	name: string;
+	mentions: number;
+	/** Chapters it appears in. */
+	chapters: number;
+	/** First chapter it appears in (1 = first). */
+	firstChapter: number;
+	/** A sentence where it appears mid-sentence, shortened. */
+	example: string;
+}
+
 export interface NovelMetrics {
 	totals: TotalsMetrics;
 	chapterLength: ChapterLengthMetrics;
@@ -136,4 +149,6 @@ export interface NovelMetrics {
 	topWordsWithoutCodex: TermCount[];
 	/** Three-word phrases that repeat across the manuscript. */
 	repeatedPhrases: TermCount[];
+	/** Proper names without a codex entry, most mentioned first. */
+	nameCandidates: NameCandidate[];
 }

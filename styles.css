@@ -1735,6 +1735,14 @@ hr { border: none; border-top: 1px solid var(--background-modifier-border); marg
 .nw-metrics-tile-label { font-size: 11px; color: var(--text-muted); }
 .nw-metrics-note { margin: 0; font-size: 12px; color: var(--text-muted); }
 .nw-metrics-empty { margin: 0; font-size: 12px; color: var(--text-faint); }
+/* Names without an entry */
+.nw-names-category { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.nw-names-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.nw-names-row { display: flex; align-items: center; gap: 6px; }
+.nw-names-row button { font-size: 11px; padding: 2px 8px; height: auto; }
+.nw-names-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.nw-names-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nw-names-meta { font-size: 11px; color: var(--text-faint); }
 .nw-metrics-bars { display: flex; flex-direction: column; gap: 6px; }
 .nw-metrics-bar-row { display: flex; flex-direction: column; gap: 2px; border-radius: 4px; padding: 2px 4px; }
 .nw-metrics-bar-row.is-clickable { cursor: pointer; }

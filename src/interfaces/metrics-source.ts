@@ -7,4 +7,6 @@ export interface MetricsSource {
 	readBlueprint(): Promise<NovelBlueprint | null>;
 	/** Words written per day, including counts not saved to disk yet. */
 	readWritingLog(): Promise<WritingLog>;
+	/** Names the author chose not to see suggested for a codex entry. */
+	readIgnoredNames(): Promise<string[]>;
 }

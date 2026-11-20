@@ -13,6 +13,7 @@ import type {
 } from '../types/NovelMetrics';
 import { STOPWORDS } from '../constants/stopwords';
 import { chapterInfoMetrics } from './chapterInfoMetrics';
+import { findNameCandidates, type NameCandidateChapter } from './nameCandidates';
 import { findMentions, stripAccents } from './codexMentions';
 import {
 	cleanMarkdown,
@@ -48,6 +49,8 @@ export interface NovelMetricsInput {
 	entries: EntradaCodex[];
 	categories: Categoria[];
 	target: WordRange | null;
+	/** Names the author chose not to see suggested ("Names without an entry"). */
+	ignoredNames?: string[];
 }
 
 interface TextTally {
@@ -93,9 +96,11 @@ export function computeNovelMetrics(input: NovelMetricsInput): NovelMetrics {
 		perChapter: ordered.map(() => 0),
 	}));
 
+	const cleaned: NameCandidateChapter[] = [];
 	const chapters = ordered.map((chapter, index): ChapterMetrics => {
 		const number = index + 1;
 		const text = cleanMarkdown(input.texts.get(chapter.id_capitulo) ?? '');
+		cleaned.push({ number, text });
 		const words = tallyText(text, tally);
 		const distinctEntries = tallyMentions(text, number, mentionTallies);
 		const act = input.acts.find((item) => item.id_acto === chapter.id_acto);
@@ -141,6 +146,11 @@ export function computeNovelMetrics(input: NovelMetricsInput): NovelMetrics {
 		topWords: topWords(tally.words, new Set()),
 		topWordsWithoutCodex: topWords(tally.words, codexTerms(activeEntries)),
 		repeatedPhrases: topTerms(tally.phrases, TOP_PHRASES, 2),
+		nameCandidates: findNameCandidates({
+			chapters: cleaned,
+			entries: input.entries,
+			ignored: input.ignoredNames ?? [],
+		}),
 	};
 }
 

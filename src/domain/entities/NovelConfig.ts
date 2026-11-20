@@ -6,4 +6,6 @@
 export interface NovelConfig {
 	memoryContent?: string;
 	authorNote?: string;
+	/** Names the Metrics tab no longer suggests for a codex entry. */
+	ignoredNames?: string[];
 }

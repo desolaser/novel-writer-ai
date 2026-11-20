@@ -51,6 +51,7 @@ export function useNovelMetrics(plugin: NovelWriterPlugin) {
 	);
 	const [metrics, setMetrics] = useState<NovelMetrics | null>(null);
 	const [pace, setPace] = useState<WritingPace | null>(null);
+	const [ignoredNames, setIgnoredNames] = useState<string[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [revision, setRevision] = useState(0);
 	const folder = store?.activeFolderPath ?? null;
@@ -67,12 +68,14 @@ export function useNovelMetrics(plugin: NovelWriterPlugin) {
 			readChapterText: (id) => store.readCapituloTexto(id),
 			readBlueprint: () => store.readBlueprint(),
 			readWritingLog: () => plugin.writingTracker.readLog(),
+			readIgnoredNames: () => store.readIgnoredNames(),
 		};
 		setLoading(true);
 		void (async () => {
 			const texts = await readTexts(source, capitulos);
 			const blueprint = await source.readBlueprint().catch(() => null);
 			const log = await source.readWritingLog().catch(() => emptyWritingLog());
+			const ignoredNames = await source.readIgnoredNames().catch(() => []);
 			if (cancelled) return;
 			const next = computeNovelMetrics({
 				acts: actos,
@@ -81,10 +84,12 @@ export function useNovelMetrics(plugin: NovelWriterPlugin) {
 				entries: entradas,
 				categories: categorias,
 				target: blueprint?.wordsPerChapter ?? null,
+				ignoredNames,
 			});
 			const targetWords = next.totals.targetWords;
 			const remaining = targetWords === null ? null : targetWords - next.totals.words;
 			setMetrics(next);
+			setIgnoredNames(ignoredNames);
 			setPace(writingPace(log, new Date(), remaining));
 			setLoading(false);
 		})();
@@ -108,5 +113,5 @@ export function useNovelMetrics(plugin: NovelWriterPlugin) {
 	}, [plugin, chapterPaths]);
 
 	const refresh = () => setRevision((value) => value + 1);
-	return { metrics, pace, loading, refresh };
+	return { metrics, pace, loading, refresh, ignoredNames };
 }

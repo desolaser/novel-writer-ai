@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { Notice } from "obsidian";
 import { useNovelWriter } from "../../store/novelWriterStore";
 import { Icon } from "../../components/Icon";
 import { openCodexEntry, paneTypeFor } from "../../../views/openCodexEntry";
@@ -12,11 +13,13 @@ import { StyleSection } from "./StyleSection";
 import { WritingPaceSection } from "./WritingPaceSection";
 import { MentionsHeatmap } from "./MentionsHeatmap";
 import { ChapterInfoSection } from "./ChapterInfoSection";
+import { NameCandidatesSection } from "./NameCandidatesSection";
 import type NovelWriterPlugin from "../../../../../main";
 
 /** Metrics tab of the Companion: statistics of the active novel. */
 export function MetricsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
-	const { metrics, pace, loading, refresh } = useNovelMetrics(plugin);
+	const { metrics, pace, loading, refresh, ignoredNames } = useNovelMetrics(plugin);
+	const categories = useNovelWriter((state) => state.categorias);
 
 	const openChapter = useCallback((id: string) => {
 		const state = useNovelWriter.getState();
@@ -29,6 +32,26 @@ export function MetricsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 	const openEntry = useCallback((id: string, event: React.MouseEvent) => {
 		void openCodexEntry(plugin, id, paneTypeFor(event.nativeEvent));
 	}, [plugin]);
+
+	const createEntry = useCallback(async (name: string, categoryId: string) => {
+		try {
+			const created = await useNovelWriter.getState().createEntry(categoryId, name);
+			if (created) await openCodexEntry(plugin, created.id_entrada_codex);
+		} catch (error: any) {
+			new Notice(`Could not create the entry: ${error?.message ?? error}`);
+		}
+	}, [plugin]);
+
+	const changeIgnored = useCallback(async (change: (names: string[]) => string[]) => {
+		const store = useNovelWriter.getState().store;
+		if (!store) return;
+		try {
+			await store.changeIgnoredNames(change);
+			refresh();
+		} catch (error: any) {
+			new Notice(`Could not save: ${error?.message ?? error}`);
+		}
+	}, [refresh]);
 
 	if (!metrics) {
 		return <p className="nw-muted">Counting words...</p>;
@@ -57,6 +80,15 @@ export function MetricsPanel({ plugin }: { plugin: NovelWriterPlugin }) {
 			<ChapterLengthSection metrics={metrics} onOpenChapter={openChapter} />
 			<ChapterInfoSection metrics={metrics} onOpenEntry={openEntry} />
 			<CodexMetricsSection metrics={metrics} onOpenEntry={openEntry} />
+			<NameCandidatesSection
+				candidates={metrics.nameCandidates}
+				categories={categories}
+				ignoredCount={ignoredNames.length}
+				onCreate={(name, categoryId) => void createEntry(name, categoryId)}
+				onIgnore={(name) => void changeIgnored((names) =>
+					names.includes(name) ? names : [...names, name])}
+				onRestoreIgnored={() => void changeIgnored(() => [])}
+			/>
 			<MentionsHeatmap
 				metrics={metrics}
 				onOpenEntry={openEntry}
