@@ -14,6 +14,7 @@ Obsidian Sync, Git o Remotely Save los sincronizan sin hacer nada especial.
 | `__config.json` | Configuración propia de la novela: hoy, su memoria y nota del autor (`NovelConfig`). Vacío o ausente = usa la global | `NovelConfigRepo.ts` |
 | `escritura/estructura.json` | Actos y capítulos (outline, escenas, resumen, orden, archivo, estado, punto de vista, escenario, tiempo de la historia) | `EstructuraRepo.ts`, `chapterFiles.ts` |
 | `escritura/capitulos/*.md` | Manuscritos de los capítulos | `chapterFiles.ts` |
+| `escritura/continuity.json` | Hechos de cada capítulo y su último reporte de continuidad. Ver [continuity.md](continuity.md) | `ContinuityRepo.ts` |
 | `escritura/blueprint.json` | Novel Setup (premisa, estilo, estructura) | `BlueprintRepo.ts` |
 | `codex/entradas/entrada_<id>.json` | Una entrada del codex por archivo | `CodexEntryRepo.ts` |
 | `codex/categorias.json` | Categorías (las 6 por defecto y las custom) | `CategoriaRepo.ts` |
@@ -74,6 +75,10 @@ respuesta.
   `toolCalls`); el resto del mensaje queda igual.
 
 Test: `test/chat-repo-lock.test.cjs`, con caso de control.
+
+`continuity.json` también: `updateChapterContinuity` relee el archivo, cambia la entrada
+de un capítulo y escribe dentro del lock (test con caso de control en
+`test/continuity.test.cjs`). Si el archivo está dañado, lanza en vez de reescribirlo.
 
 El registro de escritura (`__writing_log.json`) también usa `withFileLock`:
 `addWritingDays` relee el archivo y suma los conteos dentro del lock.

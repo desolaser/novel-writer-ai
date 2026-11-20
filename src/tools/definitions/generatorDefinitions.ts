@@ -36,6 +36,12 @@ export const GENERATOR_TOOLS: ToolDefinition[] = [
 		],
 	},
 	{
+		name: 'check_continuity',
+		kind: 'write',
+		description: 'Check a chapter for contradictions with earlier chapters and the codex, using the utilities model and the facts saved per chapter (extracted again only where the text changed). Returns the issues; the report is saved.',
+		args: [CHAPTER_ARG],
+	},
+	{
 		name: 'generate_portrait',
 		kind: 'write',
 		description: 'Draw a portrait of a codex entry with the images model, from its description and details, and set it as the entry\'s image. Replaces the current one.',

@@ -64,8 +64,8 @@ export const TOOL_GROUPS: ToolGroup[] = [
 		id: 'generators',
 		label: 'Generators',
 		description: 'Run the Outline\'s AI generators: chapter outlines, act summaries, '
-			+ 'full drafts and the story so far. They use the utilities and writing '
-			+ 'models, not the chat model.',
+			+ 'full drafts, continuity checks and the story so far. They use the '
+			+ 'utilities and writing models, not the chat model.',
 		tools: GENERATOR_TOOLS,
 	},
 ];

@@ -15,6 +15,7 @@ capítulo y el resumen de cada acto, y generar outlines, memorias y borradores c
 | `src/ui/react/outline/ActSummary.tsx` | Resumen del acto + "Generate with AI" |
 | `src/ui/react/outline/ChapterRow.tsx` | Fila de capítulo y su outline |
 | `src/ui/react/outline/ChapterActionsMenu.tsx` | Menú "⋯" del capítulo |
+| `src/ui/react/outline/ChapterInfoSection.tsx` | "Details" plegable con su resumen; envuelve `ChapterInfoFields` |
 | `src/ui/react/outline/ChapterInfoFields.tsx` | Estado, punto de vista, escenario y tiempo de la historia del capítulo expandido |
 | `src/ui/react/outline/ChapterStatusDot.tsx` | Punto de color con el estado, en la fila del capítulo |
 | `src/ui/react/outline/CodexEntrySelect.tsx` | Selector de una entrada del codex, agrupado por categoría |
@@ -22,6 +23,8 @@ capítulo y el resumen de cada acto, y generar outlines, memorias y borradores c
 | `src/ui/react/outline/SceneCard.tsx` | Una escena: título, qué pasa, mover, escribir, borrar |
 | `src/ui/react/outline/SceneDetailFields.tsx` | Campos plegados de una escena ("More") |
 | `src/ui/react/outline/sceneActionsContext.ts` | Contexto de React con las acciones de IA de las escenas |
+| `src/ui/react/components/CollapsibleSection.tsx` | Bloque con título que se pliega a una línea |
+| `src/ui/react/outline/useOutlineSectionOpen.ts` | Si "Scenes" o "Facts" están abiertos; recuerda la última elección |
 | `src/ui/react/components/CommitInput.tsx` | Input de una línea que guarda al perder el foco o con Enter |
 | `src/ui/react/outline/useOutlineActions.ts` | Acciones de IA y batch: mensajes de progreso y confirmaciones |
 | `src/ui/react/outline/outlineGenerator.ts` | `OutlineGenerator`: los generadores sin React (también los usa el chat) |
@@ -64,8 +67,8 @@ Cada capítulo puede tener, además de su outline (`ChapterInfo` en
 | `story_time` | Etiqueta libre ("tercera luna del invierno"), para calendarios inventados |
 | `published_on` | Fecha local (`YYYY-MM-DD`) en que se publicó online; ver [export.md](export.md#publicar-por-capítulo) |
 
-- **Dónde se edita.** Al expandir un capítulo, arriba de su outline
-  (`ChapterInfoFields`). Los selectores guardan al cambiar; día y etiqueta al perder el
+- **Dónde se edita.** Al expandir un capítulo, arriba de su outline, en la sección
+  plegable "Details" (`ChapterInfoSection` → `ChapterInfoFields`). Los selectores guardan al cambiar; día y etiqueta al perder el
   foco o con Enter (Escape descarta); la fecha de publicación, al cambiar. En la fila
   colapsada un punto de color muestra el estado (hueco si no tiene) y un ícono verde,
   si está publicado.
@@ -91,6 +94,20 @@ Cada capítulo puede tener, además de su outline (`ChapterInfo` en
 Tests: `test/chapter-info.test.cjs`, `test/estructura-lock.test.cjs` (rebuild) y
 `test/chat-tools.test.cjs` (tools).
 
+## Secciones plegables
+
+Información, escenas y hechos son opcionales: quien no los usa tiene que poder seguir
+usando el Outline como antes. Por eso en el capítulo expandido son `CollapsibleSection`
+**cerradas por defecto**: una sola línea ("▸ Details · Drafted · Elena · day 12",
+"▸ Scenes (3)", "▸ Facts (5)"), sin sus botones. "Details" cerrado muestra un resumen
+de lo que tiene puesto (`chapterInfoFacts`, con estado y fecha de publicación), así el
+estado y el punto de vista siguen a la vista. Al abrir una sección se ven su contenido
+y sus botones.
+
+La última elección se guarda por sección (`settings.uiPrefs.outlineSections`) y vale
+para los capítulos que se expandan después: quien usa escenas las deja abiertas una
+vez. Los capítulos ya expandidos no cambian al plegar otro.
+
 ## Escenas
 
 El outline del capítulo sigue siendo su resumen (lo usan el historial y las memorias
@@ -105,7 +122,8 @@ el borrador se escribe **una escena a la vez**.
 | `goal`, `conflict`, `outcome` | Qué quiere el personaje, qué se lo impide, cómo termina o el gancho |
 | `target_words` | Palabras de la escena; vacío = una parte pareja del largo del capítulo |
 
-- **Dónde se editan.** Debajo del outline del capítulo expandido (`ChapterScenes`).
+- **Dónde se editan.** Debajo del outline del capítulo expandido (`ChapterScenes`),
+  en la sección plegable "Scenes".
   "Qué pasa" siempre a la vista (`AutoSaveTextarea`); el resto bajo "More" (un punto
   avisa si hay algo puesto). Título y campos de una línea guardan al perder el foco o
   con Enter. ↑/↓ reordenan. La fila colapsada muestra "3 sc.".
@@ -178,7 +196,9 @@ Desde la cabecera (`OutlineHeader`) y el menú de cada capítulo:
 - generar el resumen de un acto,
 - crear los manuscritos que faltan,
 - generar borradores de capítulo, con el largo del Story Bible (ver abajo),
-- dividir el outline en escenas y escribir una escena (ver [Escenas](#escenas)).
+- dividir el outline en escenas y escribir una escena (ver [Escenas](#escenas)),
+- revisar la continuidad de un capítulo ("Check continuity..." en el menú; ver
+  [continuity.md](continuity.md)).
 
 El trabajo lo hace `OutlineGenerator`, sin React: lee el store con `getState()` y lanza
 errores con mensajes para el autor. `useOutlineActions` solo agrega el estado de
@@ -247,6 +267,13 @@ el resumen de acto y el outline por memoria terminan con `summaryLanguageRule`
 
 Un prompt nuevo que resuma texto del autor debe terminar con esta regla. Tests en
 `test/summary-language.test.cjs`.
+
+## Hechos del capítulo
+
+Debajo de las escenas, el capítulo expandido muestra sus hechos para la revisión de
+continuidad (`ChapterFacts`, en `src/ui/react/features/continuity`). `outlineRoot.tsx`
+da el `ContinuityChecker` por `ContinuityProvider`. Ver
+[continuity.md](continuity.md#el-registro-de-hechos).
 
 ## Exportar y publicar
 

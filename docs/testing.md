@@ -15,7 +15,7 @@
 | Archivo | Cubre |
 |---|---|
 | `chat-agent.test.cjs` | Loop del agente (rondas, pausa, repeticiones, stop, compactación) y `ChatSession` (aprobación, auto-approve, stop aunque el modelo o una tool no respondan, traza guardada, tools apagadas en Settings, `alwaysAsk`, deshacer una respuesta); parser con argumentos del catálogo |
-| `chat-tools.test.cjs` | Tools del chat contra una novela en memoria: catálogo completo y grupos de Settings, privacidad del codex, detalles, estructura (borrar incluido), escenas, blueprint, memoria, workspace, plan y generadores |
+| `chat-tools.test.cjs` | Tools del chat contra una novela en memoria: catálogo completo y grupos de Settings, privacidad del codex, detalles, estructura (borrar incluido), escenas, blueprint, memoria, workspace, plan, generadores y continuidad |
 | `draft-length.test.cjs` | Largo de un borrador: rango del Story Bible, punto medio, rango por defecto, override y la regla del prompt |
 | `draft-ending.test.cjs` | Borradores cortados a mitad de oración: detección y recorte hasta la última oración completa |
 | `file-changes.test.cjs` | Diferencia entre copias de la novela y plan para deshacer una respuesta (conflictos incluidos) |
@@ -24,6 +24,8 @@
 | `novel-metrics.test.cjs` | Pestaña Metrics: palabras, párrafos, oraciones, diálogo, variedad de vocabulario, largo de capítulos y objetivo, menciones del codex, palabras y frases repetidas |
 | `writing-log.test.cjs` | Registro de escritura: fechas locales, suma de días, log dañado, ritmo, rachas, proyección, marcas de escrituras del plugin y el tracker (línea base, generado, pegado y cortado, borrar lo pegado o generado, IA en el editor, cambio de novela) |
 | `chapter-scenes.test.cjs` | Escenas: operaciones de la lista, largo de cada escena, manuscrito por escenas (separadores, frontmatter, escena del cursor), bloques del prompt y su privacidad, prompt y respuesta de "Split into scenes" |
+| `continuity.test.cjs` | Continuidad: hash del texto, fusión de hechos (los del autor quedan), bloque de hechos anteriores, ubicar una cita, prompts y respuestas, archivo bajo lock con caso de control, archivo dañado, aviso a quien escucha, limpieza |
+| `continuity-checker.test.cjs` | `ContinuityChecker` con modelo, store y vault falsos: qué capítulos se extraen, reporte guardado, hechos del autor en la revisión, capítulo ilegible saltado, capítulo sin texto |
 | `chapter-info.test.cjs` | Información del capítulo: línea del prompt, entradas ocultas a la IA, días y tiempo de la historia, estados, fecha de publicación, agrupado en Metrics |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
 | `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control (también para las escenas de un capítulo); el rebuild conserva la información y las escenas de los capítulos |

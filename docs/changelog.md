@@ -5,6 +5,29 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-19
 
+### Información, escenas y hechos plegables en el Outline
+- En el capítulo expandido, "Details" (estado, punto de vista, escenario, tiempo,
+  publicación), "Scenes" y "Facts" son secciones plegables, cerradas por defecto: una
+  línea sin botones. "Details" cerrado resume lo que tiene puesto ("Drafted · Elena ·
+  day 12"); las otras muestran su cantidad. Al expandir un capítulo se veía
+  todo junto; quien no usa escenas ni la revisión de continuidad tiene el Outline de
+  antes.
+- La última elección se recuerda por sección (`uiPrefs.outlineSections`). Detalle:
+  [outline.md](outline.md#secciones-plegables).
+
+### Revisión de continuidad
+- "Check continuity..." (menú "⋯" del capítulo): busca pasajes que contradicen los
+  capítulos anteriores o el codex y los muestra con la cita, el hecho contradicho y su
+  capítulo. "Go to text" abre el pasaje; "Dismiss" lo descarta. El reporte se guarda.
+- Registro de hechos por capítulo en `escritura/continuity.json`, extraído con el
+  modelo `utilities` solo donde el texto cambió (hash sin frontmatter). Por qué no basta
+  el chat: olvida lo que leyó, cuesta más y no guarda nada.
+- "Facts" en el capítulo expandido: el autor edita, borra y agrega hechos; los suyos se
+  conservan al volver a extraer.
+- Chat: `check_continuity` (Generators).
+- Tests: `test/continuity.test.cjs` y `test/continuity-checker.test.cjs` nuevos;
+  casos en `chat-tools`. Detalle: [continuity.md](continuity.md).
+
 ### Escenas dentro del capítulo
 - Cada capítulo puede tener un plan de escenas debajo de su outline: título, qué pasa
   y, plegados, punto de vista, escenario, objetivo, conflicto, desenlace y palabras.

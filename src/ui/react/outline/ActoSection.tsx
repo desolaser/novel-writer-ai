@@ -44,6 +44,7 @@ export interface ActoSectionProps {
 	onCreateChapterManuscript: (chapter: Capitulo) => void;
 	onLinkChapterFile: (chapter: Capitulo) => void;
 	onCopyChapterForPublishing: (chapter: Capitulo) => void;
+	onCheckChapterContinuity: (chapter: Capitulo) => void;
 	onDeleteChapter: (chapter: Capitulo) => void;
 	onDragStartChapter: (id: string) => void;
 	onDragEndChapter: () => void;
@@ -96,6 +97,7 @@ export function ActoSection(props: ActoSectionProps) {
 		onCreateChapterManuscript,
 		onLinkChapterFile,
 		onCopyChapterForPublishing,
+		onCheckChapterContinuity,
 		onDeleteChapter,
 		onDragStartChapter,
 		onDragEndChapter,
@@ -177,6 +179,7 @@ export function ActoSection(props: ActoSectionProps) {
 						}
 						onLinkFile={() => onLinkChapterFile(chapter)}
 						onCopyForPublishing={() => onCopyChapterForPublishing(chapter)}
+						onCheckContinuity={() => onCheckChapterContinuity(chapter)}
 						onDelete={() => onDeleteChapter(chapter)}
 						onDragStart={() => onDragStartChapter(chapter.id_capitulo)}
 						onDragEnd={onDragEndChapter}

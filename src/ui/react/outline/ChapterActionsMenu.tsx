@@ -8,6 +8,7 @@ export interface ChapterActionsMenuProps {
 	onGenerateDraft: () => void;
 	onLinkFile: () => void;
 	onCopyForPublishing: () => void;
+	onCheckContinuity: () => void;
 	onDelete: () => void;
 }
 
@@ -22,6 +23,7 @@ export function ChapterActionsMenu({
 	onGenerateDraft,
 	onLinkFile,
 	onCopyForPublishing,
+	onCheckContinuity,
 	onDelete,
 }: ChapterActionsMenuProps) {
 	return (
@@ -44,6 +46,9 @@ export function ChapterActionsMenu({
 			<button onClick={onLinkFile}>Link Markdown file</button>
 			<button disabled={!hasFile} onClick={onCopyForPublishing}>
 				Copy for publishing...
+			</button>
+			<button disabled={!hasFile} onClick={onCheckContinuity}>
+				Check continuity...
 			</button>
 			<button className="nw-btn-danger" onClick={onDelete}>
 				Delete chapter

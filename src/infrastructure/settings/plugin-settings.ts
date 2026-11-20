@@ -110,6 +110,8 @@ export interface PluginSettings {
 		activeSidebarTab: 'codex' | string;
 		/** Open chat per novel id, so reopening a view never starts a new chat. */
 		activeChatIds: Record<string, string>;
+		/** Open sections of an expanded chapter ("info", "scenes", "facts"); closed by default. */
+		outlineSections?: Record<string, boolean>;
 	};
 	/** Prompts custom del sistema (chat y texto). */
 	customPrompts: CustomPrompt[];

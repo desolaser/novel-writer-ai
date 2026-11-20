@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Notice } from "obsidian";
 import { useShallow } from "zustand/react/shallow";
 import { useNovelWriter } from "./store/novelWriterStore";
@@ -14,6 +14,9 @@ import { confirmDialog } from "../modals/ConfirmModal";
 import { SceneActionsProvider, type SceneActions } from "./outline/sceneActionsContext";
 import { openExportModal } from "./features/export/ExportModal";
 import { openPublishChapterModal } from "./features/export/PublishChapterModal";
+import { ContinuityChecker } from "./features/continuity/continuityChecker";
+import { ContinuityProvider } from "./features/continuity/continuityContext";
+import { openContinuityModal } from "./features/continuity/ContinuityModal";
 
 /** Outline de una columna: orquesta estado de UI y delega en componentes de `./outline`. */
 export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
@@ -76,6 +79,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 		splitIntoScenes,
 		draftScene,
 	} = useOutlineActions(plugin);
+	const continuityChecker = useMemo(() => new ContinuityChecker(plugin), [plugin]);
 	const sceneActions: SceneActions = {
 		batchBusy,
 		splitIntoScenes: (chapter) => void splitIntoScenes(chapter),
@@ -276,106 +280,112 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 
 	return (
 		<SceneActionsProvider value={sceneActions}>
-			<div className="nw-outline-view nw-outline-single-column">
-				<OutlineHeader
-					batchBusy={batchBusy}
-					chaptersCount={capitulos.length}
-					onGenerateAllMemory={() => void generateAllMemory()}
-					onGenerateAllOutlines={() => void generateAllOutlines()}
-					onCreateAllManuscripts={() => void createAllManuscripts()}
-					onGenerateDrafts={() => void generateDrafts()}
-					onOpenSetup={() => openNovelBlueprintModal(plugin)}
-					onExport={() => openExportModal(plugin)}
-				/>
-				{batchStatus && (
-					<div className="nw-outline-status">{batchStatus}</div>
-				)}
-				<AddActo value={newAct} onChange={setNewAct} onCreate={() => void addActo()} />
-				{[...actos].sort((first, second) => first.orden - second.orden).map((a) => {
-					const caps = capitulos
-						.filter((c) => c.id_acto === a.id_acto)
-						.sort((first, second) => first.orden - second.orden);
-					return (
-						<ActoSection
-							key={a.id_acto}
-							acto={a}
-							chapters={caps}
-							collapsed={collapsedActs.has(a.id_acto)}
-							onToggleCollapse={() => toggleActCollapse(a.id_acto)}
-							editingAct={editingAct === a.id_acto}
-							onStartEditingAct={() => setEditingAct(a.id_acto)}
-							onCommitActName={(name) => commitActName(a, name)}
-							onCancelEditingAct={() => setEditingAct(null)}
-							onDeleteAct={() => void deleteAct(a)}
-							reorderingAct={Boolean(reorderingAct)}
-							draggedAct={draggedAct}
-							onDragStartAct={() => setDraggedAct(a.id_acto)}
-							onDragEndAct={() => setDraggedAct(null)}
-							onDropAct={() => {
-								if (draggedAct) void reorderActs(draggedAct, a.id_acto);
-								setDraggedAct(null);
-							}}
-							onSaveActSummary={(value) => saveActSummary(a.id_acto, value)}
-							onGenerateActSummary={() => void generateActSummary(a)}
-							expanded={expanded}
-							editingCap={editingCap}
-							openChapterMenu={openChapterMenu}
-							batchBusy={batchBusy}
-							reorderingChapter={reorderingChapter}
-							draggedChapter={draggedChapter}
-							onToggleChapter={toggle}
-							onStartEditingCap={setEditingCap}
-							onCommitCapName={commitCapName}
-							onCancelEditingCap={() => setEditingCap(null)}
-							onToggleChapterMenu={setOpenChapterMenu}
-							onSaveOutline={saveOutline}
-							onOpenManuscript={openChapter}
-							onGenerateChapterOutline={(chapter) => {
-								closeChapterMenu();
-								void generateChapterOutline(chapter);
-							}}
-							onGenerateChapterOutlineByMemory={(chapter) => {
-								closeChapterMenu();
-								void generateChapterOutlineByMemory(chapter);
-							}}
-							onGenerateChapterMemory={(chapter) => {
-								closeChapterMenu();
-								void generateChapterMemory(chapter);
-							}}
-							onGenerateChapterDraft={(chapter) => {
-								closeChapterMenu();
-								void generateSingleDraft(chapter);
-							}}
-							onCreateChapterManuscript={(chapter) => {
-								closeChapterMenu();
-								void createChapterManuscript(chapter);
-							}}
-							onLinkChapterFile={linkChapterFile}
-							onCopyChapterForPublishing={(chapter) => {
-								closeChapterMenu();
-								openPublishChapterModal(plugin, chapter.id_capitulo);
-							}}
-							onDeleteChapter={(chapter) => void deleteChapter(chapter)}
-							onDragStartChapter={setDraggedChapter}
-							onDragEndChapter={() => setDraggedChapter(null)}
-							onDropChapter={(targetId) => {
-								if (draggedChapter)
-									void reorderChapters(draggedChapter, targetId);
-								setDraggedChapter(null);
-							}}
-							adding={addingTo === a.id_acto}
-							newChapterName={capName}
-							onNewChapterNameChange={setCapName}
-							onStartAddingChapter={() => {
-								setAddingTo(a.id_acto);
-								setCapName("");
-							}}
-							onCancelAddingChapter={() => setAddingTo(null)}
-							onAddChapter={() => void addCap(a.id_acto)}
-						/>
-					);
-				})}
-			</div>
+			<ContinuityProvider value={continuityChecker}>
+				<div className="nw-outline-view nw-outline-single-column">
+					<OutlineHeader
+						batchBusy={batchBusy}
+						chaptersCount={capitulos.length}
+						onGenerateAllMemory={() => void generateAllMemory()}
+						onGenerateAllOutlines={() => void generateAllOutlines()}
+						onCreateAllManuscripts={() => void createAllManuscripts()}
+						onGenerateDrafts={() => void generateDrafts()}
+						onOpenSetup={() => openNovelBlueprintModal(plugin)}
+						onExport={() => openExportModal(plugin)}
+					/>
+					{batchStatus && (
+						<div className="nw-outline-status">{batchStatus}</div>
+					)}
+					<AddActo value={newAct} onChange={setNewAct} onCreate={() => void addActo()} />
+					{[...actos].sort((first, second) => first.orden - second.orden).map((a) => {
+						const caps = capitulos
+							.filter((c) => c.id_acto === a.id_acto)
+							.sort((first, second) => first.orden - second.orden);
+						return (
+							<ActoSection
+								key={a.id_acto}
+								acto={a}
+								chapters={caps}
+								collapsed={collapsedActs.has(a.id_acto)}
+								onToggleCollapse={() => toggleActCollapse(a.id_acto)}
+								editingAct={editingAct === a.id_acto}
+								onStartEditingAct={() => setEditingAct(a.id_acto)}
+								onCommitActName={(name) => commitActName(a, name)}
+								onCancelEditingAct={() => setEditingAct(null)}
+								onDeleteAct={() => void deleteAct(a)}
+								reorderingAct={Boolean(reorderingAct)}
+								draggedAct={draggedAct}
+								onDragStartAct={() => setDraggedAct(a.id_acto)}
+								onDragEndAct={() => setDraggedAct(null)}
+								onDropAct={() => {
+									if (draggedAct) void reorderActs(draggedAct, a.id_acto);
+									setDraggedAct(null);
+								}}
+								onSaveActSummary={(value) => saveActSummary(a.id_acto, value)}
+								onGenerateActSummary={() => void generateActSummary(a)}
+								expanded={expanded}
+								editingCap={editingCap}
+								openChapterMenu={openChapterMenu}
+								batchBusy={batchBusy}
+								reorderingChapter={reorderingChapter}
+								draggedChapter={draggedChapter}
+								onToggleChapter={toggle}
+								onStartEditingCap={setEditingCap}
+								onCommitCapName={commitCapName}
+								onCancelEditingCap={() => setEditingCap(null)}
+								onToggleChapterMenu={setOpenChapterMenu}
+								onSaveOutline={saveOutline}
+								onOpenManuscript={openChapter}
+								onGenerateChapterOutline={(chapter) => {
+									closeChapterMenu();
+									void generateChapterOutline(chapter);
+								}}
+								onGenerateChapterOutlineByMemory={(chapter) => {
+									closeChapterMenu();
+									void generateChapterOutlineByMemory(chapter);
+								}}
+								onGenerateChapterMemory={(chapter) => {
+									closeChapterMenu();
+									void generateChapterMemory(chapter);
+								}}
+								onGenerateChapterDraft={(chapter) => {
+									closeChapterMenu();
+									void generateSingleDraft(chapter);
+								}}
+								onCreateChapterManuscript={(chapter) => {
+									closeChapterMenu();
+									void createChapterManuscript(chapter);
+								}}
+								onLinkChapterFile={linkChapterFile}
+								onCopyChapterForPublishing={(chapter) => {
+									closeChapterMenu();
+									openPublishChapterModal(plugin, chapter.id_capitulo);
+								}}
+								onCheckChapterContinuity={(chapter) => {
+									closeChapterMenu();
+									openContinuityModal(plugin, chapter.id_capitulo);
+								}}
+								onDeleteChapter={(chapter) => void deleteChapter(chapter)}
+								onDragStartChapter={setDraggedChapter}
+								onDragEndChapter={() => setDraggedChapter(null)}
+								onDropChapter={(targetId) => {
+									if (draggedChapter)
+										void reorderChapters(draggedChapter, targetId);
+									setDraggedChapter(null);
+								}}
+								adding={addingTo === a.id_acto}
+								newChapterName={capName}
+								onNewChapterNameChange={setCapName}
+								onStartAddingChapter={() => {
+									setAddingTo(a.id_acto);
+									setCapName("");
+								}}
+								onCancelAddingChapter={() => setAddingTo(null)}
+								onAddChapter={() => void addCap(a.id_acto)}
+							/>
+						);
+					})}
+				</div>
+			</ContinuityProvider>
 		</SceneActionsProvider>
 	);
 }

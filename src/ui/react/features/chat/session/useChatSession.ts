@@ -3,6 +3,7 @@ import type NovelWriterPlugin from '../../../../../../main';
 import { useNovelWriter } from '../../../store/novelWriterStore';
 import type { ToolContext } from '../../../../../interfaces/tool-context';
 import { createGeneratorToolContext } from '../tools/createGeneratorToolContext';
+import { createContinuityToolContext } from '../tools/createContinuityToolContext';
 import { createMemoryToolContext } from '../tools/createMemoryToolContext';
 import { createPortraitToolContext } from '../tools/createPortraitToolContext';
 import { createStoreToolContext } from '../tools/createStoreToolContext';
@@ -18,6 +19,7 @@ function createToolContext(plugin: NovelWriterPlugin): ToolContext {
 		...createWorkspaceToolContext(plugin),
 		...createMemoryToolContext(plugin),
 		...createGeneratorToolContext(plugin),
+		...createContinuityToolContext(plugin),
 		...createPortraitToolContext(plugin),
 	};
 }

@@ -113,12 +113,23 @@ Menú ⋮ de una entrada → "Generate portrait": dibuja su imagen con el Images
 Los outlines, resúmenes y el "qué pasa" de cada escena se guardan solos; no hace falta
 ninguna tecla.
 
+En el capítulo expandido, "▸ Details", "▸ Scenes" y "▸ Facts" abren o cierran su sección; la última
+elección se recuerda. Los botones de cada sección aparecen al abrirla.
+
 Clics en las escenas del capítulo expandido:
 
 - `+`: agrega una escena al final. ✨: divide el outline en escenas con IA.
 - ↑ / ↓: mueve la escena. Lápiz: escribe esa escena en el manuscrito. Papelera: la
   quita del plan (el manuscrito no se toca).
 - "More": muestra punto de vista, escenario, objetivo, conflicto, desenlace y palabras.
+
+Continuidad:
+
+- Menú "⋯" del capítulo → "Check continuity...": abre el último reporte o revisa.
+- En el reporte: "Go to text" abre el capítulo con el pasaje seleccionado; "Dismiss"
+  quita el problema; "Check again" revisa de nuevo.
+- "Facts" del capítulo expandido: ↻ extrae con IA; Enter en "+ Add a fact" lo agrega
+  (Escape lo vacía); Enter guarda un hecho editado y Escape descarta; × lo borra.
 
 ### Codex
 

@@ -75,10 +75,10 @@ para "View context".
 | Codex | 8 | 630 |
 | Novel | 5 | 480 |
 | Workspace | 5 | 250 |
-| Generators | 4 | 295 |
+| Generators | 5 | 375 |
 
-Con todo encendido son 39 tools y ~14 000 caracteres (~3500 tokens), contando las
-reglas fijas (~385 tokens); con `generate_portrait`, 40 y ~3575 tokens.
+Con todo encendido son 40 tools y ~14 300 caracteres (~3580 tokens), contando las
+reglas fijas (~385 tokens); con `generate_portrait`, 41 y ~3655 tokens.
 
 ### Manuscrito (`manuscriptDefinitions.ts`)
 
@@ -151,6 +151,7 @@ contexto del chat: el modelo recibe un reporte corto y lee más si lo necesita.
 | `generate_outline` | write | Outline de un capítulo desde su manuscrito (`source: manuscript`) o desde la historia previa (`story_so_far`) |
 | `summarize_act` | write | Resumen de un acto desde los outlines de sus capítulos |
 | `draft_chapter` | write | Borrador completo desde el outline con el modelo `writing`, con el largo del Story Bible (`words` lo reemplaza, con ±10 %); con escenas, escena por escena. Pide outline o escenas; si el capítulo ya tiene texto, exige `overwrite: yes` |
+| `check_continuity` | write | Revisa un capítulo contra los hechos de los anteriores y el codex, con el modelo `utilities`; extrae hechos solo donde el texto cambió. Devuelve los problemas con su capítulo y guarda el reporte ([continuity.md](continuity.md)) |
 | `refresh_story_context` | write | Reescribe "la historia hasta aquí" en la memoria de un capítulo o de todos. Sin IA |
 | `generate_portrait` | write | Retrato de una entrada del codex con el Images model; queda como su imagen (reemplaza la anterior) |
 

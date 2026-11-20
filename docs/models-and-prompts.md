@@ -38,7 +38,7 @@ Cada función elige un perfil por **propósito** (`ModelPurpose`), en
 |---|---|
 | `chat` | El chat (`createChatCompletion`) |
 | `writing` | Autocompletado, acciones del editor, borradores de capítulo |
-| `utilities` | Nombres de chat, resúmenes, memorias, tareas cortas (`createUtilityCompletion`) |
+| `utilities` | Nombres de chat, resúmenes, memorias, escenas, hechos y revisión de continuidad, tareas cortas (`createUtilityCompletion`) |
 
 `getActiveModelConfig(settings, purpose)` resuelve el perfil a proveedor + opciones. Si
 el perfil asignado se borró, lanza un error claro.

@@ -4,9 +4,10 @@ import { InlineRename } from "./InlineRename";
 import { ChapterActionsMenu } from "./ChapterActionsMenu";
 import { AutoSaveTextarea } from "../components/AutoSaveTextarea";
 import { CHAPTER_DRAG_TYPE, carriesDragType } from "./dragTypes";
-import { ChapterInfoFields } from "./ChapterInfoFields";
+import { ChapterInfoSection } from "./ChapterInfoSection";
 import { ChapterStatusDot } from "./ChapterStatusDot";
 import { ChapterScenes } from "./ChapterScenes";
+import { ChapterFacts } from "../features/continuity/ChapterFacts";
 
 export interface ChapterRowProps {
 	chapter: Capitulo;
@@ -29,6 +30,7 @@ export interface ChapterRowProps {
 	onGenerateDraft: () => void;
 	onLinkFile: () => void;
 	onCopyForPublishing: () => void;
+	onCheckContinuity: () => void;
 	onDelete: () => void;
 	onDragStart: () => void;
 	onDragEnd: () => void;
@@ -58,6 +60,7 @@ export function ChapterRow({
 	onGenerateDraft,
 	onLinkFile,
 	onCopyForPublishing,
+	onCheckContinuity,
 	onDelete,
 	onDragStart,
 	onDragEnd,
@@ -165,11 +168,12 @@ export function ChapterRow({
 						onGenerateDraft={onGenerateDraft}
 						onLinkFile={onLinkFile}
 						onCopyForPublishing={onCopyForPublishing}
+						onCheckContinuity={onCheckContinuity}
 						onDelete={onDelete}
 					/>
 				)}
 			</div>
-			{expanded && <ChapterInfoFields chapter={chapter} />}
+			{expanded && <ChapterInfoSection chapter={chapter} />}
 			{expanded && (
 				<AutoSaveTextarea
 					className="nw-outline-inline-editor"
@@ -180,6 +184,7 @@ export function ChapterRow({
 				/>
 			)}
 			{expanded && <ChapterScenes chapter={chapter} />}
+			{expanded && <ChapterFacts chapter={chapter} />}
 		</div>
 	);
 }

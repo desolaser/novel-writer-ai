@@ -13,6 +13,8 @@ import { useNovelWriter } from "../store/novelWriterStore";
 import { Icon } from "../components/Icon";
 import { SceneCard } from "./SceneCard";
 import { useSceneActions } from "./sceneActionsContext";
+import { CollapsibleSection } from "../components/CollapsibleSection";
+import { useOutlineSectionOpen } from "./useOutlineSectionOpen";
 
 export interface ChapterScenesProps {
 	chapter: Capitulo;
@@ -33,6 +35,7 @@ export function ChapterScenes({ chapter }: ChapterScenesProps) {
 		}))
 	);
 	const actions = useSceneActions();
+	const [open, toggle] = useOutlineSectionOpen("scenes");
 	const scenes = chapter.scenes ?? [];
 	const hasOutline = Boolean(chapter.outline?.trim());
 
@@ -54,11 +57,13 @@ export function ChapterScenes({ chapter }: ChapterScenesProps) {
 	};
 
 	return (
-		<div className="nw-scenes">
-			<div className="nw-scenes-header">
-				<span className="nw-scenes-title">
-					Scenes{scenes.length ? ` (${scenes.length})` : ""}
-				</span>
+		<CollapsibleSection
+			className="nw-scenes"
+			title="Scenes"
+			count={scenes.length}
+			open={open}
+			onToggle={toggle}
+			actions={<>
 				<button
 					className="nw-btn nw-btn-icon"
 					title="Add a scene"
@@ -79,7 +84,8 @@ export function ChapterScenes({ chapter }: ChapterScenesProps) {
 				>
 					<Icon.Magic width={12} height={12} />
 				</button>
-			</div>
+			</>}
+		>
 			{!scenes.length && (
 				<p className="nw-scenes-empty">
 					No scenes. With scenes, the draft is written one scene at a time.
@@ -102,6 +108,6 @@ export function ChapterScenes({ chapter }: ChapterScenesProps) {
 					onDraft={() => actions.draftScene(chapter, scene.id)}
 				/>
 			))}
-		</div>
+		</CollapsibleSection>
 	);
 }

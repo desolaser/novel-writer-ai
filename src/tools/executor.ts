@@ -32,6 +32,7 @@ import {
 	summarizeActTool,
 } from './generatorTools';
 import { readMemory, writeMemory } from './memoryTools';
+import { checkContinuityTool } from './continuityTools';
 import { updatePlan } from './planTools';
 import { openChapter, openCodexEntryTool, readNoteTool, readSelection } from './workspaceTools';
 
@@ -82,6 +83,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	generate_outline: generateOutlineTool,
 	summarize_act: summarizeActTool,
 	draft_chapter: draftChapterTool,
+	check_continuity: checkContinuityTool,
 	refresh_story_context: refreshStoryContextTool,
 	generate_portrait: generatePortrait,
 };

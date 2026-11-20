@@ -11,6 +11,7 @@ import type {
 	Tag,
 } from '../domain';
 import type { PromptMetaKey } from '../types/PromptMeta';
+import type { ContinuityReport } from '../types/Continuity';
 import type { DraftLength } from '../utils/draftLength';
 
 /**
@@ -151,6 +152,17 @@ export interface PortraitToolContext {
 	generatePortrait(entryId: EntityId, prompt: string): Promise<{ replaced: boolean }>;
 }
 
+/** A continuity report and the earlier chapters it could not read. */
+export interface ContinuityCheckOutcome {
+	report: ContinuityReport;
+	skipped: string[];
+}
+
+/** The continuity check, with the utilities model. Saves its report. */
+export interface ContinuityToolContext {
+	checkContinuity(chapterId: EntityId): Promise<ContinuityCheckOutcome>;
+}
+
 /** Data of the novel, served by the store adapter. */
 export type NovelToolContext = ChapterToolContext
 	& SceneToolContext
@@ -166,4 +178,5 @@ export type WorkspaceToolContext = NavigationToolContext
 export type ToolContext = NovelToolContext
 	& WorkspaceToolContext
 	& GeneratorToolContext
+	& ContinuityToolContext
 	& PortraitToolContext;

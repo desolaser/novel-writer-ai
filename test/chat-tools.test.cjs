@@ -203,6 +203,14 @@ function fakeNovel() {
 			return { text, length };
 		},
 		refreshStoryContext: async (id) => (id ? 1 : data.chapters.length),
+		continuityIssues: [],
+		checkContinuity: async (id) => ({
+			report: {
+				checked_at: 'now', text_hash: 'h', facts_checked: 4,
+				issues: context.continuityIssues,
+			},
+			skipped: id === 'c3' ? ['Arrival'] : [],
+		}),
 
 		portraitPrompts: [],
 		generatePortrait: async (id, prompt) => {
@@ -700,4 +708,28 @@ test('draft_chapter accepts a chapter with scenes and no outline', async () => {
 	const drafted = await run(context, 'draft_chapter', { chapter: 'Aftermath' });
 	assert.ok(drafted.ok, drafted.output);
 	assert.ok(data.texts.c3.length > 0);
+});
+
+test('check_continuity reports issues with the chapter each fact came from', async () => {
+	const { context } = fakeNovel();
+	context.continuityIssues = [{
+		id: 'i1', title: 'Eye color', quote: 'her brown eyes', explanation: 'Green before.',
+		fact: 'Elena has green eyes', fact_chapter_id: 'c1',
+	}];
+	const result = await run(context, 'check_continuity', { chapter: 'The Storm' });
+	assert.ok(result.ok, result.output);
+	assert.match(result.output, /Checked "The Storm" against 4 facts/);
+	assert.match(result.output, /1\. Eye color\n   Quote: "her brown eyes"\n   Contradicts: Elena has green eyes \(#1 Arrival\)\n   Why: Green before\./);
+	assert.match(result.output, /Check continuity\.\.\./);
+});
+
+test('check_continuity: no issues, a chapter without text, and approval', async () => {
+	const { context } = fakeNovel();
+	const clean = await run(context, 'check_continuity', { chapter: 'Arrival' });
+	assert.match(clean.output, /No contradictions found\./);
+	const empty = await run(context, 'check_continuity', { chapter: 'Aftermath' });
+	assert.equal(empty.ok, false);
+	assert.match(empty.output, /no text to check/);
+	const unapproved = await run(context, 'check_continuity', { chapter: 'Arrival' }, false);
+	assert.equal(unapproved.ok, false, 'it spends the utilities model: needs approval');
 });
