@@ -70,15 +70,15 @@ para "View context".
 
 | Grupo | Tools | Tokens aprox. |
 |---|---|---|
-| Manuscript | 10 | 955 |
-| Structure | 7 | 500 |
+| Manuscript | 10 | 975 |
+| Structure | 7 | 515 |
 | Codex | 8 | 630 |
 | Novel | 5 | 480 |
 | Workspace | 5 | 250 |
 | Generators | 5 | 375 |
 
-Con todo encendido son 40 tools y ~14 300 caracteres (~3580 tokens), contando las
-reglas fijas (~385 tokens); con `generate_portrait`, 41 y ~3655 tokens.
+Con todo encendido son 40 tools y ~14 450 caracteres (~3615 tokens), contando las
+reglas fijas (~385 tokens); con `generate_portrait`, 41 y ~3690 tokens.
 
 ### Manuscrito (`manuscriptDefinitions.ts`)
 
@@ -91,7 +91,7 @@ reglas fijas (~385 tokens); con `generate_portrait`, 41 y ~3655 tokens.
 | `edit_chapter` | write | Reemplaza un pasaje exacto (`find` → `replace`); `all: yes` reemplaza todas las ocurrencias |
 | `search_novel` | read | Busca un texto en manuscritos, outlines y codex (`scope`) y devuelve fragmentos |
 | `read_outline` | read | Outline y plan de escenas de un capítulo |
-| `set_scene` | write | Agrega una escena (`scene` vacío o `new`, `position` opcional) o cambia una (`scene: 2`); los campos omitidos quedan, "none" borra |
+| `set_scene` | write | Agrega una escena (`scene` vacío o `new`, `position` opcional) o cambia una (`scene: 2`), con su día (`day`) si se quiere; los campos omitidos quedan, "none" borra |
 | `delete_scene` | write | Quita una escena del plan; el manuscrito no se toca |
 | `write_outline` | write | Reemplaza o agrega al outline de un capítulo |
 
@@ -104,7 +104,7 @@ reglas fijas (~385 tokens); con `generate_portrait`, 41 y ~3655 tokens.
 | `update_act` | write | Renombra un acto o reemplaza/extiende su resumen |
 | `rename_chapter` | write | Renombra un capítulo; su manuscrito se renombra también |
 | `move_chapter` | write | Mueve un capítulo a una posición de su acto o de otro acto |
-| `set_chapter_info` | write | Estado, punto de vista, escenario, día y etiqueta de tiempo de un capítulo. Lo omitido no cambia; `none` borra |
+| `set_chapter_info` | write | Estado, punto de vista, escenario, día, último día (`to_day`) y etiqueta de tiempo de un capítulo. Lo omitido no cambia; `none` borra; el último día no puede ser anterior al primero |
 | `delete_chapter` | write, `alwaysAsk` | Borra un capítulo y manda su manuscrito a la papelera |
 
 ### Codex (`codexDefinitions.ts`)

@@ -733,3 +733,22 @@ test('check_continuity: no issues, a chapter without text, and approval', async 
 	const unapproved = await run(context, 'check_continuity', { chapter: 'Arrival' }, false);
 	assert.equal(unapproved.ok, false, 'it spends the utilities model: needs approval');
 });
+
+test('set_chapter_info takes a range of days; set_scene a day per scene', async () => {
+	const { data, context } = fakeNovel();
+	const ranged = await run(context, 'set_chapter_info', { chapter: 'Arrival', day: '3', to_day: '5' });
+	assert.ok(ranged.ok, ranged.output);
+	assert.equal(data.chapters[0].story_day_end, 5);
+	assert.match(ranged.output, /story time: days 3–5/);
+
+	const backwards = await run(context, 'set_chapter_info', { chapter: 'Arrival', to_day: '1' });
+	assert.equal(backwards.ok, false);
+	assert.match(backwards.output, /can't be before/);
+	assert.equal(data.chapters[0].story_day_end, 5, 'nothing was written');
+
+	const scene = await run(context, 'set_scene', { chapter: 'Arrival', title: 'Inn', day: '7' });
+	assert.ok(scene.ok, scene.output);
+	assert.match(scene.output, /day: 7/);
+	const list = await run(context, 'list_chapters');
+	assert.match(list.output, /#1 Arrival .*story time: days 3–7/, 'the scene widens the range');
+});

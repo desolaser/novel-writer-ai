@@ -92,6 +92,7 @@ export const MANUSCRIPT_TOOLS: ToolDefinition[] = [
 			{ name: 'goal', description: 'What the point-of-view character wants.' },
 			{ name: 'conflict', description: 'What stands in the way.' },
 			{ name: 'outcome', description: 'How it ends, or the hook.' },
+			{ name: 'day', description: 'Day inside the story; otherwise the previous scene\'s.' },
 			{ name: 'words', description: 'Words for this scene; otherwise a share of the chapter.' },
 			{ name: 'position', description: 'Place in the plan (1 = first). Defaults to the end.' },
 		],

@@ -4,7 +4,7 @@ import type {
 	CodexToolContext,
 	SceneToolContext,
 } from '../interfaces/tool-context';
-import { linkedEntryName } from '../utils/chapterInfo';
+import { linkedEntryName, parseStoryDay } from '../utils/chapterInfo';
 import {
 	createScene,
 	insertScene,
@@ -61,6 +61,7 @@ export function describeScene(
 	if (scene.goal) facts.push(`goal: ${scene.goal}`);
 	if (scene.conflict) facts.push(`conflict: ${scene.conflict}`);
 	if (scene.outcome) facts.push(`outcome: ${scene.outcome}`);
+	if (typeof scene.story_day === 'number') facts.push(`day: ${scene.story_day}`);
 	if (scene.target_words) facts.push(`words: ${scene.target_words}`);
 	const head = `${index + 1}. ${sceneLabel(scene, index)}`;
 	const summary = scene.summary ? ` — ${scene.summary}` : '';
@@ -102,6 +103,8 @@ function buildPatch(
 	if (setting !== null) patch.location_entry_id = entryArg(setting, context);
 	const words = given(args, 'words');
 	if (words !== null) patch.target_words = parseSceneWords(words);
+	const day = given(args, 'day');
+	if (day !== null) patch.story_day = parseStoryDay(day);
 	return patch;
 }
 
@@ -139,7 +142,7 @@ export async function setScene(
 	const scene = sceneAt(chapter, target);
 	if (!Object.keys(patch).length && position === undefined) {
 		throw new Error('Nothing to update: pass title, summary, pov, setting, '
-			+ 'goal, conflict, outcome, words and/or position.');
+			+ 'goal, conflict, outcome, day, words and/or position.');
 	}
 	const scenes = await context.changeChapterScenes(chapter.id_capitulo, (list) => {
 		const patched = patchScene(list, scene.id, patch);

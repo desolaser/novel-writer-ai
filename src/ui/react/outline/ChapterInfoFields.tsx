@@ -2,7 +2,7 @@ import { Notice } from "obsidian";
 import { useShallow } from "zustand/react/shallow";
 import type { Capitulo, ChapterInfo, ChapterStatus } from "../../../domain";
 import { CHAPTER_STATUSES } from "../../../constants/chapterStatus";
-import { parseStoryDay } from "../../../utils/chapterInfo";
+import { checkDayRange, parseStoryDay } from "../../../utils/chapterInfo";
 import { useNovelWriter } from "../store/novelWriterStore";
 import { CommitInput } from "../components/CommitInput";
 import { CodexEntrySelect } from "./CodexEntrySelect";
@@ -37,7 +37,19 @@ export function ChapterInfoFields({ chapter }: ChapterInfoFieldsProps) {
 
 	const saveDay = async (value: string) => {
 		try {
-			await save({ story_day: parseStoryDay(value) });
+			const day = parseStoryDay(value);
+			checkDayRange(day, chapter.story_day_end ?? null);
+			await save({ story_day: day });
+		} catch (error: any) {
+			new Notice(error?.message ?? String(error));
+		}
+	};
+
+	const saveEndDay = async (value: string) => {
+		try {
+			const end = parseStoryDay(value);
+			checkDayRange(chapter.story_day, end);
+			await save({ story_day_end: end });
 		} catch (error: any) {
 			new Notice(error?.message ?? String(error));
 		}
@@ -87,7 +99,7 @@ export function ChapterInfoFields({ chapter }: ChapterInfoFieldsProps) {
 					onChange={(id) => void save({ location_entry_id: id })}
 				/>
 			</label>
-			<div className="nw-chapter-info-field">
+			<div className="nw-chapter-info-field nw-chapter-info-wide">
 				<span>Story time</span>
 				<div className="nw-chapter-info-time">
 					<CommitInput
@@ -98,6 +110,16 @@ export function ChapterInfoFields({ chapter }: ChapterInfoFieldsProps) {
 						title="Day inside the story, to sort chapters chronologically"
 						ariaLabel="Story day"
 						onCommit={saveDay}
+					/>
+					<span className="nw-chapter-info-to">to</span>
+					<CommitInput
+						type="number"
+						className="nw-chapter-info-day"
+						value={chapter.story_day_end?.toString() ?? ""}
+						placeholder="Day"
+						title="Last day, for a chapter that spans several. Empty: one day"
+						ariaLabel="Last story day"
+						onCommit={saveEndDay}
 					/>
 					<CommitInput
 						className="nw-chapter-info-when"

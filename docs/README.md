@@ -28,6 +28,7 @@
 | [metrics.md](metrics.md) | Pestaña Metrics: estadísticas, ritmo de escritura y mapa de apariciones | `src/utils/novelMetrics.ts`, `src/infrastructure/storage/writingTracker.ts`, `src/ui/react/features/metrics` |
 | [export.md](export.md) | Exportar la novela (EPUB, DOCX, HTML, Markdown), por capítulo, copiar para publicar | `src/utils/manuscriptExport`, `src/ui/react/features/export` |
 | [continuity.md](continuity.md) | Revisión de continuidad: registro de hechos por capítulo, reporte, `check_continuity` | `src/ui/react/features/continuity`, `src/utils/storyFacts.ts`, `src/context/continuityPrompt.ts` |
+| [timeline.md](timeline.md) | Línea de tiempo de la historia: rangos de días de capítulos y escenas, vista, carriles | `src/utils/storyTimeline.ts`, `src/ui/react/features/timeline` |
 | [testing.md](testing.md) | Cómo se escriben y corren los tests | `test/` |
 | [hotkeys.md](hotkeys.md) | Todos los atajos: comandos, teclado y mouse | — |
 | [changelog.md](changelog.md) | Registro de cambios | — |

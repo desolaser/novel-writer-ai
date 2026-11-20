@@ -5,6 +5,22 @@ qué documento de módulo tiene el detalle.
 
 ## 2026-11-19
 
+### Línea de tiempo de la historia
+- Vista nueva en el área principal ("Open story timeline" o botón en la cabecera del
+  Outline): los capítulos según cuándo pasan, como barras sobre una columna por día
+  usado (los saltos se marcan "+N"), en carriles por punto de vista, escenario,
+  personajes nombrados o sin carriles. Flashbacks marcados; escenas fechadas como
+  marcas sobre su capítulo; "Undated" con los capítulos sin día.
+- Arrastrar una barra la cambia de día (con sus escenas, sin cambiar la duración) o le
+  quita los días; clic abre un panel para escribir cualquier día; doble clic abre el
+  manuscrito.
+- Un capítulo puede durar varios días: `story_day_end` ("to" en Details) y un día
+  opcional por escena. El rango es la unión de los tres. Los prompts, `list_chapters`
+  y "Details" muestran "days 3–5".
+- Chat: `set_chapter_info` acepta `to_day`; `set_scene`, `day`.
+- Tests: `test/story-timeline.test.cjs`; casos en `chat-tools`. Detalle:
+  [timeline.md](timeline.md).
+
 ### Nombres sin entrada en Metrics
 - Sección "Names without an entry": nombres propios que aparecen 3+ veces (una a mitad
   de oración) y no son entradas del codex. Local, sin IA ni tokens. "Create" crea la

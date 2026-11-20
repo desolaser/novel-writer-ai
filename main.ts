@@ -15,6 +15,7 @@ import { getActiveModelConfig } from './src/infrastructure/settings/active-model
 import { createCodexHighlighter, type CodexHighlighterControl } from './src/ui/editor/codexHighlighter';
 import { openCodexEntry, paneTypeFor } from './src/ui/views/openCodexEntry';
 import { CodexEntryView, VIEW_TYPE_CODEX_ENTRY } from './src/ui/views/CodexEntryView';
+import { TimelineView, VIEW_TYPE_TIMELINE } from './src/ui/views/TimelineView';
 import type { EditorAction } from './src/types/EditorAction';
 import { validateEditorAction } from './src/infrastructure/settings/editor-action-repository';
 import { resolveEditorActionContext } from './src/context/editorActionPrompt';
@@ -75,6 +76,7 @@ export default class NovelWriterPlugin extends Plugin {
 		this.registerView(VIEW_TYPE_COMPANION, (leaf) => new CompanionView(leaf, this));
 		this.registerView(VIEW_TYPE_OUTLINE, (leaf) => new OutlineView(leaf, this));
 		this.registerView(VIEW_TYPE_CODEX_ENTRY, (leaf) => new CodexEntryView(leaf, this));
+		this.registerView(VIEW_TYPE_TIMELINE, (leaf) => new TimelineView(leaf, this));
 		this.registerEvent(this.app.vault.on('rename', (file) => {
 			const folderPath = this.store.activeFolderPath;
 			if (!(file instanceof TFile) || file.extension !== 'md' || !folderPath || !file.path.startsWith(`${folderPath}/`)) return;
@@ -128,6 +130,11 @@ export default class NovelWriterPlugin extends Plugin {
 		this.addCommand({ id: 'create-novel', name: 'Create new novel', callback: async () => { await this.createNovel(); } });
 		this.addCommand({ id: 'import-legacy-lorebook', name: 'Import legacy lorebook', callback: async () => { await this.importLorebook(); } });
 		this.addCommand({
+			id: 'open-story-timeline',
+			name: 'Open story timeline',
+			callback: () => void this.activateTimelineView(),
+		});
+		this.addCommand({
 			id: 'export-novel',
 			name: 'Export novel',
 			callback: async () => {
@@ -161,6 +168,17 @@ export default class NovelWriterPlugin extends Plugin {
 		if (leaf) this.app.workspace.revealLeaf(leaf);
 	}
 	async activateOutlineView() { const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_OUTLINE); let leaf = leaves[0]; if (!leaf) { leaf = this.app.workspace.getRightLeaf(true); if (leaf) await leaf.setViewState({ type: VIEW_TYPE_OUTLINE, active: true }); } if (leaf) this.app.workspace.revealLeaf(leaf); }
+	/** The story timeline, in a tab of the main area; reuses an open one. */
+	async activateTimelineView() {
+		const workspace = this.app.workspace;
+		let leaf = workspace.getLeavesOfType(VIEW_TYPE_TIMELINE)[0] ?? null;
+		if (!leaf) {
+			leaf = workspace.getLeaf('tab');
+			await leaf.setViewState({ type: VIEW_TYPE_TIMELINE, active: true });
+		}
+		workspace.revealLeaf(leaf);
+	}
+
 	async openOutlineChapter(chapterId: string) {
 		await this.activateOutlineView();
 		// Let React mount (or reveal) the outline before asking it to expand and focus

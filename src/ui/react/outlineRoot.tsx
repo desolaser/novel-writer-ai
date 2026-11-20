@@ -291,6 +291,7 @@ export function OutlineRoot({ plugin }: { plugin: NovelWriterPlugin }) {
 						onGenerateDrafts={() => void generateDrafts()}
 						onOpenSetup={() => openNovelBlueprintModal(plugin)}
 						onExport={() => openExportModal(plugin)}
+					onOpenTimeline={() => void plugin.activateTimelineView()}
 					/>
 					{batchStatus && (
 						<div className="nw-outline-status">{batchStatus}</div>

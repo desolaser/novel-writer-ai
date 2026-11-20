@@ -1,6 +1,7 @@
 import { Notice } from "obsidian";
 import type { Categoria, ChapterScene, EntradaCodex } from "../../../domain";
 import { parseSceneWords } from "../../../utils/chapterScenes";
+import { parseStoryDay } from "../../../utils/chapterInfo";
 import { CommitInput } from "../components/CommitInput";
 import { CodexEntrySelect } from "./CodexEntrySelect";
 
@@ -42,6 +43,14 @@ export function SceneDetailFields({
 	categories,
 	onChange,
 }: SceneDetailFieldsProps) {
+	const saveDay = async (value: string) => {
+		try {
+			await onChange({ story_day: parseStoryDay(value) });
+		} catch (error: any) {
+			new Notice(error?.message ?? String(error));
+		}
+	};
+
 	const saveWords = async (value: string) => {
 		try {
 			await onChange({ target_words: parseSceneWords(value) });
@@ -87,6 +96,17 @@ export function SceneDetailFields({
 					/>
 				</label>
 			))}
+			<label className="nw-chapter-info-field">
+				<span>Day</span>
+				<CommitInput
+					type="number"
+					value={scene.story_day?.toString() ?? ""}
+					placeholder="Same as before"
+					title="Day inside the story. Empty: the day of the scene before"
+					ariaLabel="Story day of the scene"
+					onCommit={saveDay}
+				/>
+			</label>
 			<label className="nw-chapter-info-field">
 				<span>Words</span>
 				<CommitInput

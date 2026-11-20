@@ -21,6 +21,7 @@ function sceneFacts(scene: ChapterScene, entries: EntradaCodex[]): string[] {
 	if (pov) facts.push(`Point of view: ${pov}.`);
 	const setting = linkedEntryName(scene.location_entry_id, entries, true);
 	if (setting) facts.push(`Setting: ${setting}.`);
+	if (typeof scene.story_day === 'number') facts.push(`Story day: ${scene.story_day}.`);
 	if (scene.goal?.trim()) facts.push(`Goal: ${scene.goal.trim()}`);
 	if (scene.conflict?.trim()) facts.push(`Conflict: ${scene.conflict.trim()}`);
 	if (scene.outcome?.trim()) facts.push(`Outcome: ${scene.outcome.trim()}`);

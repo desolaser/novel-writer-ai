@@ -14,6 +14,7 @@ defecto; el autor las asigna en Settings → Hotkeys buscando "Novel Writer".
 | Open Novel Writer Outline | `novel-writer-ai:open-novel-writer-outline` | Abre o muestra el Outline |
 | Create new novel | `novel-writer-ai:create-novel` | Crea una novela |
 | Import legacy lorebook | `novel-writer-ai:import-legacy-lorebook` | Importa una carpeta de notas al codex |
+| Open story timeline | `novel-writer-ai:open-story-timeline` | Abre la línea de tiempo en una pestaña ([timeline.md](timeline.md)) |
 | Export novel | `novel-writer-ai:export-novel` | Compila la novela o la exporta por capítulo ([export.md](export.md)) |
 | Copy chapter for publishing | `novel-writer-ai:copy-chapter-for-publishing` | Copia el siguiente capítulo sin publicar en el formato del sitio |
 | Generate text | `novel-writer-ai:generate-text` | Continúa el texto desde el cursor (solo en un editor) |
@@ -126,6 +127,14 @@ Clics en las escenas del capítulo expandido:
 Metrics, "Names without an entry": "Create" crea la entrada en la categoría elegida y la
 abre; "Ignore" deja de sugerir ese nombre en esta novela; el enlace del final vuelve a
 sugerir los ignorados.
+
+Línea de tiempo (botón con barras en la cabecera del Outline):
+
+- Arrastrar una barra a otro día: la mueve con sus escenas, sin cambiar cuánto dura.
+- Arrastrar una barra a "Undated": le quita los días. Arrastrar desde "Undated" a un
+  día: se lo pone.
+- Clic en una barra o en un capítulo de "Undated": panel con Day, To day, When y el
+  día de cada escena (Enter guarda, Escape descarta). Doble clic: abre el manuscrito.
 
 Continuidad:
 

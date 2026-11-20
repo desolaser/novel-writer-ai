@@ -9,6 +9,7 @@ export interface OutlineHeaderProps {
 	onGenerateDrafts: () => void;
 	onOpenSetup: () => void;
 	onExport: () => void;
+	onOpenTimeline: () => void;
 }
 
 /**
@@ -24,6 +25,7 @@ export function OutlineHeader({
 	onGenerateDrafts,
 	onOpenSetup,
 	onExport,
+	onOpenTimeline,
 }: OutlineHeaderProps) {
 	const hasChapters = chaptersCount > 0;
 
@@ -62,6 +64,15 @@ export function OutlineHeader({
 					aria-label="Create manuscripts"
 				>
 					<Icon.Save />
+				</button>
+				<button
+					className="nw-btn"
+					disabled={!hasChapters}
+					onClick={onOpenTimeline}
+					title="Open the story timeline"
+					aria-label="Open story timeline"
+				>
+					<Icon.Timeline />
 				</button>
 				<button
 					className="nw-btn"

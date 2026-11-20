@@ -7,7 +7,7 @@ import {
 	CHAPTER_STATUSES,
 	parseChapterStatus,
 } from '../constants/chapterStatus';
-import { parseStoryDay } from '../utils/chapterInfo';
+import { checkDayRange, parseStoryDay } from '../utils/chapterInfo';
 import { describeChapterInfo, resolveChapter } from './chapterTools';
 import { resolveEntry } from './codexShared';
 
@@ -59,6 +59,8 @@ function buildPatch(
 	if (setting !== null) patch.location_entry_id = entryArg(setting, context);
 	const day = given(args, 'day');
 	if (day !== null) patch.story_day = parseStoryDay(day);
+	const toDay = given(args, 'to_day');
+	if (toDay !== null) patch.story_day_end = parseStoryDay(toDay);
 	const when = given(args, 'when');
 	if (when !== null) patch.story_time = isClear(when) ? '' : when.trim();
 	return patch;
@@ -71,8 +73,11 @@ export async function setChapterInfo(
 	const chapter = resolveChapter(args.chapter ?? '', context);
 	const patch = buildPatch(args, context);
 	if (!Object.keys(patch).length) {
-		throw new Error('Nothing to update: pass status, pov, setting, day and/or when.');
+		throw new Error('Nothing to update: pass status, pov, setting, day, to_day '
+			+ 'and/or when.');
 	}
+	const merged = { ...chapter, ...patch };
+	checkDayRange(merged.story_day, merged.story_day_end ?? null);
 	await context.updateChapter(chapter.id_capitulo, patch);
 	const summary = describeChapterInfo({ ...chapter, ...patch }, context);
 	return `Chapter "${chapter.nombre}" updated. Now: ${summary || 'no info set'}.`;

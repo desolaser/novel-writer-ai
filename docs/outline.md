@@ -64,6 +64,7 @@ Cada capítulo puede tener, además de su outline (`ChapterInfo` en
 | `pov_entry_id` | Entrada del codex desde cuyo punto de vista se narra |
 | `location_entry_id` | Entrada del codex donde pasa principalmente |
 | `story_day` | Día dentro de la historia (entero, puede ser negativo). Sirve para ordenar por cronología |
+| `story_day_end` | Último día, si el capítulo dura varios; vacío = un día. Ver [timeline.md](timeline.md#el-tiempo-de-un-capítulo) |
 | `story_time` | Etiqueta libre ("tercera luna del invierno"), para calendarios inventados |
 | `published_on` | Fecha local (`YYYY-MM-DD`) en que se publicó online; ver [export.md](export.md#publicar-por-capítulo) |
 
@@ -121,6 +122,7 @@ el borrador se escribe **una escena a la vez**.
 | `pov_entry_id`, `location_entry_id` | Punto de vista y escenario si cambian; vacío = los del capítulo |
 | `goal`, `conflict`, `outcome` | Qué quiere el personaje, qué se lo impide, cómo termina o el gancho |
 | `target_words` | Palabras de la escena; vacío = una parte pareja del largo del capítulo |
+| `story_day` | Día de la escena; vacío = el de la escena anterior. Agranda el rango del capítulo |
 
 - **Dónde se editan.** Debajo del outline del capítulo expandido (`ChapterScenes`),
   en la sección plegable "Scenes".
@@ -275,9 +277,10 @@ continuidad (`ChapterFacts`, en `src/ui/react/features/continuity`). `outlineRoo
 da el `ContinuityChecker` por `ContinuityProvider`. Ver
 [continuity.md](continuity.md#el-registro-de-hechos).
 
-## Exportar y publicar
+## Exportar, publicar y línea de tiempo
 
-El botón de descarga de la cabecera abre "Export novel" y el menú "⋯" del capítulo
+El botón con barras de la cabecera abre la línea de tiempo (ver
+[timeline.md](timeline.md)). El botón de descarga de la cabecera abre "Export novel" y el menú "⋯" del capítulo
 tiene "Copy for publishing..." (deshabilitado sin manuscrito). Ver
 [export.md](export.md).
 

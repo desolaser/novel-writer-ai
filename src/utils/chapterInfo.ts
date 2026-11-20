@@ -28,13 +28,62 @@ export function linkedEntryName(
 	return entry.nombre;
 }
 
-/** "day 12 (third moon)", "day 12", "third moon" or "". */
-export function formatStoryTime(info: ChapterInfo): string {
+/** The days of a chapter's scenes, the only part of a scene time needs. */
+export interface DatedScene {
+	story_day?: number | null;
+}
+
+/** A chapter's time and, when it has them, its scenes. */
+export type ChapterTime = ChapterInfo & { scenes?: DatedScene[] };
+
+export interface DayRange {
+	start: number;
+	end: number;
+}
+
+function isDay(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * Days a chapter covers: from its day to its "to day", widened to every day
+ * its scenes have. Null when nothing is dated.
+ */
+export function chapterDayRange(info: ChapterTime): DayRange | null {
+	const days = [
+		info.story_day,
+		info.story_day_end,
+		...(info.scenes ?? []).map((scene) => scene.story_day),
+	].filter(isDay);
+	if (!days.length) return null;
+	return { start: Math.min(...days), end: Math.max(...days) };
+}
+
+/** "day 12", "days 3–5" or "". */
+export function formatDayRange(range: DayRange | null): string {
+	if (!range) return '';
+	return range.start === range.end
+		? `day ${range.start}`
+		: `days ${range.start}–${range.end}`;
+}
+
+/** "days 3–5 (third moon)", "day 12", "third moon" or "". */
+export function formatStoryTime(info: ChapterTime): string {
 	const label = info.story_time?.trim() ?? '';
-	const hasDay = typeof info.story_day === 'number';
-	if (hasDay && label) return `day ${info.story_day} (${label})`;
-	if (hasDay) return `day ${info.story_day}`;
-	return label;
+	const days = formatDayRange(chapterDayRange(info));
+	if (days && label) return `${days} (${label})`;
+	return days || label;
+}
+
+/**
+ * Checks a chapter's "to day" against its day: it can't be before it.
+ * Throws a message the author or the model can act on.
+ */
+export function checkDayRange(start: number | null | undefined, end: number | null): void {
+	if (end === null || !isDay(start)) return;
+	if (end < start) {
+		throw new Error(`The last day (${end}) can't be before the first (${start}).`);
+	}
 }
 
 /**
@@ -61,7 +110,7 @@ export interface ChapterInfoFact {
  * asked for.
  */
 export function chapterInfoFacts(
-	info: ChapterInfo,
+	info: ChapterTime,
 	entries: EntradaCodex[],
 	options: { forAi: boolean; includeStatus: boolean },
 ): ChapterInfoFact[] {
@@ -89,7 +138,7 @@ export function chapterInfoFacts(
  * story.
  */
 export function chapterInfoPromptLine(
-	info: ChapterInfo,
+	info: ChapterTime,
 	entries: EntradaCodex[],
 ): string {
 	const facts = chapterInfoFacts(info, entries, {

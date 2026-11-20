@@ -65,6 +65,7 @@ export const STRUCTURE_TOOLS: ToolDefinition[] = [
 			{ name: 'pov', description: 'Codex entry whose point of view tells it.' },
 			{ name: 'setting', description: 'Codex entry where it mainly happens.' },
 			{ name: 'day', description: 'Day inside the story (a number), for chronology.' },
+			{ name: 'to_day', description: 'Last day, if the chapter spans several.' },
 			{ name: 'when', description: 'Free label of when it happens.' },
 		],
 	},

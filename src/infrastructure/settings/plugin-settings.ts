@@ -112,6 +112,8 @@ export interface PluginSettings {
 		activeChatIds: Record<string, string>;
 		/** Open sections of an expanded chapter ("info", "scenes", "facts"); closed by default. */
 		outlineSections?: Record<string, boolean>;
+		/** Lanes of the story timeline: "pov", "setting", "characters" or "none". */
+		timelineLanes?: string;
 	};
 	/** Prompts custom del sistema (chat y texto). */
 	customPrompts: CustomPrompt[];

@@ -15,7 +15,7 @@
 | Archivo | Cubre |
 |---|---|
 | `chat-agent.test.cjs` | Loop del agente (rondas, pausa, repeticiones, stop, compactación) y `ChatSession` (aprobación, auto-approve, stop aunque el modelo o una tool no respondan, traza guardada, tools apagadas en Settings, `alwaysAsk`, deshacer una respuesta); parser con argumentos del catálogo |
-| `chat-tools.test.cjs` | Tools del chat contra una novela en memoria: catálogo completo y grupos de Settings, privacidad del codex, detalles, estructura (borrar incluido), escenas, blueprint, memoria, workspace, plan, generadores y continuidad |
+| `chat-tools.test.cjs` | Tools del chat contra una novela en memoria: catálogo completo y grupos de Settings, privacidad del codex, detalles, estructura (borrar incluido), escenas, blueprint, memoria, workspace, plan, generadores, continuidad y rangos de días |
 | `draft-length.test.cjs` | Largo de un borrador: rango del Story Bible, punto medio, rango por defecto, override y la regla del prompt |
 | `draft-ending.test.cjs` | Borradores cortados a mitad de oración: detección y recorte hasta la última oración completa |
 | `file-changes.test.cjs` | Diferencia entre copias de la novela y plan para deshacer una respuesta (conflictos incluidos) |
@@ -27,6 +27,7 @@
 | `continuity.test.cjs` | Continuidad: hash del texto, fusión de hechos (los del autor quedan), bloque de hechos anteriores, ubicar una cita, prompts y respuestas, archivo bajo lock con caso de control, archivo dañado, aviso a quien escucha, limpieza |
 | `continuity-checker.test.cjs` | `ContinuityChecker` con modelo, store y vault falsos: qué capítulos se extraen, reporte guardado, hechos del autor en la revisión, capítulo ilegible saltado, capítulo sin texto |
 | `name-candidates.test.cjs` | Nombres sin entrada: inicios de oración y diálogo, títulos, palabras en minúscula, nombres de varias palabras, entradas existentes (partes, signos, archivadas), ignorados, en Metrics; guardado en `__config.json` |
+| `story-timeline.test.cjs` | Línea de tiempo: rango de días (capítulo, último día, escenas), columnas y saltos, carriles por punto de vista, escenario y personaje, filas apiladas, flashbacks, marcas de escenas, mover y quitar días |
 | `chapter-info.test.cjs` | Información del capítulo: línea del prompt, entradas ocultas a la IA, días y tiempo de la historia, estados, fecha de publicación, agrupado en Metrics |
 | `chat-repo-lock.test.cjs` | Escrituras concurrentes a un chat, con caso de control |
 | `estructura-lock.test.cjs` | Escrituras concurrentes a `estructura.json`, con caso de control (también para las escenas de un capítulo); el rebuild conserva la información y las escenas de los capítulos |

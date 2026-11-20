@@ -31,6 +31,8 @@ export interface ChapterInfo {
 	location_entry_id?: EntityId | null;
 	/** Day inside the story, used to sort chapters chronologically. */
 	story_day?: number | null;
+	/** Last day it covers, for a chapter that spans several; empty = one day. */
+	story_day_end?: number | null;
 	/** Free label for when it happens ("third moon of winter"). */
 	story_time?: string;
 	/** Local date ("2026-11-19") it was published online; null if not yet. */
@@ -39,8 +41,8 @@ export interface ChapterInfo {
 
 /** Keys of `ChapterInfo`, to copy it between chapters without listing them twice. */
 export const CHAPTER_INFO_KEYS: (keyof ChapterInfo)[] = [
-	'status', 'pov_entry_id', 'location_entry_id', 'story_day', 'story_time',
-	'published_on',
+	'status', 'pov_entry_id', 'location_entry_id', 'story_day', 'story_day_end',
+	'story_time', 'published_on',
 ];
 
 /**
@@ -63,6 +65,8 @@ export interface ChapterScene {
 	outcome?: string;
 	/** Words for this scene; empty shares the chapter's length. */
 	target_words?: number | null;
+	/** Day inside the story; empty = the day of the scene before it. */
+	story_day?: number | null;
 }
 
 /** Capitulo: pertenece a un Acto y tiene un manuscrito Markdown asociado. */

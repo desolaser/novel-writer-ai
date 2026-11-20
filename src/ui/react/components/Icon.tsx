@@ -60,6 +60,9 @@ export const Icon = {
 	Filter: (p?: any) => (
 		<svg viewBox="0 0 24 24" {...base(p)}><path d="M3 4h18l-7 9v6l-4 2v-8L3 4z"/></svg>
 	),
+	Timeline: (p?: any) => (
+		<svg viewBox="0 0 24 24" {...base(p)}><path d="M3 5h10v3H3V5zm5 5.5h11v3H8v-3zM5 16h9v3H5v-3z"/></svg>
+	),
 	Download: (p?: any) => (
 		<svg viewBox="0 0 24 24" {...base(p)}><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
 	),
